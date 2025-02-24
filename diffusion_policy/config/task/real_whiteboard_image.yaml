@@ -1,0 +1,90 @@
+defaults:
+  - whiteboard_two_realsense_one_gelsight_24fps@_here_
+  - _self_
+
+name: real_whiteboard_sweep_v1_image_only
+
+image_shape: [3, 240, 320]
+dataset_path: data/whiteboard_sweep_v1_zarr
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    left_wrist_img:
+      shape: ${task.image_shape}
+      type: rgb
+    left_robot_tcp_pose:
+      shape: [3]
+      type: low_dim
+    left_robot_gripper_width:
+      shape: [1]
+      type: low_dim
+  action: 
+    shape: [4]
+
+env_runner:
+  _target_: diffusion_policy.env_runner.real_whiteboard_image_runner.RealWhiteboardImageRunner
+  eval_episodes: 10
+  max_duration_time: 20
+  tcp_action_update_interval: 8
+  gripper_action_update_interval: 8
+  latency_step: 2
+  control_fps: 12
+  inference_fps: 6
+  obs_temporal_downsample_ratio: 2
+  n_obs_steps: ${n_obs_steps}
+  enable_video_display: True
+  task_name: ${task_name}
+  transform_params: ${task.transforms}
+  shape_meta: *shape_meta
+  tcp_ensemble_buffer_params:
+    ensemble_mode: 'new'
+  gripper_ensemble_buffer_params:
+    ensemble_mode: 'new'
+  enable_video_recording: True
+  vcamera_server_ip: 192.168.2.187
+  vcamera_server_port: 8102
+  env_params:
+    robot_server_ip: ${task.robot_server.host_ip}
+    robot_server_port: ${task.robot_server.port}
+    device_mapping_server_ip: ${task.device_mapping_server.host_ip}
+    device_mapping_server_port: ${task.device_mapping_server.port}
+    data_processing_params:
+      # TODO: fix this (support left or right)
+      mode: 'single_arm_two_realsense_two_tactile'
+      pca_params:
+        n_components: 15
+        normalize: False
+        mode: 'Eval'
+        store: False
+        transformation_matrix_path: 'data/PCA_Transform/pca_transform_matrix.npy'
+        mean_matrix_path: 'data/PCA_Transform/pca_mean_matrix.npy'
+      use_6d_rotation: True
+      marker_dimension: 2
+      debug: False
+    max_fps: 10
+    debug: False
+    # gripper control params
+    use_force_control_for_gripper: ${task.teleop_server.use_force_control_for_gripper}
+    max_gripper_width: ${task.teleop_server.max_gripper_width}
+    min_gripper_width: ${task.teleop_server.min_gripper_width}
+    grasp_force: ${task.teleop_server.grasp_force}
+    gripper_control_time_interval: ${task.teleop_server.gripper_control_time_interval}
+    gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
+    gripper_width_threshold: 0.046
+    enable_gripper_width_clipping: True
+
+dataset:
+  _target_: diffusion_policy.dataset.real_whiteboard_image_dataset.RealWhiteboardImageDataset
+  shape_meta: *shape_meta
+  dataset_path: ${task.dataset_path}
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  n_obs_steps: ${dataset_obs_steps}
+  n_latency_steps: ${n_latency_steps}
+  seed: 42
+  val_ratio: 0.00
+  max_train_episodes: null
+  delta_action: False
+
