@@ -1,5 +1,5 @@
 defaults:
-  - real_robot_env@_here_
+  - single_arm_real_robot_env@_here_
   - _self_
 teleop_server:
   use_force_control_for_gripper: &use_force_control_for_gripper False
@@ -21,7 +21,5 @@ publisher:
       decimate: 2  # (0-4) decimation_filter magnitude for point cloud
       cpu_core_id:
         - 10
-  robot_publisher:
-    teleop_mode: right_arm_6DOF
   # no usb camera
   usb_camera_publisher: []

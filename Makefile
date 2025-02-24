@@ -6,12 +6,12 @@ PREPARE_VENV := . ../real_env/venv/bin/activate
 PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
-TASK := bimanual_one_realsense_rgb_left_30fps
+TASK := single_arm_one_realsense_30fps
 
 # record config
 SAVE_BASE_DIR := /home/wangyi/umi_base/record_data
 SAVE_FILE_DIR := test
-SAVE_FILE_NAME := trial1.pkl
+SAVE_FILE_NAME := trial50.pkl
 
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel

@@ -207,10 +207,10 @@ class TeleopServer:
 
             except Exception as e:
                 logger.exception(e)
-
+            
             if self.left_homing_state or self.right_homing_state:
                 continue
-
+            
             if mes.rightHand.cmd == 3 or mes.leftHand.cmd == 3:
                 self.left_tracking_state = False
                 self.left_homing_state = True
@@ -328,17 +328,11 @@ class TeleopServer:
                     else:
                         logger.info("right robot start tracking")
                         self.set_start_tcp(right_tcp, r_pos_from_unity, is_left=False)
-
+            
             if not self.left_homing_state and not self.right_homing_state:
                 threshold = 0.3
                 if self.left_tracking_state:
                     left_target_7d_in_robot = self.calc_relative_target(l_pos_from_unity, is_left=True)
-                    if self.velocity_perturber is not None:
-                        # calculate velocity (delta translation) in robot base frame
-                        tcp_velocity = left_target_7d_in_robot[:3] - left_tcp[:3]
-                        # perturb the velocity
-                        left_target_7d_in_robot[:3] = left_tcp[:3] + self.velocity_perturber.perturb_velocity(tcp_velocity)
-
                     left_target_6d_in_world = matrix4x4_to_pose_6d(self.transforms.left_robot_base_to_world_transform
                                                                    @ pose_7d_to_4x4matrix(left_target_7d_in_robot))
                     if self.teleop_mode == TeleopMode.left_arm_3D_translation:
@@ -389,14 +383,10 @@ class TeleopServer:
                         self.left_tracking_state = False
                     else:
                         self.send_command('/move_tcp/left', {'target_tcp': left_target.tolist()})
+                        # logger.debug(f'left target:{left_target.tolist()}')
 
                 if self.right_tracking_state:
                     right_target_7d_in_robot = self.calc_relative_target(r_pos_from_unity, is_left=False)
-                    if self.velocity_perturber is not None:
-                        # calculate velocity (delta translation) in robot base frame
-                        tcp_velocity = right_target_7d_in_robot[:3] - right_tcp[:3]
-                        # perturb the velocity
-                        right_target_7d_in_robot[:3] = right_tcp[:3] + self.velocity_perturber.perturb_velocity(tcp_velocity)
                     right_target_6d_in_world = matrix4x4_to_pose_6d(self.transforms.right_robot_base_to_world_transform
                                                                      @ pose_7d_to_4x4matrix(right_target_7d_in_robot))
                     if self.teleop_mode == TeleopMode.left_arm_3D_translation \
@@ -428,7 +418,7 @@ class TeleopServer:
                         self.right_tracking_state = False
                     else:
                         self.send_command('/move_tcp/right', {'target_tcp': right_target.tolist()})
-
+                        logger.debug(f'right target:{right_target.tolist()}')
             # logger.debug(f"Received data from VR: {mes}")
             end_time = time.time()
             precise_sleep(self.control_cycle_time - (end_time - start_time))

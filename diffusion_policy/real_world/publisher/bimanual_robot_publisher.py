@@ -10,7 +10,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Point, TwistStamped, WrenchStamped
 from std_msgs.msg import Header
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
-from diffusion_policy.common.data_models import BimanualRobotStates, ForceSensorMessage, Arrow, TeleopMode
+from diffusion_policy.common.data_models import BimanualRobotStates, ForceSensorMessage, Arrow
 from diffusion_policy.common.space_utils import pose_7d_to_4x4matrix, matrix4x4_to_pose_6d
 from loguru import logger
 
@@ -21,7 +21,6 @@ class BimanualRobotPublisher(Node):
     def __init__(self,
                  robot_server_ip: str,
                  robot_server_port: int,
-                 teleop_mode: TeleopMode,
                  transforms: RealWorldTransforms,
                  vr_server_ip: str = '127.0.0.1',
                  vr_server_tcp_port: int = 10001,
