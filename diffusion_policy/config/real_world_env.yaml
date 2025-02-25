@@ -1,2 +1,2 @@
 defaults:
-  - task: bimanual_one_realsense_rgb_left_30fps
+  - task: single_arm_one_realsense_30fps

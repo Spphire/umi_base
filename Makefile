@@ -7,6 +7,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 TASK := single_arm_one_realsense_30fps
+# TASK := bimanual_one_realsense_rgb_left_30fps
 
 # record config
 SAVE_BASE_DIR := /home/wangyi/umi_base/record_data

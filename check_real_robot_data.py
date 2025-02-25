@@ -68,19 +68,27 @@ def check_reshape_rope():
         print(state[i])
         print(f'action {i}:')
         print(action[i])
-
+      
 def check_pick_and_place():
-    zarr_path = 'data/pick_and_place_v4_zarr/replay_buffer.zarr'
+    zarr_path = '/root/umi_base_devel/data/test_zarr/replay_buffer.zarr'
     zarr_file = zarr.open(zarr_path)
     print(zarr_file.tree())
     data_file = zarr_file['data']
-    state = data_file['state'][:]
+    # state = data_file['state'][:]
     action = data_file['action'][:]
+    images = data_file['external_img'][:]
 
     num_samples = action.shape[0]
-    for i in tqdm.tqdm(range(num_samples)):
-        print(f'state {i}:')
-        print(state[i])
+
+    scale_factor = 30
+    
+    for i in tqdm.tqdm(range(int(num_samples/scale_factor))):
+        # print(f'state {i}:')
+        # print(state[i])
+        i = i * scale_factor
+        cv2.imshow(f'image_{i}', images[i])
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         print(f'action {i}:')
         print(action[i])
 if __name__ == '__main__':

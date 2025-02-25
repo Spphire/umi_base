@@ -7,30 +7,20 @@ from diffusion_policy.real_world.real_world_transforms import RealWorldTransform
 from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
 from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d
-from diffusion_policy.model.common.pca_embedding import PCAEmbedding
 from omegaconf import DictConfig
 
 class DataPostProcessingManager:
     def __init__(self,
                  transforms: RealWorldTransforms,
-                 mode: str = 'single_arm_one_realsense_no_tactile',
+                 mode: str = 'single_arm_one_realsense',
                  image_resize_shape: tuple = (320, 240),
                  use_6d_rotation: bool = True,
-                 # TODO: remove marker_dimension and pca_param_dict
-                 marker_dimension: int = 2,
-                 pca_param_dict: DictConfig = None,
                  debug: bool = False):
         self.transforms = transforms
         self.mode = SensorMode[mode]
         self.use_6d_rotation = use_6d_rotation
-        self.marker_dimension = marker_dimension
         self.resize_shape = image_resize_shape
-        if pca_param_dict is not None:
-            self.pca_embedding_dict = dict()
-            for tactile_sensor_name in pca_param_dict.keys():
-                self.pca_embedding_dict[tactile_sensor_name] = PCAEmbedding(**pca_param_dict[tactile_sensor_name])
-        else:
-            self.pca_embedding_dict = None
+        self.pca_embedding_dict = None
         self.debug = debug
 
     def convert_sensor_msg_to_obs_dict(self, sensor_msg: SensorMessage) -> Dict[str, np.ndarray]:
@@ -68,43 +58,17 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
-        obs_dict['external_img'] = self.resize_image_by_size(sensor_msg.externalCameraRGB, size=self.resize_shape)
-        if self.debug:
-            visualize_rgb_image(obs_dict['external_img'])
-        if self.mode == SensorMode.single_arm_one_realsense_no_tactile:
-            return obs_dict
-
         obs_dict['left_wrist_img'] = self.resize_image_by_size(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
-        if self.mode == SensorMode.single_arm_two_realsense_no_tactile:
+        if self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
-        # TODO: remove all gripper img-related code
-        obs_dict['left_gripper1_img'] = self.resize_image_by_size(sensor_msg.leftGripperCameraRGB1, size=self.resize_shape)
-        obs_dict['left_gripper2_img'] = self.resize_image_by_size(sensor_msg.leftGripperCameraRGB2, size=self.resize_shape)
+        obs_dict['external_img'] = self.resize_image_by_size(sensor_msg.externalCameraRGB, size=self.resize_shape)
         if self.debug:
-            visualize_rgb_image(obs_dict['left_gripper1_img'])
-            visualize_rgb_image(obs_dict['left_gripper2_img'])
-        if self.mode == SensorMode.single_arm_two_realsense_two_tactile or self.mode == SensorMode.dual_arm_two_realsense_four_tactile:
-            obs_dict['left_gripper1_initial_marker'] = sensor_msg.leftGripperCameraMarker1
-            obs_dict['left_gripper1_marker_offset'] = sensor_msg.leftGripperCameraMarkerOffset1
-            obs_dict['left_gripper2_initial_marker'] = sensor_msg.leftGripperCameraMarker2
-            obs_dict['left_gripper2_marker_offset'] = sensor_msg.leftGripperCameraMarkerOffset2
-            # TODO: more flexible way to choose which tactile sensor to use
-            if self.pca_embedding_dict is not None:
-                try:
-                    obs_dict['left_gripper1_marker_offset_emb'] = self.pca_embedding_dict['GelSight'].pca_reduction(
-                        sensor_msg.leftGripperCameraMarkerOffset1.reshape(-1)[np.newaxis, :])[0]
-                except ValueError as e:
-                    obs_dict['left_gripper1_marker_offset_emb'] = sensor_msg.leftGripperCameraMarkerOffset1.reshape(-1)
-                try:
-                    obs_dict['left_gripper2_marker_offset_emb'] = self.pca_embedding_dict['McTac'].pca_reduction(
-                        sensor_msg.leftGripperCameraMarkerOffset2.reshape(-1)[np.newaxis, :])[0]
-                except ValueError as e:
-                    obs_dict['left_gripper2_marker_offset_emb'] = sensor_msg.leftGripperCameraMarkerOffset2.reshape(-1)
-            if self.mode == SensorMode.single_arm_two_realsense_two_tactile:
-                return obs_dict
+            visualize_rgb_image(obs_dict['external_img'])
+        if self.mode == SensorMode.single_arm_two_realsense:
+            return obs_dict
 
         obs_dict['right_wrist_img'] = self.resize_image_by_size(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
         obs_dict['right_gripper1_img'] = self.resize_image_by_size(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
@@ -113,23 +77,6 @@ class DataPostProcessingManager:
             visualize_rgb_image(obs_dict['right_wrist_img'])
             visualize_rgb_image(obs_dict['right_gripper1_img'])
             visualize_rgb_image(obs_dict['right_gripper2_img'])
-        if self.mode == SensorMode.dual_arm_two_realsense_four_tactile:
-            obs_dict['right_gripper1_initial_marker'] = sensor_msg.rightGripperCameraMarker1
-            obs_dict['right_gripper1_marker_offset'] = sensor_msg.rightGripperCameraMarkerOffset1
-            obs_dict['right_gripper2_initial_marker'] = sensor_msg.rightGripperCameraMarker2
-            obs_dict['right_gripper2_marker_offset'] = sensor_msg.rightGripperCameraMarkerOffset2
-            # TODO: more flexible way to choose which tactile sensor to use
-            if self.pca_embedding_dict is not None:
-                try:
-                    obs_dict['right_gripper1_marker_offset_emb'] = self.pca_embedding_dict['GelSight'].pca_reduction(
-                        sensor_msg.rightGripperCameraMarkerOffset1.reshape(-1)[np.newaxis, :])[0]
-                except ValueError as e:
-                    obs_dict['right_gripper1_marker_offset_emb'] = sensor_msg.rightGripperCameraMarkerOffset1.reshape(-1)
-                try:
-                    obs_dict['right_gripper2_marker_offset_emb'] = self.pca_embedding_dict['McTac'].pca_reduction(
-                        sensor_msg.rightGripperCameraMarkerOffset2.reshape(-1)[np.newaxis, :])[0]
-                except ValueError as e:
-                    obs_dict['right_gripper2_marker_offset_emb'] = sensor_msg.rightGripperCameraMarkerOffset2.reshape(-1)
 
             return obs_dict
         else:

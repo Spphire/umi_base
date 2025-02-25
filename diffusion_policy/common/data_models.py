@@ -76,29 +76,6 @@ class SensorMessage(BaseModel):
     leftWristCameraRGB: np.ndarray = Field(default_factory=lambda: np.zeros((48, 64, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
     rightWristCameraPointCloud: np.ndarray = Field(default_factory=lambda: np.zeros((10, 6), dtype=np.float16))  # (N, 6) (x, y, z, r, g, b)
     rightWristCameraRGB: np.ndarray = Field(default_factory=lambda: np.zeros((48, 64, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
-    # TODO: remove all gripper camrea-related variables
-    leftGripperCameraRGB1: np.ndarray = Field(
-        default_factory=lambda: np.zeros((24, 32, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
-    leftGripperCameraMarker1: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    leftGripperCameraMarkerOffset1: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    leftGripperCameraRGB2: np.ndarray = Field(
-        default_factory=lambda: np.zeros((24, 32, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
-    leftGripperCameraMarker2: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    leftGripperCameraMarkerOffset2: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 2)(x, y,z)
-    rightGripperCameraRGB1: np.ndarray = Field(default_factory=lambda: np.zeros((24, 32, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
-    rightGripperCameraMarker1: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    rightGripperCameraMarkerOffset1: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    rightGripperCameraRGB2: np.ndarray = Field(default_factory=lambda: np.zeros((24, 32, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
-    rightGripperCameraMarker2: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
-    rightGripperCameraMarkerOffset2: np.ndarray = Field(
-        default_factory=lambda: np.zeros((63, 3), dtype=np.float32))  # (num_markers, 3)(x, y, z)
     
     vCameraImage: np.ndarray = Field(default_factory=lambda: np.zeros((0, 0, 3), dtype=np.uint8))  # (H, W, 3) (r, g, b)
     predictedFullTCPAction: np.ndarray = Field(
@@ -117,7 +94,7 @@ class SensorMessageList(BaseModel):
     sensorMessages: List[SensorMessage]
 
 class SensorMode(Enum):
-    single_arm_one_realsense = auto()
+    single_arm_one_realsense = auto()  # default to assume only left wrist camera used
     single_arm_two_realsense = auto()
     dual_arm_two_realsense = auto()
 
