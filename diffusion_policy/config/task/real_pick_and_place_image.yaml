@@ -37,11 +37,13 @@ env_runner:
   task_name: ${task_name}
   transform_params: ${task.transforms}
   shape_meta: *shape_meta
+  tcp_pos_clip_range: [[0.35, -0.05, 0.65], [0.55, 0.3, 0.95]]
+  tcp_rot_clip_range: [[-2.75, 0.0, -3.0], [-2.0, 0.85, -2.0]]
   tcp_ensemble_buffer_params:
     ensemble_mode: 'new'
   gripper_ensemble_buffer_params:
     ensemble_mode: 'new'
-  enable_video_recording: True
+  enable_video_recording: False
   vcamera_server_ip: 192.168.2.187
   vcamera_server_port: 8102
   env_params:
@@ -65,7 +67,7 @@ env_runner:
     gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
     gripper_width_threshold: 0.046
     enable_gripper_width_clipping: True
-  debug: True
+  debug: False
 
 dataset:
   _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset

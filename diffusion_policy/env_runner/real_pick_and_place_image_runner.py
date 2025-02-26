@@ -272,6 +272,8 @@ class RealPickAndPlaceImageRunner:
             combined_action = np.concatenate([tcp_step_action, gripper_step_action], axis=-1)
             # convert to 16-D robot action (TCP + gripper of both arms)
             # TODO: handle rotation in temporal ensemble buffer!
+            if self.debug:
+                logger.debug(f"Step: {self.action_step_count}, combined_action: {combined_action[np.newaxis, :]}")
             step_action, is_bimanual = self.post_process_action(combined_action[np.newaxis, :])
             step_action = step_action.squeeze(0)
 
@@ -279,8 +281,7 @@ class RealPickAndPlaceImageRunner:
             if self.debug:
                 logger.debug(f"Step: {self.action_step_count}, Send action to the robot: {step_action}")
             else:
-                # self.env.execute_action(step_action, use_relative_action=False, is_bimanual=is_bimanual)
-                pass
+                self.env.execute_action(step_action, use_relative_action=False, is_bimanual=is_bimanual)
 
             cur_time = time.time()
             precise_sleep(max(0., self.control_interval_time - (cur_time - start_time)))

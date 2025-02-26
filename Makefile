@@ -86,6 +86,12 @@ eval.launch_camera:
 	python camera_node_launcher.py \
 	task=${TASK}
 
+eval.launch_robot:
+	${PREPARE_VENV} && \
+	${PREPARE_ROS} && \
+	python teleop.py \
+	task=${TASK}
+
 eval.inference:
 	${PREPARE_VENV} && \
 	${PREPARE_ROS} && \
