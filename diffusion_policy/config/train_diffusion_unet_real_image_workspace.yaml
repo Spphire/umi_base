@@ -222,6 +222,8 @@ checkpoint:
   save_last_ckpt: True
   save_last_snapshot: False
 
+ckpt_path: data/outputs/2025.02.26/04.46.10_${name}_${task_name}/checkpoints/latest.ckpt
+
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}

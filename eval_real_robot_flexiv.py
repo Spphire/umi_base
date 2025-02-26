@@ -40,7 +40,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 )
 def main(cfg):
     # load checkpoint
-    ckpt_path = cfg.ckpt_path
+    ckpt_path = str(pathlib.Path(__file__).parent.joinpath(cfg.ckpt_path))
     payload = torch.load(open(ckpt_path, 'rb'), pickle_module=dill)
 
     cls = hydra.utils.get_class(cfg._target_)
@@ -56,27 +56,12 @@ def main(cfg):
         if cfg.training.use_ema:
             policy = workspace.ema_model
 
-        if 'latent' in cfg.name:
-            policy.vqvae.set_normalizer(policy.normalizer)
-
         device = torch.device('cuda')
         policy.eval().to(device)
 
         # set inference params
         policy.num_inference_steps = 8  # DDIM inference iterations
         policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1 # not used in latent diffusion
-    elif 'vq_bet' in cfg.name:
-        policy: BaseImagePolicy
-        policy = workspace.model
-        # EMA is not supported now
-        if cfg.training.use_ema:
-            policy = workspace.ema_model
-
-        device = torch.device('cuda')
-        policy.eval().to(device)
-
-        # set inference params
-        policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
     else:
         raise NotImplementedError
 

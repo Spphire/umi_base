@@ -6,16 +6,17 @@ PREPARE_VENV := . ../real_env/venv/bin/activate
 PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
+# TASK := real_pick_and_place_image
 TASK := single_arm_one_realsense_30fps
 # TASK := bimanual_one_realsense_rgb_left_30fps
+
+# workspace config , have to be consistent with the task
+WKSPACE := train_diffusion_unet_real_image_workspace
 
 # record config
 SAVE_BASE_DIR := /home/wangyi/umi_base/record_data
 SAVE_FILE_DIR := test
 SAVE_FILE_NAME := trial50.pkl
-
-# train config
-WKSPACE := train_diffusion_unet_real_image_workspace
 
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel
@@ -77,4 +78,17 @@ teleop.post_process:
 train:
 	${PREPARE_VENV} && \
 	python train.py \
+	--config-name ${WKSPACE}
+
+eval.launch_camera:
+	${PREPARE_VENV} && \
+	${PREPARE_ROS} && \
+	python camera_node_launcher.py \
+	task=${TASK}
+
+eval.inference:
+	${PREPARE_VENV} && \
+	${PREPARE_ROS} && \
+	export HYDRA_FULL_ERROR=1 && \
+	python eval_real_robot_flexiv.py \
 	--config-name ${WKSPACE}

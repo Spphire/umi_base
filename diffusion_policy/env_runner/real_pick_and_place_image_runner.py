@@ -85,11 +85,13 @@ class RealPickAndPlaceImageRunner:
                  vcamera_server_ip: Optional[Union[str, ListConfig]] = None,
                  vcamera_server_port: Optional[Union[int, ListConfig]] = None,
                  task_name=None,
+                 debug: bool = True
                  ):
         self.task_name = task_name
         self.transforms = RealWorldTransforms(option=transform_params)
         self.shape_meta = dict(shape_meta)
         self.eval_episodes = eval_episodes
+        self.debug = debug
 
         rgb_keys = list()
         lowdim_keys = list()
@@ -274,7 +276,11 @@ class RealPickAndPlaceImageRunner:
             step_action = step_action.squeeze(0)
 
             # send action to the robot
-            self.env.execute_action(step_action, use_relative_action=False, is_bimanual=is_bimanual)
+            if self.debug:
+                logger.debug(f"Step: {self.action_step_count}, Send action to the robot: {step_action}")
+            else:
+                # self.env.execute_action(step_action, use_relative_action=False, is_bimanual=is_bimanual)
+                pass
 
             cur_time = time.time()
             precise_sleep(max(0., self.control_interval_time - (cur_time - start_time)))
