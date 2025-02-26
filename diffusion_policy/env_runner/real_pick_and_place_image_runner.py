@@ -179,23 +179,6 @@ class RealPickAndPlaceImageRunner:
 
         return obs_dict, absolute_obs_dict
 
-    def pre_process_extended_obs(self, extended_obs_dict: Dict) -> Tuple[Dict, Dict]:
-        extended_obs_dict = deepcopy(extended_obs_dict)
-
-        absolute_extended_obs_dict = dict()
-        for key in self.extended_lowdim_keys:
-            extended_obs_dict[key] = extended_obs_dict[key][:, :self.shape_meta['extended_obs'][key]['shape'][0]]
-            absolute_extended_obs_dict[key] = extended_obs_dict[key].copy()
-
-        # convert absolute action to relative action
-        if self.use_relative_action and self.use_relative_tcp_obs_for_relative_action:
-            for key in self.extended_lowdim_keys:
-                if 'robot_tcp_pose' in key and 'wrt' not in key:
-                    base_absolute_action = extended_obs_dict[key][-1].copy()
-                    extended_obs_dict[key] = absolute_actions_to_relative_actions(extended_obs_dict[key], base_absolute_action=base_absolute_action)
-
-        return extended_obs_dict, absolute_extended_obs_dict
-
     def post_process_action(self, action: np.ndarray) -> Tuple[np.ndarray, bool]:
         """
         Post-process the action before sending to the robot
@@ -284,71 +267,6 @@ class RealPickAndPlaceImageRunner:
                 self.action_step_count += 1
                 continue
 
-            if self.use_latent_action_with_rnn_decoder:
-                tcp_extended_obs_step = int(tcp_step_action[-1])
-                gripper_extended_obs_step = int(gripper_step_action[-1])
-                tcp_step_action = tcp_step_action[:-1]
-                gripper_step_action = gripper_step_action[:-1]
-
-                longer_extended_obs_step = max(tcp_extended_obs_step, gripper_extended_obs_step)
-                obs_temporal_downsample_ratio = self.obs_temporal_downsample_ratio if self.downsample_extended_obs else 1
-                extended_obs = self.env.get_obs(longer_extended_obs_step,
-                                                    temporal_downsample_ratio= obs_temporal_downsample_ratio)
-
-                if self.use_relative_action:
-                    action_dim = self.shape_meta['obs']['left_robot_tcp_pose']['shape'][0]
-                    if 'right_robot_tcp_pose' in self.shape_meta['obs']:
-                        action_dim += self.shape_meta['obs']['right_robot_tcp_pose']['shape'][0]
-                    tcp_base_absolute_action = tcp_step_action[-action_dim:]
-                    gripper_base_absolute_action = gripper_step_action[-action_dim:]
-                    tcp_step_action = tcp_step_action[:-action_dim]
-                    gripper_step_action = gripper_step_action[:-action_dim]
-
-                np_extended_obs_dict = dict(extended_obs)
-                np_extended_obs_dict = get_real_obs_dict(
-                    env_obs=np_extended_obs_dict, shape_meta=self.shape_meta, is_extended_obs=True)
-                np_extended_obs_dict, _ = self.pre_process_extended_obs(np_extended_obs_dict)
-                extended_obs_dict = dict_apply(np_extended_obs_dict, lambda x: torch.from_numpy(x).unsqueeze(0))
-
-                tcp_step_latent_action = torch.from_numpy(tcp_step_action.astype(np.float32)).unsqueeze(0)
-                gripper_step_latent_action = torch.from_numpy(gripper_step_action.astype(np.float32)).unsqueeze(0)
-
-                dataset_obs_temporal_downsample_ratio = self.dataset_obs_temporal_downsample_ratio
-                tcp_step_action = policy.predict_from_latent_action(tcp_step_latent_action, extended_obs_dict, tcp_extended_obs_step, dataset_obs_temporal_downsample_ratio)['action'][0].detach().cpu().numpy()
-                gripper_step_action = policy.predict_from_latent_action(gripper_step_latent_action, extended_obs_dict, gripper_extended_obs_step, dataset_obs_temporal_downsample_ratio)['action'][0].detach().cpu().numpy()
-                if self.use_relative_action:
-                    tcp_step_action = relative_actions_to_absolute_actions(tcp_step_action, tcp_base_absolute_action)
-                    gripper_step_action = relative_actions_to_absolute_actions(gripper_step_action, gripper_base_absolute_action)
-
-                if tcp_step_action.shape[-1] == 4: # (x, y, z, gripper_width)
-                    tcp_len = 3
-                elif tcp_step_action.shape[-1] == 8: # (x_l, y_l, z_l, x_r, y_r, z_r, gripper_width_l, gripper_width_r)
-                    tcp_len = 6
-                elif tcp_step_action.shape[-1] == 10: # (x, y, z, rx1, rx2, rx3, ry1, ry2, ry3)
-                    tcp_len = 9
-                elif tcp_step_action.shape[-1] == 20: # (x_l, y_l, z_l, rotation_l, x_r, y_r, z_r, rotation_r, gripper_width_l, gripper_width_r)
-                    tcp_len = 18
-                else:
-                    raise NotImplementedError
-
-                if self.env.enable_exp_recording:
-                    self.env.get_predicted_action(tcp_step_action[:, :tcp_len], type='partial_tcp')
-                    self.env.get_predicted_action(gripper_step_action[:, tcp_len:], type='partial_gripper')
-
-                    full_tcp_step_action = policy.predict_from_latent_action(tcp_step_latent_action, extended_obs_dict, tcp_extended_obs_step, dataset_obs_temporal_downsample_ratio, extend_obs_pad_after=True)['action'][0].detach().cpu().numpy()
-                    full_gripper_step_action = policy.predict_from_latent_action(gripper_step_latent_action, extended_obs_dict, gripper_extended_obs_step, dataset_obs_temporal_downsample_ratio, extend_obs_pad_after=True)['action'][0].detach().cpu().numpy()
-                    if self.use_relative_action:
-                        full_tcp_step_action = relative_actions_to_absolute_actions(full_tcp_step_action, tcp_base_absolute_action)
-                        full_gripper_step_action = relative_actions_to_absolute_actions(full_gripper_step_action, gripper_base_absolute_action)
-                    self.env.get_predicted_action(full_tcp_step_action[:, :tcp_len], type='full_tcp')
-                    self.env.get_predicted_action(full_gripper_step_action[:, tcp_len:], type='full_gripper')
-
-                tcp_step_action = tcp_step_action[-1]
-                gripper_step_action = gripper_step_action[-1]
-
-                tcp_step_action = tcp_step_action[:tcp_len]
-                gripper_step_action = gripper_step_action[tcp_len:]
-
             combined_action = np.concatenate([tcp_step_action, gripper_step_action], axis=-1)
             # convert to 16-D robot action (TCP + gripper of both arms)
             # TODO: handle rotation in temporal ensemble buffer!
@@ -379,11 +297,6 @@ class RealPickAndPlaceImageRunner:
                 logger.error(f"Failed to stop recording video")
 
     def run(self, policy: Union[DiffusionUnetImagePolicy, VqBetImagePolicy]):
-        if self.use_latent_action_with_rnn_decoder:
-            assert policy.vqvae.use_rnn_decoder, "Policy should use rnn decoder for latent action."
-        else:
-            assert not hasattr(policy, 'vqvae') or not policy.vqvae.use_rnn_decoder, "Policy should not use rnn decoder for action."
-
         device = policy.device
 
         executor = MultiThreadedExecutor()
@@ -466,12 +379,7 @@ class RealPickAndPlaceImageRunner:
                         policy_time = time.time()
                         # run policy
                         with torch.no_grad():
-                            if self.use_latent_action_with_rnn_decoder:
-                                action_dict = policy.predict_action(obs_dict,
-                                                                    dataset_obs_temporal_downsample_ratio=self.dataset_obs_temporal_downsample_ratio,
-                                                                    return_latent_action=True)
-                            else:
-                                action_dict = policy.predict_action(obs_dict)
+                            action_dict = policy.predict_action(obs_dict)
                         logger.debug(f"Policy inference time: {time.time() - policy_time:.3f}s")
 
                         # device_transfer
@@ -479,78 +387,54 @@ class RealPickAndPlaceImageRunner:
                                                     lambda x: x.detach().to('cpu').numpy())
 
                         action_all = np_action_dict['action'].squeeze(0)
-                        if self.use_latent_action_with_rnn_decoder:
-                            # add first absolute action to get absolute action
-                            if self.use_relative_action:
-                                base_absolute_action = np.concatenate([
-                                    np_absolute_obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in np_absolute_obs_dict else np.array([]),
-                                    np_absolute_obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in np_absolute_obs_dict else np.array([])
-                                ], axis=-1)
-                                action_all = np.concatenate([
-                                    action_all,
-                                    base_absolute_action[np.newaxis, :].repeat(action_all.shape[0], axis=0)
-                                ], axis=-1)
-                            # add action step to get corresponding observation
-                            action_all = np.concatenate([
-                                action_all,
-                                np.arange(self.n_obs_steps * self.dataset_obs_temporal_downsample_ratio, action_all.shape[0] + self.n_obs_steps * self.dataset_obs_temporal_downsample_ratio)[:, np.newaxis]
+
+                        if self.use_relative_action:
+                            base_absolute_action = np.concatenate([
+                                np_absolute_obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in np_absolute_obs_dict else np.array([]),
+                                np_absolute_obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in np_absolute_obs_dict else np.array([])
                             ], axis=-1)
-                        else:
-                            if self.use_relative_action:
-                                base_absolute_action = np.concatenate([
-                                    np_absolute_obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in np_absolute_obs_dict else np.array([]),
-                                    np_absolute_obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in np_absolute_obs_dict else np.array([])
-                                ], axis=-1)
-                                action_all = relative_actions_to_absolute_actions(action_all, base_absolute_action)
+                            action_all = relative_actions_to_absolute_actions(action_all, base_absolute_action)
 
                         if self.action_interpolation_ratio > 1:
-                            if self.use_latent_action_with_rnn_decoder:
-                                action_all = action_all.repeat(self.action_interpolation_ratio, axis=0)
-                            else:
-                                action_all = interpolate_actions_with_ratio(action_all, self.action_interpolation_ratio)
+                            action_all = interpolate_actions_with_ratio(action_all, self.action_interpolation_ratio)
 
                         # TODO: only takes the first n_action_steps and add to the ensemble buffer
                         if step_count % self.tcp_action_update_interval == 0:
-                            if self.use_latent_action_with_rnn_decoder:
-                                tcp_action = action_all[self.latency_step:, ...]
+                            
+                            if action_all.shape[-1] == 4:
+                                tcp_action = action_all[self.latency_step:, :3]
+                            elif action_all.shape[-1] == 8:
+                                tcp_action = action_all[self.latency_step:, :6]
+                            elif action_all.shape[-1] == 10:
+                                tcp_action = action_all[self.latency_step:, :9]
+                            elif action_all.shape[-1] == 20:
+                                tcp_action = action_all[self.latency_step:, :18]
                             else:
-                                if action_all.shape[-1] == 4:
-                                    tcp_action = action_all[self.latency_step:, :3]
-                                elif action_all.shape[-1] == 8:
-                                    tcp_action = action_all[self.latency_step:, :6]
-                                elif action_all.shape[-1] == 10:
-                                    tcp_action = action_all[self.latency_step:, :9]
-                                elif action_all.shape[-1] == 20:
-                                    tcp_action = action_all[self.latency_step:, :18]
-                                else:
-                                    raise NotImplementedError
+                                raise NotImplementedError
                             # add to ensemble buffer
                             logger.debug(f"Step: {step_count}, Add TCP action to ensemble buffer: {tcp_action}")
                             self.tcp_ensemble_buffer.add_action(tcp_action, step_count)
 
-                            if self.env.enable_exp_recording and not self.use_latent_action_with_rnn_decoder:
+                            if self.env.enable_exp_recording:
                                 print("123")
                                 self.env.get_predicted_action(tcp_action, type='full_tcp')
 
                         if step_count % self.gripper_action_update_interval == 0:
-                            if self.use_latent_action_with_rnn_decoder:
-                                gripper_action = action_all[self.gripper_latency_step:, ...]
+                            if action_all.shape[-1] == 4:
+                                gripper_action = action_all[self.gripper_latency_step:, 3:]
+                            elif action_all.shape[-1] == 8:
+                                gripper_action = action_all[self.gripper_latency_step:, 6:]
+                            elif action_all.shape[-1] == 10:
+                                gripper_action = action_all[self.gripper_latency_step:, 9:]
+                            elif action_all.shape[-1] == 20:
+                                gripper_action = action_all[self.gripper_latency_step:, 18:]
                             else:
-                                if action_all.shape[-1] == 4:
-                                    gripper_action = action_all[self.gripper_latency_step:, 3:]
-                                elif action_all.shape[-1] == 8:
-                                    gripper_action = action_all[self.gripper_latency_step:, 6:]
-                                elif action_all.shape[-1] == 10:
-                                    gripper_action = action_all[self.gripper_latency_step:, 9:]
-                                elif action_all.shape[-1] == 20:
-                                    gripper_action = action_all[self.gripper_latency_step:, 18:]
-                                else:
-                                    raise NotImplementedError
+                                raise NotImplementedError
                             # add to ensemble buffer
                             logger.debug(f"Step: {step_count}, Add gripper action to ensemble buffer: {gripper_action}")
                             self.gripper_ensemble_buffer.add_action(gripper_action, step_count)
 
-                            if self.env.enable_exp_recording and not self.use_latent_action_with_rnn_decoder:
+                            if self.env.enable_exp_recording:
                                 self.env.get_predicted_action(gripper_action, type='full_gripper')
 
                         cur_time = time.time()
