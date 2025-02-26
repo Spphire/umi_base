@@ -23,7 +23,7 @@ shape_meta: &shape_meta
     shape: [10]
 
 env_runner:
-  _target_: diffusion_policy.env_runner.real_whiteboard_image_runner.RealWhiteboardImageRunner
+  _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
   eval_episodes: 10
   max_duration_time: 20
   tcp_action_update_interval: 8
@@ -65,6 +65,7 @@ env_runner:
     gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
     gripper_width_threshold: 0.046
     enable_gripper_width_clipping: True
+  debug: True
 
 dataset:
   _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset
