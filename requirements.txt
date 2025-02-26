@@ -4,6 +4,8 @@ loguru
 scipy
 opencv-python
 cffi
+timm
+peft
 ipykernel
 matplotlib
 zarr

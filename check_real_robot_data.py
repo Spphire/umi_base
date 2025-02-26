@@ -70,7 +70,7 @@ def check_reshape_rope():
         print(action[i])
       
 def check_pick_and_place():
-    zarr_path = '/root/umi_base_devel/data/test_zarr/replay_buffer.zarr'
+    zarr_path = '/root/umi_base_devel/data/single_right_arm_pick_and_place_zarr/replay_buffer.zarr'
     zarr_file = zarr.open(zarr_path)
     print(zarr_file.tree())
     data_file = zarr_file['data']

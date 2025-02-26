@@ -14,6 +14,9 @@ SAVE_BASE_DIR := /home/wangyi/umi_base/record_data
 SAVE_FILE_DIR := test
 SAVE_FILE_NAME := trial50.pkl
 
+# train config
+WKSPACE := train_diffusion_unet_real_image_workspace
+
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel
 
@@ -70,3 +73,8 @@ teleop.post_process:
 	${PREPARE_ROS} && \
 	python post_process_data.py \
 	--tag ${SAVE_FILE_DIR}
+
+train:
+	${PREPARE_VENV} && \
+	python train.py \
+	--config-name ${WKSPACE}
