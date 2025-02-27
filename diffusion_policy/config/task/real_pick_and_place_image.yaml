@@ -26,7 +26,7 @@ env_runner:
   _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
   output_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_inference
   eval_episodes: 10
-  max_duration_time: 20
+  max_duration_time: 60
   tcp_action_update_interval: 8
   gripper_action_update_interval: 8
   latency_step: 2

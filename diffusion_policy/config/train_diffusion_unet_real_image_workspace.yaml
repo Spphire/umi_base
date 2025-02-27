@@ -148,20 +148,20 @@ ema:
 
 dataloader:
   # ResNet
-  batch_size: 32
+  batch_size: 64
   # timm
   # batch_size: 32
-  num_workers: 1
+  num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: True
 
 val_dataloader:
   # ResNet
-  batch_size: 32
+  batch_size: 64
   # timm
   # batch_size: 32
-  num_workers: 1
+  num_workers: 8
   shuffle: False
   pin_memory: True
   persistent_workers: True
@@ -222,7 +222,7 @@ checkpoint:
   save_last_ckpt: True
   save_last_snapshot: False
 
-ckpt_path: data/outputs/2025.02.26/04.46.10_${name}_${task_name}/checkpoints/latest.ckpt
+ckpt_path: data/outputs/2025.02.26/13.47.44_${name}_${task_name}/checkpoints/latest.ckpt
 
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
