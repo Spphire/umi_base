@@ -60,13 +60,11 @@ class DataPostProcessingManager:
         obs_dict['left_wrist_img'] = self.resize_image_by_size(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
-        if self.mode == SensorMode.single_arm_one_realsense:
-            return obs_dict
 
         obs_dict['external_img'] = self.resize_image_by_size(sensor_msg.externalCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['external_img'])
-        if self.mode == SensorMode.single_arm_two_realsense:
+        if self.mode == SensorMode.single_arm_two_realsense or self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
         obs_dict['right_wrist_img'] = self.resize_image_by_size(sensor_msg.rightWristCameraRGB, size=self.resize_shape)

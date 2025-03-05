@@ -127,8 +127,6 @@ if __name__ == '__main__':
         episode_ends_arrays.append(total_count)
 
     # Convert lists to arrays
-
-    external_img_arrays = left_wrist_img_arrays
     external_img_arrays = np.stack(external_img_arrays, axis=0)
     left_wrist_img_arrays = np.stack(left_wrist_img_arrays, axis=0)
     
