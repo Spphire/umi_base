@@ -5,13 +5,9 @@ from diffusion_policy.common.cv2_util import get_image_transform
 def get_real_obs_dict(
         env_obs: Dict[str, np.ndarray], 
         shape_meta: dict,
-        is_extended_obs: bool = False
         ) -> Dict[str, np.ndarray]:
     obs_dict_np = dict()
-    if is_extended_obs:
-        obs_shape_meta = shape_meta['extended_obs']
-    else:
-        obs_shape_meta = shape_meta['obs']
+    obs_shape_meta = shape_meta['obs']
     for key, attr in obs_shape_meta.items():
         type = attr.get('type', 'low_dim')
         shape = attr.get('shape')
