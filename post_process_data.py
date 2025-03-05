@@ -19,14 +19,14 @@ DEBUG = False
 USE_DATA_FILTERING = False
 USE_ABSOLUTE_ACTION = True
 ACTION_DIM = 10  # (4 + 15)
-TEMPORAL_DOWNSAMPLE_RATIO = 1  # the ratio for temporal down-sampling
+TEMPORAL_DOWNSAMPLE_RATIO = 3  # the ratio for temporal down-sampling
 SENSOR_MODE = 'single_arm_one_realsense'
 
 if __name__ == '__main__':
-    tag = 'test'
+    tag = 'real_pick_and_place_image'
     # we use the tag to determine if we want to use data filtering
 
-    data_dir = f'record_data/{tag}'
+    data_dir = f'data/{tag}'
     if USE_DATA_FILTERING:
         save_data_dir = f'data/{tag}_downsample{TEMPORAL_DOWNSAMPLE_RATIO}_filtered_zarr'
     else:
