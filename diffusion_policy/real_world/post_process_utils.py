@@ -20,7 +20,6 @@ class DataPostProcessingManager:
         self.mode = SensorMode[mode]
         self.use_6d_rotation = use_6d_rotation
         self.resize_shape = image_resize_shape
-        self.pca_embedding_dict = None
         self.debug = debug
 
     def convert_sensor_msg_to_obs_dict(self, sensor_msg: SensorMessage) -> Dict[str, np.ndarray]:
