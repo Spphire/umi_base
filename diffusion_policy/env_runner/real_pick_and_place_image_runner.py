@@ -57,12 +57,12 @@ os.sched_setaffinity(0, cores_to_bind)
 
 class RealPickAndPlaceImageRunner:
     def __init__(self,
-                 output_dir: str,
                  transform_params: DictConfig,
                  env_params: DictConfig,
                  shape_meta: DictConfig,
                  tcp_ensemble_buffer_params: DictConfig,
                  gripper_ensemble_buffer_params: DictConfig,
+                 output_dir: str = '',
                  use_relative_action: bool = False,
                  use_relative_tcp_obs_for_relative_action: bool = True,
                  action_interpolation_ratio: int = 1,
