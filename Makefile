@@ -99,4 +99,5 @@ eval.inference:
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
 	python eval_real_robot_flexiv.py \
-	--config-name ${WKSPACE}
+	--config-name ${WKSPACE} \
+	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio
