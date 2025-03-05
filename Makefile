@@ -99,4 +99,6 @@ eval.inference:
 	export HYDRA_FULL_ERROR=1 && \
 	python eval_real_robot_flexiv.py \
 	--config-name ${WKSPACE} \
-	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio
+	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio \
+	+ckpt_path=data/outputs/2025.03.03/11.34.02_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt
+
