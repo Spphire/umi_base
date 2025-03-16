@@ -33,11 +33,16 @@ RUN . venv/bin/activate && \
     cd third_party/pytorch3d_simplified && \
     python setup.py install
 
-# Install other requirements
-RUN . venv/bin/activate && \
-    pip install -r requirements.txt
-
 # Install ros2_numpy_humble
 RUN . venv/bin/activate && \
     cd third_party/ros2_numpy_humble && \
     pip install -e .
+
+# Install pi0 utilities
+RUN . venv/bin/activate && \
+    cd third_party/openpi-client && \
+    pip install -e .
+
+# Install other requirements
+RUN . venv/bin/activate && \
+    pip install -r requirements.txt
