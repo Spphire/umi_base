@@ -1,0 +1,5 @@
+gui:
+  resize: 407, 601
+robot:
+  elevate: 0.15    
+  gripper: 0.05, 0.1, 20

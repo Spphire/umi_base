@@ -1,4 +1,7 @@
-c
+from typing import Dict, Callable, Tuple
+import numpy as np
+from diffusion_policy.common.cv2_util import get_image_transform
+
 def get_real_obs_dict(
         env_obs: Dict[str, np.ndarray], 
         shape_meta: dict,
@@ -25,6 +28,8 @@ def get_real_obs_dict(
             # THWC to TCHW
             obs_dict_np[key] = np.moveaxis(out_imgs,-1,1)
         elif type == 'low_dim':
+            if "wrt" in key:
+                continue
             this_data_in = env_obs[key]
             if 'pose' in key and shape == (2,):
                 # take X,Y coordinates

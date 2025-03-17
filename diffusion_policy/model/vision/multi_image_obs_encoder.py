@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 import copy
 import torch
 import torch.nn as nn
@@ -13,8 +13,7 @@ class MultiImageObsEncoder(ModuleAttrMixin):
             shape_meta: dict,
             rgb_model: Union[nn.Module, Dict[str,nn.Module]],
             resize_shape: Union[Tuple[int,int], Dict[str,tuple], None]=None,
-            crop_shape: Union[Tuple[int,int], Dict[str,tuple], None]=None,
-            random_crop: bool=True,
+            random_transforms: Optional[list]=None,
             # replace BatchNorm with GroupNorm
             use_group_norm: bool=False,
             # use single rgb model for all rgb inputs
@@ -83,24 +82,38 @@ class MultiImageObsEncoder(ModuleAttrMixin):
                     input_shape = (shape[0],h,w)
 
                 # configure randomizer
-                this_randomizer = nn.Identity()
-                if crop_shape is not None:
-                    if isinstance(crop_shape, dict):
-                        h, w = crop_shape[key]
-                    else:
-                        h, w = crop_shape
-                    if random_crop:
-                        this_randomizer = CropRandomizer(
-                            input_shape=input_shape,
-                            crop_height=h,
-                            crop_width=w,
-                            num_crops=1,
-                            pos_enc=False
-                        )
-                    else:
-                        this_normalizer = torchvision.transforms.CenterCrop(
-                            size=(h,w)
-                        )
+                # this_randomizer = nn.Identity()
+                # if crop_shape is not None:
+                #     if isinstance(crop_shape, dict):
+                #         h, w = crop_shape[key]
+                #     else:
+                #         h, w = crop_shape
+                #     if random_crop:
+                #         this_randomizer = CropRandomizer(
+                #             input_shape=input_shape,
+                #             crop_height=h,
+                #             crop_width=w,
+                #             num_crops=1,
+                #             pos_enc=False
+                #         )
+                #     else:
+                #         this_normalizer = torchvision.transforms.CenterCrop(
+                #             size=(h,w)
+                #         )
+                assert len(random_transforms) == 1, "Only support single RandomCrop now"
+                if random_transforms is not None and not isinstance(random_transforms[0], torch.nn.Module):
+                    assert random_transforms[0].type == 'RandomCrop'
+                    ratio = random_transforms[0].ratio
+                    random_transforms = [
+                                     CropRandomizer(
+                                            input_shape=input_shape,
+                                            crop_height=int(input_shape[1]*ratio),
+                                            crop_width=int(input_shape[2]*ratio),
+                                            num_crops=1,
+                                            pos_enc=False
+                                     )
+                                 ] + random_transforms[1:]
+                this_randomizer = nn.Identity() if random_transforms is None else torch.nn.Sequential(*random_transforms)
                 # configure normalizer
                 this_normalizer = nn.Identity()
                 if imagenet_norm:

@@ -1,0 +1,25 @@
+defaults:
+  - single_arm_real_robot_env@_here_
+  - _self_
+teleop_server:
+  use_force_control_for_gripper: &use_force_control_for_gripper False
+  max_gripper_width: &max_gripper_width   0.1
+  min_gripper_width: &min_gripper_width 0.0
+  gripper_control_time_interval: &gripper_control_time_interval 10  # 30 for Flexiv Gripper, 20 for PGC-50 gripper
+  gripper_control_width_precision: &gripper_control_width_precision 0.01  # 0.01 for PGC-50 gripper, 0.01 for Flexiv Grav Gripper
+publisher:
+  # two realsense cameras
+  realsense_camera_publisher: 
+    - camera_serial_number: '819612073139'
+      camera_type: 'D400'
+      camera_name: 'left_wrist_camera'
+      rgb_resolution: [640, 480]
+      depth_resolution: [640, 480]
+      random_sample_point_num: 3000
+      enable_pcd_publisher: False
+      fps: 30
+      decimate: 2  # (0-4) decimation_filter magnitude for point cloud
+      cpu_core_id:
+        - 10
+  # no usb camera
+  usb_camera_publisher: []
