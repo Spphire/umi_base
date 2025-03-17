@@ -74,8 +74,8 @@ class RealWorldTransforms:
         :return: target: (x, y, z, qw, qx, qy, qz)
         """
         # TODO: optimize name and code here
-        # pos_quat *= np.array([1, -1, 1, 1, -1, 1, -1])
-        pos_quat *= np.array([-1, -1, -1, 1, -1, 1, -1])
+        pos_quat *= np.array([1, -1, 1, 1, -1, 1, -1])
+        # pos_quat *= np.array([-1, -1, -1, 1, -1, 1, -1])
         rot_mat = t3d.quaternions.quat2mat(pos_quat[3:])
         pos_vec = pos_quat[:3]
         T = np.eye(4)
