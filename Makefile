@@ -3,10 +3,10 @@ SHELL := /bin/bash
 IMAGE_NAME := umi_base_devel
 
 PREPARE_VENV := . ../real_env/venv/bin/activate
-PREPARE_ROS := source /opt/ros/humble/setup.bash
+PREPARE_ROS := source /opt/ros/humble/setup.bash && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := real_pick_and_place_image
+TASK := real_pick_and_place_pi0
 # TASK := single_arm_one_realsense_30fps
 # TASK := bimanual_one_realsense_rgb_left_30fps
 
@@ -35,6 +35,7 @@ docker.run:
 			-v ${SAVE_BASE_DIR}:/root/record_data \
 			-w /root/${PROJECT_NAME} \
 			--name teleop \
+			--shm-size 32G \
 			${IMAGE_NAME}:latest \
 			tail -f /dev/null; \
 	fi && \
@@ -79,7 +80,8 @@ train:
 	${PREPARE_VENV} && \
 	export HYDRA_FULL_ERROR=1 && \
 	python train.py \
-	--config-name ${WKSPACE}
+	--config-name ${WKSPACE} \
+	task=${TASK}
 
 eval.launch_camera:
 	${PREPARE_VENV} && \
@@ -93,12 +95,21 @@ eval.launch_robot:
 	python teleop.py \
 	task=${TASK}
 
+eval.inference_pi0:
+	${PREPARE_VENV} && \
+	${PREPARE_ROS} && \
+	export HYDRA_FULL_ERROR=1 && \
+	python eval_real_robot_flexiv_pi0.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio \
+
 eval.inference:
 	${PREPARE_VENV} && \
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
 	python eval_real_robot_flexiv.py \
 	--config-name ${WKSPACE} \
+	task=${TASK} \
 	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio \
-	+ckpt_path=data/outputs/2025.03.03/11.34.02_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt
-
+	+ckpt_path=data/outputs/2025.03.23/03.18.07_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_pi0/checkpoints/latest.ckpt

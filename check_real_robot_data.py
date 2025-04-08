@@ -71,13 +71,14 @@ def check_reshape_rope():
         print(action[i])
       
 def check_pick_and_place():
-    zarr_path = '/root/umi_base_devel/data/single_right_arm_pick_and_place_zarr/replay_buffer.zarr'
+    zarr_path = '/root/umi_base_devel/data/real_pick_and_place_pi0_zarr/replay_buffer.zarr'
     zarr_file = zarr.open(zarr_path)
     print(zarr_file.tree())
     data_file = zarr_file['data']
     # state = data_file['state'][:]
     action = data_file['action'][:]
-    images = data_file['external_img'][:]
+    left_wrist_images = data_file['left_wrist_img'][:]
+    external_images = data_file['external_img'][:]
 
     rot_6d = action[:, 3:9]  # 形状为 (100, 6)
     
@@ -104,28 +105,28 @@ def check_pick_and_place():
         rot_matrix = np.stack([a_norm, b_norm, c], axis=1)  # 形状为 (3,3)
         return rot_matrix
     
-    rot_matrices = []
-    for i in range(rot_6d.shape[0]):
-        rot_matrix = six_d_to_rot_matrix(rot_6d[i])
-        rot_matrices.append(rot_matrix)
+    # rot_matrices = []
+    # for i in range(rot_6d.shape[0]):
+    #     rot_matrix = six_d_to_rot_matrix(rot_6d[i])
+    #     rot_matrices.append(rot_matrix)
     
-    rot_matrices = np.array(rot_matrices)  # 形状为 (100, 3, 3)
+    # rot_matrices = np.array(rot_matrices)  # 形状为 (100, 3, 3)
     
-    # 将旋转矩阵转换为欧拉角 (roll, pitch, yaw)
-    # 假设使用 'xyz' 顺序，即 roll (x), pitch (y), yaw (z)
-    rotations = R.from_matrix(rot_matrices)
-    euler_angles = rotations.as_euler('xyz', degrees=False)  # 形状为 (100, 3)
+    # # 将旋转矩阵转换为欧拉角 (roll, pitch, yaw)
+    # # 假设使用 'xyz' 顺序，即 roll (x), pitch (y), yaw (z)
+    # rotations = R.from_matrix(rot_matrices)
+    # euler_angles = rotations.as_euler('xyz', degrees=False)  # 形状为 (100, 3)
     
-    # 构建新的数组
-    # 保留原数组中未被替换的部分 (假设是第0,1,2,9列)
-    other_columns = action[:, [0, 1, 2, 9]]  # 形状为 (100, 4)
+    # # 构建新的数组
+    # # 保留原数组中未被替换的部分 (假设是第0,1,2,9列)
+    # other_columns = action[:, [0, 1, 2, 9]]  # 形状为 (100, 4)
 
-    new_action = np.hstack([other_columns, euler_angles])
+    # new_action = np.hstack([other_columns, euler_angles])
 
-    min_vals = np.min(new_action, axis=0)
-    max_vals = np.max(new_action, axis=0)
-    print('min_vals:', min_vals)
-    print('max_vals:', max_vals)
+    # min_vals = np.min(new_action, axis=0)
+    # max_vals = np.max(new_action, axis=0)
+    # print('min_vals:', min_vals)
+    # print('max_vals:', max_vals)
 
     num_samples = action.shape[0]
 
@@ -135,11 +136,11 @@ def check_pick_and_place():
         # print(f'state {i}:')
         # print(state[i])
         i = i * scale_factor
-        # cv2.imshow(f'image_{i}', images[i])
+        cv2.imwrite(f'image_{i}', images[i])
         # cv2.waitKey(0)
         # cv2.destroyAllWindows()
-        print(f'action {i}:')
-        print(action[i])
+        # print(f'action {i}:')
+        # print(action[i])
 if __name__ == '__main__':
     # check_sweep_cube()
     # check_sweep_nuts()
