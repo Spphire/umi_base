@@ -1,0 +1,2 @@
+defaults:
+  - task: single_arm_one_realsense_30fps

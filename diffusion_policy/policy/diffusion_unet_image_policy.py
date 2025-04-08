@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,13 +10,14 @@ from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 from diffusion_policy.model.vision.multi_image_obs_encoder import MultiImageObsEncoder
+from diffusion_policy.model.vision.timm_obs_encoder import TimmObsEncoder
 from diffusion_policy.common.pytorch_util import dict_apply
 
 class DiffusionUnetImagePolicy(BaseImagePolicy):
     def __init__(self, 
             shape_meta: dict,
             noise_scheduler: DDPMScheduler,
-            obs_encoder: MultiImageObsEncoder,
+            obs_encoder: Union[MultiImageObsEncoder, TimmObsEncoder],
             horizon, 
             n_action_steps, 
             n_obs_steps,
@@ -27,7 +28,6 @@ class DiffusionUnetImagePolicy(BaseImagePolicy):
             kernel_size=5,
             n_groups=8,
             cond_predict_scale=True,
-            input_pertub=0.1,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -74,7 +74,6 @@ class DiffusionUnetImagePolicy(BaseImagePolicy):
         self.n_action_steps = n_action_steps
         self.n_obs_steps = n_obs_steps
         self.obs_as_global_cond = obs_as_global_cond
-        self.input_pertub = input_pertub
         self.kwargs = kwargs
 
         if num_inference_steps is None:
@@ -225,19 +224,16 @@ class DiffusionUnetImagePolicy(BaseImagePolicy):
 
         # Sample noise that we'll add to the images
         noise = torch.randn(trajectory.shape, device=trajectory.device)
-        # input perturbation by adding additonal noise to alleviate exposure bias
-        # reference: https://github.com/forever208/DDPM-IP
-        noise_new = noise + self.input_pertub * torch.randn(trajectory.shape, device=trajectory.device)
-
+        bsz = trajectory.shape[0]
         # Sample a random timestep for each image
         timesteps = torch.randint(
             0, self.noise_scheduler.config.num_train_timesteps, 
-            (trajectory.shape[0],), device=trajectory.device
+            (bsz,), device=trajectory.device
         ).long()
         # Add noise to the clean images according to the noise magnitude at each timestep
         # (this is the forward diffusion process)
         noisy_trajectory = self.noise_scheduler.add_noise(
-            trajectory, noise_new, timesteps)
+            trajectory, noise, timesteps)
         
         # compute loss mask
         loss_mask = ~condition_mask
@@ -262,3 +258,6 @@ class DiffusionUnetImagePolicy(BaseImagePolicy):
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
         return loss
+
+    def forward(self, batch):
+        return self.compute_loss(batch)
