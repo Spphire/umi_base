@@ -22,7 +22,7 @@ TEMPORAL_DOWNSAMPLE_RATIO = 3  # the ratio for temporal down-sampling
 SENSOR_MODE = 'single_arm_one_realsense'
 
 if __name__ == '__main__':
-    tag = 'real_pick_and_place_image'
+    tag = 'real_pick_and_place_pi0'
     # we use the tag to determine if we want to use data filtering
 
     data_dir = f'data/{tag}'
