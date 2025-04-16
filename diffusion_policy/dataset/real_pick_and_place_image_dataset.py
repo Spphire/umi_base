@@ -16,6 +16,8 @@ from diffusion_policy.common.normalize_util import (
     get_identity_normalizer_from_stat,
     array_to_stats
 )
+from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions
+from loguru import logger
 
 class RealPickAndPlaceImageDataset(BaseImageDataset):
     def __init__(self,
@@ -36,13 +38,14 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         zarr_path = os.path.join(dataset_path, 'replay_buffer.zarr')
         replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['left_robot_tcp_pose', 'left_robot_gripper_width',
-                             'action', 'external_img', 'left_wrist_img'])
+                             'action', 'left_wrist_img'])
         
         if delta_action:
             # replace action as relative to previous frame
             actions = replay_buffer['action'][:]
             # support positions only at this time
-            assert actions.shape[1] <= 3
+            assert actions.shape[1] == 10
+            logger.info(f"Converting action to delta action")
             actions_diff = np.zeros_like(actions)
             episode_ends = replay_buffer.episode_ends[:]
             for i in range(len(episode_ends)):
@@ -53,7 +56,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 # delta action is the difference between previous desired position and the current
                 # it should be scheduled at the previous timestep for the current timestep
                 # to ensure consistency with positional mode
-                actions_diff[start+1:end] = np.diff(actions[start:end], axis=0)
+                start_action = actions[start]
+                epi_actions = actions[start+1:end]
+                actions_diff[start] = start_action
+                actions_diff[start+1:end] = absolute_actions_to_relative_actions(epi_actions, start_action)
             replay_buffer['action'][:] = actions_diff
 
         rgb_keys = list()
