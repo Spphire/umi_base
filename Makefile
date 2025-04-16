@@ -12,11 +12,12 @@ TASK := real_pick_and_place_pi0
 
 # workspace config , have to be consistent with the task
 WKSPACE := train_diffusion_unet_real_image_workspace
+DATASET_PATH := /root/umi_base_devel/data/real_pick_and_place_zarr
 
 # record config
 SAVE_BASE_DIR := /home/wangyi/umi_base/data
 SAVE_FILE_DIR := ${TASK}
-SAVE_FILE_NAME := trial50.pkl
+SAVE_FILE_NAME := trial30.pkl
 
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel
@@ -82,6 +83,7 @@ train:
 	python train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK}
+	+task.dataset_path=${DATASET_PATH}
 
 eval.launch_camera:
 	${PREPARE_VENV} && \
