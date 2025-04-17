@@ -32,6 +32,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             val_ratio=0.0,
             max_train_episodes=None,
             delta_action=False,
+            relative_action=False,
         ):
         assert os.path.isdir(dataset_path)
 
@@ -44,8 +45,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             # replace action as relative to previous frame
             actions = replay_buffer['action'][:]
             # support positions only at this time
-            assert actions.shape[1] == 10
-            logger.info(f"Converting action to delta action")
+            assert actions.shape[1] <= 3
             actions_diff = np.zeros_like(actions)
             episode_ends = replay_buffer.episode_ends[:]
             for i in range(len(episode_ends)):
@@ -56,10 +56,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 # delta action is the difference between previous desired position and the current
                 # it should be scheduled at the previous timestep for the current timestep
                 # to ensure consistency with positional mode
-                start_action = actions[start]
-                epi_actions = actions[start+1:end]
-                actions_diff[start] = start_action
-                actions_diff[start+1:end] = absolute_actions_to_relative_actions(epi_actions, start_action)
+                actions_diff[start+1:end] = np.diff(actions[start:end], axis=0)
             replay_buffer['action'][:] = actions_diff
 
         rgb_keys = list()
@@ -107,6 +104,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         self.n_latency_steps = n_latency_steps
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.relative_action = relative_action
+        if relative_action:
+            logger.info(
+                "Relative action is enabled. All actions will be relative to the current frame.")
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -173,6 +174,14 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         # observations are already taken care of by T_slice
         if self.n_latency_steps > 0:
             action = action[self.n_latency_steps:]
+
+        if self.relative_action:
+            for key in self.lowdim_keys:
+                # convert to relative action
+                if 'tcp_pose' in key:
+                    action = absolute_actions_to_relative_actions(
+                        action, obs_dict[key][-1])
+                    obs_dict[key] = absolute_actions_to_relative_actions(obs_dict[key], obs_dict[key][-1])
 
         torch_data = {
             'obs': dict_apply(obs_dict, torch.from_numpy),

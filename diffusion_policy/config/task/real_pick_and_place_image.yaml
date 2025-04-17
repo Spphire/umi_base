@@ -79,5 +79,6 @@ dataset:
   seed: 42
   val_ratio: 0.00
   max_train_episodes: null
-  delta_action: True
+  delta_action: False
+  relative_action: True
 
