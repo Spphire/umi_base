@@ -67,7 +67,7 @@ env_runner:
     gripper_width_threshold: 0.046
     enable_gripper_width_clipping: True
   debug: True
-  use_relative_action: True
+  use_relative_action: ${task.dataset.relative_action}
 
 dataset:
   _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset
@@ -82,4 +82,5 @@ dataset:
   val_ratio: 0.00
   max_train_episodes: null
   delta_action: False
+  relative_action: True
 
