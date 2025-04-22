@@ -16,6 +16,8 @@ from diffusion_policy.common.normalize_util import (
     get_identity_normalizer_from_stat,
     array_to_stats
 )
+from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions
+from loguru import logger
 
 class RealPickAndPlaceImageDataset(BaseImageDataset):
     def __init__(self,
@@ -30,13 +32,14 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             val_ratio=0.0,
             max_train_episodes=None,
             delta_action=False,
+            relative_action=False,
         ):
         assert os.path.isdir(dataset_path)
 
         zarr_path = os.path.join(dataset_path, 'replay_buffer.zarr')
         replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['left_robot_tcp_pose', 'left_robot_gripper_width',
-                             'action', 'external_img', 'left_wrist_img'])
+                             'action', 'left_wrist_img'])
         
         if delta_action:
             # replace action as relative to previous frame
@@ -101,6 +104,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         self.n_latency_steps = n_latency_steps
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.relative_action = relative_action
+        if relative_action:
+            logger.info(
+                "Relative action is enabled. All actions will be relative to the current frame.")
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -167,6 +174,14 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         # observations are already taken care of by T_slice
         if self.n_latency_steps > 0:
             action = action[self.n_latency_steps:]
+
+        if self.relative_action:
+            for key in self.lowdim_keys:
+                # convert to relative action
+                if 'tcp_pose' in key:
+                    action = absolute_actions_to_relative_actions(
+                        action, obs_dict[key][-1])
+                    obs_dict[key] = absolute_actions_to_relative_actions(obs_dict[key], obs_dict[key][-1])
 
         torch_data = {
             'obs': dict_apply(obs_dict, torch.from_numpy),
