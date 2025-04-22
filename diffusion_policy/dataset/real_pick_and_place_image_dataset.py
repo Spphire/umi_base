@@ -18,6 +18,8 @@ from diffusion_policy.common.normalize_util import (
 )
 from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions
 from loguru import logger
+import tqdm
+from diffusion_policy.common.normalize_util import get_action_normalizer
 
 class RealPickAndPlaceImageDataset(BaseImageDataset):
     def __init__(self,
@@ -34,6 +36,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             delta_action=False,
             relative_action=False,
         ):
+        print(dataset_path)
         assert os.path.isdir(dataset_path)
 
         zarr_path = os.path.join(dataset_path, 'replay_buffer.zarr')
@@ -109,6 +112,8 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             logger.info(
                 "Relative action is enabled. All actions will be relative to the current frame.")
 
+        self.relative_tcp_obs_for_relative_action = True
+
     def get_validation_dataset(self):
         val_set = copy.copy(self)
         val_set.sampler = SequenceSampler(
@@ -121,20 +126,43 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         val_set.val_mask = ~self.val_mask
         return val_set
 
+
     def get_normalizer(self, **kwargs) -> LinearNormalizer:
         normalizer = LinearNormalizer()
 
+        if self.relative_action:
+            relative_data_dict = {key: list() for key in (self.lowdim_keys + ['action']) if ('robot_tcp_pose' in key and 'wrt' not in key) or 'action' in key}
+            for data in tqdm.tqdm(self, leave=False, desc='Calculating relative action/obs for normalizer'):
+                for key in relative_data_dict.keys():
+                    if key == 'action':
+                        relative_data_dict[key].append(data[key])
+                    else:
+                        relative_data_dict[key].append(data['obs'][key])
+            relative_data_dict = dict_apply(relative_data_dict, np.stack)
+
         # action
-        normalizer['action'] = SingleFieldLinearNormalizer.create_fit(
-            self.replay_buffer['action'][:, :self.shape_meta['action']['shape'][0]])
-        
+        if self.relative_action:
+            action_all = relative_data_dict['action']
+        else:
+            action_all = self.replay_buffer['action'][:, :self.shape_meta['action']['shape'][0]]
+
+        normalizer['action'] = get_action_normalizer(action_all)
+
         # obs
-        for key in self.lowdim_keys:
-            normalizer[key] = SingleFieldLinearNormalizer.create_fit(
-                self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
-        
+        for key in list(set(self.lowdim_keys)):
+            if self.relative_action and key in relative_data_dict:
+                normalizer[key] = get_action_normalizer(relative_data_dict[key])
+            elif 'robot_tcp_pose' in key and 'wrt' in key:
+                normalizer[key] = get_action_normalizer(inter_gripper_data_dict[key])
+            elif 'robot_tcp_pose' in key and 'wrt' not in key:
+                normalizer[key] = get_action_normalizer(self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
+            else:
+                normalizer[key] = SingleFieldLinearNormalizer.create_fit(
+                    self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
+
+
         # image
-        for key in self.rgb_keys:
+        for key in list(set(self.rgb_keys)):
             normalizer[key] = get_image_range_normalizer()
         return normalizer
 
@@ -163,25 +191,29 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 ).astype(np.float32) / 255.
             # T,C,H,W
             # save ram
-            del data[key]
+            if key not in self.rgb_keys:
+                del data[key]
         for key in self.lowdim_keys:
-            obs_dict[key] = data[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
-            # save ram
-            del data[key]
+            if 'wrt' not in key:
+                obs_dict[key] = data[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
 
         action = data['action'][:, :self.shape_meta['action']['shape'][0]].astype(np.float32)
         # handle latency by dropping first n_latency_steps action
         # observations are already taken care of by T_slice
         if self.n_latency_steps > 0:
             action = action[self.n_latency_steps:]
-
+        
         if self.relative_action:
-            for key in self.lowdim_keys:
-                # convert to relative action
-                if 'tcp_pose' in key:
-                    action = absolute_actions_to_relative_actions(
-                        action, obs_dict[key][-1])
-                    obs_dict[key] = absolute_actions_to_relative_actions(obs_dict[key], obs_dict[key][-1])
+            base_absolute_action = np.concatenate([
+                obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
+                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([])
+            ], axis=-1)
+            action = absolute_actions_to_relative_actions(action, base_absolute_action=base_absolute_action)
+
+            if self.relative_tcp_obs_for_relative_action:
+                for key in self.lowdim_keys:
+                    if 'robot_tcp_pose' in key and 'wrt' not in key:
+                        obs_dict[key]  = absolute_actions_to_relative_actions(obs_dict[key], base_absolute_action=base_absolute_action)
 
         torch_data = {
             'obs': dict_apply(obs_dict, torch.from_numpy),

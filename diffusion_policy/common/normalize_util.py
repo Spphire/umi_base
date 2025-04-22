@@ -36,21 +36,6 @@ def get_image_range_normalizer():
         input_stats_dict=stat
     )
 
-def get_image_identity_normalizer():
-    scale = np.array([1], dtype=np.float32)
-    offset = np.array([0], dtype=np.float32)
-    stat = {
-        'min': np.array([0], dtype=np.float32),
-        'max': np.array([1], dtype=np.float32),
-        'mean': np.array([0.5], dtype=np.float32),
-        'std': np.array([np.sqrt(1/12)], dtype=np.float32)
-    }
-    return SingleFieldLinearNormalizer.create_manual(
-        scale=scale,
-        offset=offset,
-        input_stats_dict=stat
-    )
-
 def get_identity_normalizer_from_stat(stat):
     scale = np.ones_like(stat['min'])
     offset = np.zeros_like(stat['min'])
@@ -242,10 +227,42 @@ def concatenate_normalizer(normalizers: list):
     scale = torch.concatenate([normalizer.params_dict['scale'] for normalizer in normalizers], axis=-1)
     offset = torch.concatenate([normalizer.params_dict['offset'] for normalizer in normalizers], axis=-1)
     input_stats_dict = dict_apply_reduce(
-        [normalizer.params_dict['input_stats'] for normalizer in normalizers], 
+        [normalizer.params_dict['input_stats'] for normalizer in normalizers],
         lambda x: torch.concatenate(x,axis=-1))
     return SingleFieldLinearNormalizer.create_manual(
         scale=scale,
         offset=offset,
         input_stats_dict=input_stats_dict
     )
+
+def get_action_normalizer(actions: np.ndarray, temporally_independent_normalization=False):
+    assert not temporally_independent_normalization, "Not use temporally independent normalization now"
+    assert len(actions.shape) == 2 or len(actions.shape) == 3
+    if not temporally_independent_normalization:
+        actions = actions.reshape(-1, actions.shape[-1])
+
+    D = actions.shape[-1]
+    if D == 3 or D == 4 or D == 6 or D == 8: # (x, y, z, gripper_width)
+        normalizers = [get_range_normalizer_from_stat(array_to_stats(actions))]
+    elif D == 9 or D == 10: # (x, y, z, rx1, rx2, rx3, ry1, ry2, ry3)
+        normalizers = []
+        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,:3])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
+        if D == 10:
+            normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,9:])))
+    elif D == 18 or D == 20:
+        normalizers = []
+        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,:3])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
+        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,9:12])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,12:18])))
+        if D == 20:
+            normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,18:])))
+    else:
+        raise NotImplementedError
+
+    normalizer = concatenate_normalizer(normalizers)
+    return normalizer
