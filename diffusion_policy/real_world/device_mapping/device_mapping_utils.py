@@ -19,6 +19,9 @@ def get_topic_and_type(device_to_topic: DeviceToTopic):
         subs_name_type.append((f'/{camera_name}/color/image_raw', Image))
         subs_name_type.append((f'/{camera_name}/marker_offset/information', PointCloud2))
 
+    for camera_name, info in device_to_topic.capture_card.items():
+        subs_name_type.append((f'/{camera_name}/color/image_raw', Image))
+
     subs_name_type.extend([
         ('/left_tcp_pose', PoseStamped),
         ('/right_tcp_pose', PoseStamped),

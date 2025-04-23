@@ -152,8 +152,6 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         for key in list(set(self.lowdim_keys)):
             if self.relative_action and key in relative_data_dict:
                 normalizer[key] = get_action_normalizer(relative_data_dict[key])
-            elif 'robot_tcp_pose' in key and 'wrt' in key:
-                normalizer[key] = get_action_normalizer(inter_gripper_data_dict[key])
             elif 'robot_tcp_pose' in key and 'wrt' not in key:
                 normalizer[key] = get_action_normalizer(self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
             else:
@@ -175,7 +173,6 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         threadpool_limits(1)
         data = self.sampler.sample_sequence(idx)
-
         # to save RAM, only return first n_obs_steps of OBS
         # since the rest will be discarded anyway.
         # when self.n_obs_steps is None
@@ -202,7 +199,6 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         # observations are already taken care of by T_slice
         if self.n_latency_steps > 0:
             action = action[self.n_latency_steps:]
-        
         if self.relative_action:
             base_absolute_action = np.concatenate([
                 obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
@@ -219,6 +215,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             'obs': dict_apply(obs_dict, torch.from_numpy),
             'action': torch.from_numpy(action)
         }
+
         return torch_data
 
 def test():

@@ -55,6 +55,8 @@ class TeleopServer:
                  # teleoperation mode
                  teleop_mode: str = 'left_arm_6DOF',
                  relative_translation_scale: float = 1.0,
+                 enable_tcp_gripper_compensation: bool = False,
+                 tcp_gripper_compensation = None
                  ):
         self.robot_server_ip = robot_server_ip
         self.robot_server_port = robot_server_port
