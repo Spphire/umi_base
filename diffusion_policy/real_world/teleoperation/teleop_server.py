@@ -35,6 +35,7 @@ class TeleopServer:
     right_gripper_force = 0.0
     left_gripper_width_history: deque = deque(maxlen=30)
     right_gripper_width_history: deque = deque(maxlen=30)
+    velocity_limit = 0.5
 
     def __init__(self,
                  robot_server_ip: str,
@@ -55,9 +56,11 @@ class TeleopServer:
                  # teleoperation mode
                  teleop_mode: str = 'left_arm_6DOF',
                  relative_translation_scale: float = 1.0,
+                 debug: bool = False
                  ):
         self.robot_server_ip = robot_server_ip
         self.robot_server_port = robot_server_port
+        self.debug = debug
         self.host_ip = host_ip
         self.port = port
         self.fps = fps
@@ -104,6 +107,7 @@ class TeleopServer:
         @self.app.post('/unity')
         async def unity(mes: UnityMes):
             self.msg_buffer.push(mes)
+            # logger.info(f'raw unity message cmd is {mes.leftHand.cmd}')
             return {'status': 'ok'}
 
         @self.app.get('/get_current_gripper_state')
@@ -146,6 +150,8 @@ class TeleopServer:
             raise e
 
     def send_command(self, endpoint: str, data: dict = None):
+        if 'gripper' in endpoint and 'velocity' in data:
+            logger.info(f'gripper velocity is set to:{data["velocity"]}')
         url = f"http://{self.robot_server_ip}:{self.robot_server_port}{endpoint}"
         if 'get' in endpoint:
             response = self.session.get(url)
@@ -172,6 +178,7 @@ class TeleopServer:
             self.left_start_real_tcp = robot_tcp
             self.left_start_unity_tcp = unity_tcp
             self.left_tracking_state = True
+            logger.info(f'left start real tcp is set to {robot_tcp}, left start unity tcp is set to {unity_tcp}')
         else:
             self.right_start_real_tcp = robot_tcp
             self.right_start_unity_tcp = unity_tcp
@@ -181,6 +188,7 @@ class TeleopServer:
         if is_left:
             start_real_tcp = self.left_start_real_tcp
             start_unity_tcp = self.left_start_unity_tcp
+            # logger.info(f'left pose from unity is {pos_from_unity}')
         else:
             start_real_tcp = self.right_start_real_tcp
             start_unity_tcp = self.right_start_unity_tcp
@@ -193,12 +201,14 @@ class TeleopServer:
                          @ np.linalg.inv(t3d.quaternions.quat2mat(start_unity_tcp[3:])) \
                          @ t3d.quaternions.quat2mat(start_real_tcp[3:])
         target[3:] = t3d.quaternions.mat2quat(target_rot_mat).tolist()
-
+        # if is_left:
+        #     logger.info(f'left target calculated is {target}')
         return target
 
     def process_cmd(self):
         while True:
             start_time = time.time()
+            # logger.debug(f'left tracking state: {self.left_tracking_state}, right tracking state: {self.right_tracking_state}')
             try:
                 mes, _, _ = self.msg_buffer.peek()
                 if mes is None and not (self.left_homing_state or self.right_homing_state):
@@ -256,7 +266,7 @@ class TeleopServer:
                         logger.debug(f"left gripper moving from {left_current_width} to target: {left_gripper_width_target} "
                                      f"with force {grasp_force}")
                         self.send_command('/move_gripper_force/left', {
-                            'velocity': 10.0,
+                            'velocity': self.velocity_limit,
                             'force_limit': grasp_force
                         })
                     else:
@@ -267,7 +277,7 @@ class TeleopServer:
                             logger.debug(f"left gripper moving from {left_current_width} to target: {left_gripper_width_target}")
                             self.send_command('/move_gripper/left', {
                                 'width': left_gripper_width_target,
-                                'velocity': 10.0,
+                                'velocity': self.velocity_limit,
                                 'force_limit': grasp_force
                             })
                     self.last_gripper_width_target[0] = left_gripper_width_target
@@ -280,7 +290,7 @@ class TeleopServer:
                                      f"with force {grasp_force}")
                         self.send_command('/move_gripper_force/right', {
                             'force_limit': grasp_force,
-                            'velocity': 10.0,
+                            'velocity': self.velocity_limit,
                         })
                     else:
                         if self.gripper_never_open and right_current_width < right_gripper_width_target:
@@ -290,7 +300,7 @@ class TeleopServer:
                             logger.debug(f"right gripper moving from {right_current_width} to target: {right_gripper_width_target}")
                             self.send_command('/move_gripper/right', {
                                 'width': right_gripper_width_target,
-                                'velocity': 10.0,
+                                'velocity': self.velocity_limit,
                                 'force_limit': grasp_force
                             })
                     self.last_gripper_width_target[1] = right_gripper_width_target
@@ -302,6 +312,10 @@ class TeleopServer:
             # Get the target position from Unity and transform it to the robot base frame
             r_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.rightHand.pos + mes.rightHand.quat), False)
             l_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.leftHand.pos + mes.leftHand.quat), True)
+            # logger.info(f'left pose from unity is {l_pos_from_unity}, raw data is {np.array(mes.leftHand.pos + mes.leftHand.quat)}')
+            # end_time = time.time()
+            # precise_sleep(self.control_cycle_time - (end_time - start_time))
+            # continue
 
             if self.left_homing_state:
                 logger.debug("left still in homing state")
@@ -389,15 +403,15 @@ class TeleopServer:
 
                     # clip z to avoid collision with table
                     # TODO: fix this
-                    left_target[2] = np.clip(left_target[2], 0.02, np.inf)
+                    left_target[2] = np.clip(left_target[2], 0.4, np.inf)
 
                     if np.linalg.norm(left_target[:3] - left_tcp[:3]) > threshold:
                         if self.left_tracking_state:
-                            logger.info("left robot lost sync")
+                            logger.info(f"left robot lost sync, error norm is {np.linalg.norm(left_target[:3] - left_tcp[:3])}, left target is {left_target[:3]}, left tcp is {left_tcp[:3]}")
                         self.left_tracking_state = False
                     else:
                         self.send_command('/move_tcp/left', {'target_tcp': left_target.tolist()})
-                        # logger.debug(f'left target:{left_target.tolist()}')
+                        logger.debug(f'left target:{left_target.tolist()}')
                         
 
                 if self.right_tracking_state:
