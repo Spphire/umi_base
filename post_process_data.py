@@ -22,7 +22,7 @@ TEMPORAL_DOWNSAMPLE_RATIO = 3  # the ratio for temporal down-sampling
 SENSOR_MODE = 'single_arm_one_realsense'
 
 if __name__ == '__main__':
-    tag = 'real_pick_and_place_pi0'
+    tag = 'real_pick_and_place_gopro'
     # we use the tag to determine if we want to use data filtering
 
     data_dir = f'data/{tag}'
@@ -144,34 +144,6 @@ if __name__ == '__main__':
     right_robot_gripper_width_arrays = np.stack(right_robot_gripper_width_arrays, axis=0)
     right_robot_gripper_force_arrays = np.stack(right_robot_gripper_force_arrays, axis=0)
 
-    if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 8: # (left_tcp_x, left_tcp_y, left_tcp_z, right_tcp_x, right_tcp_y, right_tcp_z, left_gripper_width, right_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], right_robot_tcp_pose_arrays[:, :3],
-                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 10: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, left_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, left_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 20: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, right_tcp_x, right_tcp_y, right_tcp_z, right_6d_rotation, left_gripper_width, right_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, right_robot_tcp_pose_arrays,
-                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
-    else:
-        # TODO: support left_gripper1_marker_offset_emb_arrays
-        # TODO: support right_gripper1_marker_offset_emb_arrays
-        # TODO: support right_gripper2_marker_offset_emb_arrays
-        raise NotImplementedError
-    if USE_ABSOLUTE_ACTION:
-        # override action to absolute value
-        # action is basically next state
-        new_action_arrays = state_arrays[1:, ...].copy()
-        action_arrays = np.concatenate([new_action_arrays, new_action_arrays[-1][np.newaxis, :]], axis=0)
-        # fix the last action of each episode
-        for i in range(0, len(episode_ends_arrays)):
-            action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
-    else:
-        raise NotImplementedError
-    
-        
-    valid_mask = np.ones(len(action_arrays), dtype=bool)
 
     if TEMPORAL_DOWNSAMPLE_RATIO > 1:
         # Calculate indices to keep after downsampling
@@ -201,7 +173,6 @@ if __name__ == '__main__':
         keep_indices = np.array(keep_indices)
 
         # Downsample all arrays
-        action_arrays = action_arrays[keep_indices]
         timestamp_arrays = timestamp_arrays[keep_indices]
         external_img_arrays = external_img_arrays[keep_indices]
         left_wrist_img_arrays = left_wrist_img_arrays[keep_indices]
@@ -234,6 +205,36 @@ if __name__ == '__main__':
             current_episode_start = episode_end
 
         episode_ends_arrays = np.array(new_episode_ends)
+
+    if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 8: # (left_tcp_x, left_tcp_y, left_tcp_z, right_tcp_x, right_tcp_y, right_tcp_z, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], right_robot_tcp_pose_arrays[:, :3],
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 10: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 20: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, right_tcp_x, right_tcp_y, right_tcp_z, right_6d_rotation, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, right_robot_tcp_pose_arrays,
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    else:
+        # TODO: support left_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper2_marker_offset_emb_arrays
+        raise NotImplementedError
+
+    if USE_ABSOLUTE_ACTION:
+        # override action to absolute value
+        # action is basically next state
+        new_action_arrays = state_arrays[1:, ...].copy()
+        action_arrays = np.concatenate([new_action_arrays, new_action_arrays[-1][np.newaxis, :]], axis=0)
+        # fix the last action of each episode
+        for i in range(0, len(episode_ends_arrays)):
+            action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
+    else:
+        raise NotImplementedError
+    
+        
+    valid_mask = np.ones(len(action_arrays), dtype=bool)
 
     # create zarr file4
     zarr_root = zarr.group(save_data_path)
