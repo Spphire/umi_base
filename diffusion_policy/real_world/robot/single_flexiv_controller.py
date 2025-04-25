@@ -12,6 +12,7 @@ import time
 from typing import List
 from loguru import logger
 
+TCP_MOVE_VELOCITY_LIMIT = 0.5
 
 class FlexivController():
     def __init__(self,
@@ -103,7 +104,7 @@ class FlexivController():
         self.robot.sendCartesianMotionForce(
                 target_tcp, 
                 [0.0]*6, 
-                0.5,
+                TCP_MOVE_VELOCITY_LIMIT,
                 1.0)
 
     def execute_primitive(self, primitive_command: str):
