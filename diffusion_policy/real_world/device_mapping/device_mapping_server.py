@@ -27,6 +27,7 @@ class UsbCameraInfo(BaseModel):
 class DeviceToTopic(BaseModel):
     realsense: Dict[str, RealsenseCameraInfo] = {}
     usb: Dict[str, UsbCameraInfo] = {}
+    capture_card: Dict[str, UsbCameraInfo] = {}
 
 class DeviceMappingServer:
     """Server class that defines the device mapping (device to ROS topic name)"""
@@ -77,6 +78,40 @@ class DeviceMappingServer:
                 current_camera_name = line.strip()
 
         return camera_ids
+    
+    @staticmethod
+    def get_usb_capture_card_ids():
+        result = subprocess.run(['v4l2-ctl', '--list-devices'], stdout=subprocess.PIPE, text=True)
+        output = result.stdout
+
+        camera_ids = []
+        lines = output.split('\n')
+        current_camera_name = None
+        found_video_path = False
+
+        for line in lines:
+            if line.strip() == '':
+                current_camera_name = None
+                found_video_path = False
+                continue
+
+            if line.startswith('\t'):
+                '''
+                The device id of the usb camera is
+                the index in its first device path
+                '''
+                if (current_camera_name and ('UGREEN' in current_camera_name)
+                        and '/dev/video' in line and not found_video_path):
+                    device_id = line.split('/')[-1]
+                    camera_ids.append(int(device_id.replace('video', '')))
+                    found_video_path = True
+            else:
+                '''
+                obtain the name of the usb camera
+                '''
+                current_camera_name = line.strip()
+
+        return camera_ids
 
     def init_mapping(self, publisher_cfg: DictConfig):
         '''
@@ -109,6 +144,18 @@ class DeviceMappingServer:
                     device_id=index,
                     type="usb"
                 )
+
+        # capture card
+        if publisher_cfg.capture_card_camera_publisher is not None:
+            capture_card_ids = self.get_usb_capture_card_ids()
+            for index, capture_card in zip(capture_card_ids, publisher_cfg.capture_card_camera_publisher):
+                self.device_to_topic_mapping.capture_card[capture_card.camera_name] = UsbCameraInfo(
+                    topic_image=f'/{capture_card.camera_name}/color/image_raw',
+                    topic_marker=f'/{capture_card.camera_name}/marker_offset/information',
+                    device_id=index,
+                    type="capture_card"
+                )
+        
 
     def run(self):
         logger.info(f"Device mapping server is running on {self.host_ip}:{self.port}")

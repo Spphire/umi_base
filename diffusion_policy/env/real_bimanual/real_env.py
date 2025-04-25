@@ -80,6 +80,8 @@ class RealRobotEnvironment(Node):
                  vcamera_server_ip: Optional[str] = None,
                  vcamera_server_port: Optional[int] = None,
                  time_check: bool = False,
+                 enable_tcp_gripper_compensation: bool = False,
+                 tcp_gripper_compensation: List[List[float]] = [[0, 0], [1, 0]],
                  debug: bool = False,
                  velocity_limit: float = 10.):
         super().__init__('real_env')
@@ -102,6 +104,10 @@ class RealRobotEnvironment(Node):
 
         self.data_processing_manager = DataPostProcessingManager(transforms,
                                                                  **data_processing_params)
+        
+        self.enable_tcp_gripper_compensation = enable_tcp_gripper_compensation
+        self.tcp_gripper_compensation = tcp_gripper_compensation
+
         self.debug = debug
         self.subscribers = []
         self.obs_buffer = RingBuffer(size=1024, fps=max_fps)
