@@ -20,7 +20,7 @@ from diffusion_policy.real_world.publisher.realsense_camera_publisher import Rea
 from diffusion_policy.real_world.publisher.gopro_capture_card_publisher import UsbCaptureCardPublisher
 from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
 from diffusion_policy.real_world.publisher.iphone_camera_publisher import IPhoneCameraPublisher
-from diffusion_policy.real_world.device_mapping.device_mapping_server_devel import DeviceToTopic, DeviceMappingServer
+from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
 
 # add this to prevent assigning too may threads when using numpy
 os.environ["OPENBLAS_NUM_THREADS"] = "12"
