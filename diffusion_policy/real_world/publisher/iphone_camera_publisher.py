@@ -10,6 +10,7 @@ import time
 import requests
 import threading
 from diffusion_policy.common.time_utils import convert_float_to_ros_time
+from diffusion_policy.common.precise_sleep import precise_sleep
 
 class IPhoneCameraPublisher(Node):
     """
@@ -23,6 +24,7 @@ class IPhoneCameraPublisher(Node):
                  fps: int = 30,
                  debug: bool = False
                  ):
+        self.fps = fps
         node_name = f'{camera_name}_publisher'
         super().__init__(node_name)
         self.camera_id = camera_index
@@ -57,6 +59,7 @@ class IPhoneCameraPublisher(Node):
             return
 
         self.last_frame_time = time.time()
+        time_cnt = []
 
         for chunk in response.iter_content(chunk_size=1024):
             if not self.running:
@@ -65,6 +68,7 @@ class IPhoneCameraPublisher(Node):
 
             while True:
                 # 查找边界
+                start_time = time.time()
                 boundary_index = bytes_buffer.find(boundary.encode())
                 if boundary_index == -1:
                     break
@@ -110,13 +114,15 @@ class IPhoneCameraPublisher(Node):
                             img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
                             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                             if (timestamp - self.last_frame_time) > 0.01:
-                                fps = 1 / (timestamp - self.last_frame_time)
-                                logger.info(f'Received frame: {frame_count}, image shape:{img.shape}, FPS: {fps:.2f}')
+                                time_cnt.append(1 / (timestamp - self.last_frame_time))
+                            if len(time_cnt) > 15:
+                                logger.info(f'Received frame: {frame_count}, image shape:{img.shape}, FPS: {np.mean(time_cnt):.2f}')
+                                time_cnt = []
                             self.last_frame_time = timestamp
                             # 发布图像，传递时间戳
                             timestamp = convert_float_to_ros_time(timestamp)
                             self.publish_color_image(img, timestamp)
-                            time.sleep(1./35)
+                            precise_sleep(max(0., 1./ self.fps - (time.time() - start_time)))
         # except requests.exceptions.RequestException as e:
         #     logger.error(f"请求异常: {e}")
         # except Exception as e:
@@ -137,8 +143,8 @@ class IPhoneCameraPublisher(Node):
         
         # Fill the message
         msg = Image()
-        msg.header.stamp = camera_timestamp.to_msg()
-        # msg.header.stamp = self.get_clock().now().to_msg()
+        # msg.header.stamp = camera_timestamp.to_msg() # This implementation will lead to NO Obs error!
+        msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "camera_color_frame"
         msg.height, msg.width, _ = color_image.shape
         msg.encoding = "bgr8"
