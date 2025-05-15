@@ -405,7 +405,7 @@ class TeleopServer:
 
                     # clip z to avoid collision with table
                     # TODO: fix this
-                    left_target[2] = np.clip(left_target[2], 0.4, np.inf)
+                    left_target[2] = np.clip(left_target[2], 0.03, np.inf)
 
                     if np.linalg.norm(left_target[:3] - left_tcp[:3]) > threshold:
                         if self.left_tracking_state:
