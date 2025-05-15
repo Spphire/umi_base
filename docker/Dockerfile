@@ -7,7 +7,7 @@ COPY third_party third_party
 COPY requirements.txt requirements.txt
 
 RUN apt-get update && \
-    apt-get install -y ros-humble-tf-transformations python3-venv python3-pip tmux v4l-utils usbutils wget  build-essential libjpeg-dev zlib1g-dev libpng-dev libtiff-dev libopenjp2-7-dev git && \
+    apt-get install -y ros-humble-tf-transformations python3-venv python3-pip tmux v4l-utils usbutils wget  build-essential libjpeg-dev zlib1g-dev libpng-dev libtiff-dev libopenjp2-7-dev git libusbmuxd-dev && \
     apt-get clean
 
 RUN python3 -m venv venv
@@ -42,6 +42,11 @@ RUN . venv/bin/activate && \
 RUN . venv/bin/activate && \
     cd third_party/openpi-client && \
     pip install -e .
+
+# Install anysense utilities
+RUN . venv/bin/activate && \
+    cd third_party/anysense-streaming && \
+    python setup.py install
 
 # Install other requirements
 RUN . venv/bin/activate && \
