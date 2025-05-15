@@ -387,8 +387,8 @@ class RealPickAndPlacePi0Runner:
                         if 'external_img' in np_obs_dict:
                             np_obs_dict['external_img'] = (np_obs_dict['external_img'].transpose(0, 2, 3, 1) * 255).astype(np.uint8)
 
-                        if self.debug:
-                            logger.debug(f"Step: {step_count}, Get raw observation: {np_obs_dict}, image shape: {np_obs_dict['left_wrist_img'].shape}")
+                        # if self.debug:
+                        #     logger.debug(f"Step: {step_count}, Get raw observation: {np_obs_dict}, image shape: {np_obs_dict['left_wrist_img'].shape}")
                         #     cv2.imwrite(f"left_wrist_img_{step_count}.png", np_obs_dict['left_wrist_img'][0])
 
                         policy_time = time.time()
@@ -409,15 +409,15 @@ class RealPickAndPlacePi0Runner:
                         # cv2.imwrite(f"left_wrist_img_{step_count}_resize.png", observation["observation/wrist_image"])
                         # cv2.imwrite(f"external_img_{step_count}_resize.png", observation["observation/image"])
 
-                        if self.debug:
-                            logger.debug(f"Step: {step_count}, Get pi0 observation: {observation}")
+                        # if self.debug:
+                        #     logger.debug(f"Step: {step_count}, Get pi0 observation: {observation}")
                         #     cv2.imwrite(f"left_wrist_img_{step_count}_resize.png", observation["observation/wrist_image"][0])
 
                         pi0_infer_res = self.pi0_client.infer(observation)
                         action_all = pi0_infer_res["actions"]
 
-                        if self.debug:
-                            logger.debug(f"Step: {step_count}, Get pi0 action: {action_all}, action shape:")
+                        # if self.debug:
+                        #     logger.debug(f"Step: {step_count}, Get pi0 action: {action_all}, action shape:")
 
                         logger.debug(f"Policy inference time: {time.time() - policy_time:.3f}s")
 
@@ -431,9 +431,10 @@ class RealPickAndPlacePi0Runner:
                         if self.action_interpolation_ratio > 1:
                             action_all = interpolate_actions_with_ratio(action_all, self.action_interpolation_ratio)
 
+                        action_all = action_all[::self.infer_res_temporal_downsample_ratio]
+                        
                         # TODO: only takes the first n_action_steps and add to the ensemble buffer
                         if step_count % self.tcp_action_update_interval == 0:
-                            
                             if action_all.shape[-1] == 4:
                                 tcp_action = action_all[self.latency_step:, :3]
                             elif action_all.shape[-1] == 8:
@@ -444,7 +445,6 @@ class RealPickAndPlacePi0Runner:
                                 tcp_action = action_all[self.latency_step:, :18]
                             else:
                                 raise NotImplementedError
-                            tcp_action = tcp_action[::self.infer_res_temporal_downsample_ratio]
                             # add to ensemble buffer
                             logger.debug(f"Step: {step_count}, Add TCP action to ensemble buffer: {tcp_action}")
                             self.tcp_ensemble_buffer.add_action(tcp_action, step_count)
@@ -464,7 +464,6 @@ class RealPickAndPlacePi0Runner:
                                 gripper_action = action_all[self.gripper_latency_step:, 18:]
                             else:
                                 raise NotImplementedError
-                            gripper_action = gripper_action[::(self.infer_res_temporal_downsample_ratio + 1)]
                             # add to ensemble buffer
                             logger.debug(f"Step: {step_count}, Add gripper action to ensemble buffer: {gripper_action}")
                             self.gripper_ensemble_buffer.add_action(gripper_action, step_count)
