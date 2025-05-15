@@ -5,7 +5,7 @@ import sys
 import signal
 import time
 
-EP_START = 30
+EP_START = 1
 EP_END = 50
 
 def update_makefile(trial_num):

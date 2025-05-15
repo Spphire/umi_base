@@ -36,8 +36,8 @@ env_runner:
   task_name: ${task_name}
   transform_params: ${task.transforms}
   shape_meta: *shape_meta
-  tcp_pos_clip_range: [[0.35, -0.05, 0.65], [0.55, 0.3, 0.95]]
-  tcp_rot_clip_range: [[-2.75, 0.0, -3.0], [-2.0, 0.85, -2.0]]
+  tcp_pos_clip_range: [[0.4, -0.05, 0.45], [0.65, 0.3, 0.7]]
+  tcp_rot_clip_range: [[-2.75, 0.3, -3.0], [-2.0, 0.85, -2.5]]
   tcp_ensemble_buffer_params:
     ensemble_mode: 'new'
   gripper_ensemble_buffer_params:

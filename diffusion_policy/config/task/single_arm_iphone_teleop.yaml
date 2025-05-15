@@ -1,0 +1,40 @@
+robot_server:
+  host_ip: "192.168.2.223"
+  port: 8092
+  # left_robot_ip: "192.168.2.110"
+  # right_robot_ip: "192.168.2.111"
+  # left_robot_ip: "192.168.2.100"
+  # right_robot_ip: "192.168.2.101"
+  left_robot_ip: "192.168.2.101"
+  right_robot_ip: null
+publisher:
+  #  vr_server_ip: '10.53.21.67'
+  vr_server_ip: &vr_server_ip '192.168.2.203'
+#  vr_server_ip: &vr_server_ip '192.168.2.215' # Ethernet
+  vr_server_port: 10002
+  robot_publisher:
+    robot_server_ip: ${task.robot_server.host_ip}
+    robot_server_port: ${task.robot_server.port}
+    fps: 120
+    vr_server_ip: *vr_server_ip
+    vr_server_tcp_port: 10001
+    vr_server_force_port: 10005
+teleop_server:
+  host_ip: "192.168.2.223"
+  port: 8082
+  fps: 30
+  use_force_control_for_gripper: False
+  max_gripper_width: 0.1
+  min_gripper_width: 0.0
+  grasp_force: 7.0
+  gripper_control_time_interval: 10  # 30 for Flexiv Gripper, 20 for PGC-50 gripper
+  gripper_control_width_precision: 0.01  # 0.01 for PGC-50 gripper, 0.01 for Flexiv Grav Gripper
+  teleop_mode: 'left_arm_6DOF'
+  debug: False
+device_mapping_server:
+  host_ip: '127.0.0.1'
+  port: 8062
+transforms:
+  calibration_path: 'data/calibration/s1'
+logger:
+  level: DEBUG

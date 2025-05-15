@@ -1,19 +1,15 @@
 defaults:
-  - single_arm_two_realsense_30fps@_here_
+  - single_arm_one_iphone_30fps@_here_
   - _self_
 
-name: single_right_arm_pick_and_place_s1_pi0
+name: single_right_arm_pick_and_place_s1_image_only
 
 image_shape: [3, 240, 320]
-dataset_path: data/real_pick_and_place_pi0_zarr
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
     left_wrist_img:
-      shape: ${task.image_shape}
-      type: rgb
-    external_img:
       shape: ${task.image_shape}
       type: rgb
     left_robot_tcp_pose:
@@ -26,19 +22,16 @@ shape_meta: &shape_meta
     shape: [10]
 
 env_runner:
-  _target_: diffusion_policy.env_runner.real_pick_and_place_pi0_runner.RealPickAndPlacePi0Runner
-  pi0_server_ip: "localhost"
-  pi0_server_port: 8000
+  _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
   eval_episodes: 10
   max_duration_time: 60
-  tcp_action_update_interval: 6 # 12, 12, dsr2, 3
-  gripper_action_update_interval: 6
+  use_relative_action: True
+  tcp_action_update_interval: 10
+  gripper_action_update_interval: 12
   latency_step: 1
-  gripper_latency_step: 4
-  control_fps: 10
-  inference_fps: 5
-  obs_temporal_downsample_ratio: 1
-  infer_res_temporal_downsample_ratio: 5
+  control_fps: 10 
+  inference_fps: 5 
+  obs_temporal_downsample_ratio: 3
   n_obs_steps: ${n_obs_steps}
   task_name: ${task_name}
   transform_params: ${task.transforms}
@@ -88,4 +81,5 @@ dataset:
   val_ratio: 0.00
   max_train_episodes: null
   delta_action: False
+  relative_action: True
 

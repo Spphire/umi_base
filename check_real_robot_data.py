@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import tqdm
+import time
 
 def check_push_t():
     zarr_path = 'data/pusht_real/real_pusht_20230105/replay_buffer.zarr'
@@ -71,14 +72,18 @@ def check_reshape_rope():
         print(action[i])
       
 def check_pick_and_place():
-    zarr_path = '/root/umi_base_devel/data/real_pick_and_place_pi0_zarr/replay_buffer.zarr'
+    zarr_path = '/root/umi_base_devel/data/real_pick_and_place_iphone_zarr/replay_buffer.zarr'
     zarr_file = zarr.open(zarr_path)
     print(zarr_file.tree())
     data_file = zarr_file['data']
+    meta_file = zarr_file['meta']['episode_ends'][:]
+    print('meta_file:', meta_file)
     # state = data_file['state'][:]
     action = data_file['action'][:]
-    left_wrist_images = data_file['left_wrist_img'][:]
-    external_images = data_file['external_img'][:]
+    left_robot_tcp_pose = data_file['left_robot_tcp_pose'][:]
+    external_img = data_file['left_wrist_img'][:]
+    cv2.imwrite('external_img.png', external_img[-100])
+    exit()
 
     rot_6d = action[:, 3:9]  # 形状为 (100, 6)
     
@@ -130,15 +135,15 @@ def check_pick_and_place():
 
     num_samples = action.shape[0]
 
-    scale_factor = 30
+    scale_factor = 100
     
     for i in tqdm.tqdm(range(int(num_samples/scale_factor))):
         # print(f'state {i}:')
         # print(state[i])
         i = i * scale_factor
-        cv2.imwrite(f'image_{i}', images[i])
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        cv2.imshow(f'image_{i}', external_img[i])
+        cv2.waitKey(200)
+        cv2.destroyAllWindows()
         # print(f'action {i}:')
         # print(action[i])
 if __name__ == '__main__':

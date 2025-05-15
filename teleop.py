@@ -22,7 +22,7 @@ os.environ["OMP_NUM_THREADS"] = "12"
 import cv2
 # add this to prevent assigning too may threads when using open-cv
 cv2.setNumThreads(12)
-
+    
 # Set the CPU affinity to the last 3 cores to avoid conflict with the main process
 # get the total number of cores
 total_cores = psutil.cpu_count()

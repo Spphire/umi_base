@@ -18,7 +18,7 @@ from collections import deque
 from loguru import logger
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.real_world.device_mapping.device_mapping_utils import get_topic_and_type
-from diffusion_policy.real_world.device_mapping.device_mapping_server_devel import DeviceToTopic
+from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic
 from diffusion_policy.real_world.ros_data_converter import ROS2DataConverter
 from diffusion_policy.common.data_models import SensorMessage, SensorMessageList, BimanualRobotStates
 from diffusion_policy.common.time_utils import convert_ros_time_to_float

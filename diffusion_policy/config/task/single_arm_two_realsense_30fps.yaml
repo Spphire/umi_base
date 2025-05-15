@@ -6,7 +6,9 @@ teleop_server:
   max_gripper_width: &max_gripper_width   0.1
   min_gripper_width: &min_gripper_width 0.0
   gripper_control_time_interval: &gripper_control_time_interval 10  # 30 for Flexiv Gripper, 20 for PGC-50 gripper
-  gripper_control_width_precision: &gripper_control_width_precision 0.01  # 0.01 for PGC-50 gripper, 0.01 for Flexiv Grav Gripper
+  gripper_control_width_precision: &gripper_control_width_precision 0.001  # 0.01 for PGC-50 gripper, 0.01 for Flexiv Grav Gripper
+  relative_translation_scale: 1.5
+  grasp_force: 15
 publisher:
   # two realsense cameras
   realsense_camera_publisher: 
@@ -21,6 +23,17 @@ publisher:
       decimate: 2  # (0-4) decimation_filter magnitude for point cloud
       cpu_core_id:
         - 10
+    - camera_serial_number: '036422060422'
+      camera_type: 'D400'
+      camera_name: 'external_camera'
+      rgb_resolution: [640, 480]
+      depth_resolution: [640, 480]
+      random_sample_point_num: 3000
+      enable_pcd_publisher: False
+      fps: 30
+      decimate: 2  # (0-4) decimation_filter magnitude for point cloud
+      cpu_core_id:
+        - 9
   # no usb camera
   usb_camera_publisher: []
   iphone_camera_publisher: []

@@ -12,19 +12,23 @@ from omegaconf import DictConfig
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R, Slerp
 from tqdm import tqdm
+import tarfile
 
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.visualization_utils import visualize_rgb_image
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManagerPi0
 from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix
-import tarfile
 
 DEBUG = False
 USE_DATA_FILTERING = False
 USE_ABSOLUTE_ACTION = True
 ACTION_DIM = 10  # (4 + 15)
-TEMPORAL_DOWNSAMPLE_RATIO = 3  # the ratio for temporal down-sampling
-TEMPORAL_UPSAMPLE_TARGET_FREQUENCE = 0  # the ratio for temporal up-sampling
+TEMPORAL_DOWNSAMPLE_RATIO = 3
+TEMPORAL_UPSAMPLE_RATIO = 0
+# TEMPORAL_DOWNSAMPLE_RATIO = 0
+# TEMPORAL_UPSAMPLE_RATIO = 5./3
+# TEMPORAL_DOWNSAMPLE_RATIO = 0
+# TEMPORAL_UPSAMPLE_RATIO = 0
 SENSOR_MODE = 'single_arm_one_realsense'
 
 def sixd_to_rotation_matrix(sixd):
@@ -66,7 +70,7 @@ def interpolate_tcp_pose(tcp_pose, original_fps, target_fps):
     interp_func = interp1d(original_times, position, axis=0, kind='linear', fill_value="extrapolate")
     interpolated_pose[:, :3] = interp_func(target_times)
 
-    print("Interpolating rotation using SLERP...")
+    # print("Interpolating rotation using SLERP...")
     # 转换6D到旋转矩阵
     rotation_matrices = sixd_to_rotation_matrix(sixd_rot)  # shape: (N, 3, 3)
     # 转换旋转矩阵到四元数
@@ -157,7 +161,7 @@ if __name__ == '__main__':
         abs_path = os.path.abspath(data_path)
         dst_path = abs_path.split('.tar.gz')[0]
         if not os.path.exists(dst_path):
-            continue
+            # continue
             os.makedirs(dst_path)
             logger.info(f"Extracting {abs_path}...")
             with tarfile.open(abs_path, 'r:gz') as tar:
@@ -173,6 +177,8 @@ if __name__ == '__main__':
         left_robot_gripper_width_arrays.append(obs_dict['left_robot_gripper_width'])
         total_count += len(obs_dict['timestamp'])
         episode_ends_arrays.append(total_count)
+        while len(left_robot_gripper_width_arrays[-1]) < len(left_robot_tcp_pose_arrays[-1]):
+            left_robot_gripper_width_arrays[-1] = np.concatenate([left_robot_gripper_width_arrays[-1], left_robot_gripper_width_arrays[-1][-1][np.newaxis, :]])
 
     # Convert lists to arrays
     left_wrist_img_arrays = np.vstack(left_wrist_img_arrays)
@@ -180,7 +186,6 @@ if __name__ == '__main__':
     timestamp_arrays = np.vstack(timestamp_arrays)
     left_robot_tcp_pose_arrays = np.vstack(left_robot_tcp_pose_arrays)
     left_robot_gripper_width_arrays = np.vstack(left_robot_gripper_width_arrays)
-
 
     if TEMPORAL_DOWNSAMPLE_RATIO > 1:
         # Calculate indices to keep after downsampling
@@ -233,62 +238,6 @@ if __name__ == '__main__':
             current_episode_start = episode_end
 
         episode_ends_arrays = np.array(new_episode_ends)
-    elif TEMPORAL_UPSAMPLE_TARGET_FREQUENCE > 0:
-        original_fps = 1./ np.mean(np.diff(timestamp_arrays))
-        # sensor data arrays
-        timestamp_arrays_new = []
-        left_wrist_img_arrays_new = []
-        # robot state arrays
-        left_robot_tcp_pose_arrays_new = []
-        left_robot_gripper_width_arrays_new = []
-
-        episode_ends_array_new = []
-
-        current_episode_start = 0
-        total_count_new = 0
-
-        # Process each episode separately
-        for episode_end in episode_ends_arrays:
-            # Get indices for current episode
-            episode_indices = np.arange(current_episode_start, episode_end)
-            # Keep first and last frame of each episode, downsample middle frames
-            middle_indices = episode_indices[1:-1]
-            timestamp_arrays_new.append(timestamp_arrays[episode_indices[0]])
-            left_robot_tcp_pose_arrays_new.append(left_robot_tcp_pose_arrays[episode_indices[0]])
-            left_robot_gripper_width_arrays_new.append(left_robot_gripper_width_arrays[episode_indices[0]])
-            left_wrist_img_arrays_new.append(left_wrist_img_arrays[episode_indices[0]])
-            # Interpolate the data
-            interpolated= interpolate_common(timestamp_arrays[middle_indices],
-                                                                        original_fps=original_fps,
-                                                                        target_fps=TEMPORAL_UPSAMPLE_TARGET_FREQUENCE)
-            timestamp_arrays_new = np.concatenate([timestamp_arrays_new, interpolated], axis=0).tolist()
-            total_count_new += len(interpolated) + 2
-            episode_ends_array_new.append(total_count_new)
-            left_robot_tcp_pose_arrays_new = np.concatenate([left_robot_tcp_pose_arrays_new, interpolate_tcp_pose(left_robot_tcp_pose_arrays[middle_indices],
-                                                                        original_fps=original_fps,
-                                                                        target_fps=TEMPORAL_UPSAMPLE_TARGET_FREQUENCE)], axis=0).tolist()
-            left_robot_gripper_width_arrays_new = np.concatenate([left_robot_gripper_width_arrays_new, interpolate_common(left_robot_gripper_width_arrays[middle_indices],
-                                                                        original_fps=original_fps,
-                                                                        target_fps=TEMPORAL_UPSAMPLE_TARGET_FREQUENCE)], axis=0).tolist()
-            left_wrist_img_arrays_new.extend(interpolate_images(left_wrist_img_arrays[middle_indices],
-                                                                        original_fps=original_fps,
-                                                                        target_fps=TEMPORAL_UPSAMPLE_TARGET_FREQUENCE))
-            # Append the last frame of the episode
-            timestamp_arrays_new.append(timestamp_arrays[episode_indices[-1]])
-            left_robot_tcp_pose_arrays_new.append(left_robot_tcp_pose_arrays[episode_indices[-1]])
-            left_robot_gripper_width_arrays_new.append(left_robot_gripper_width_arrays[episode_indices[-1]])
-            left_wrist_img_arrays_new.append(left_wrist_img_arrays[episode_indices[-1]])
-
-            current_episode_start = episode_end
-
-        # Convert lists to arrays
-        left_wrist_img_arrays = np.stack(left_wrist_img_arrays_new, axis=0)
-        
-        episode_ends_arrays = np.array(episode_ends_array_new)
-        
-        timestamp_arrays = np.array(timestamp_arrays_new)
-        left_robot_tcp_pose_arrays = np.stack(left_robot_tcp_pose_arrays_new, axis=0)
-        left_robot_gripper_width_arrays = np.stack(left_robot_gripper_width_arrays_new, axis=0)
 
     if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
         state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
@@ -311,6 +260,7 @@ if __name__ == '__main__':
         raise NotImplementedError
         
     valid_mask = np.ones(len(action_arrays), dtype=bool)
+
 
     # create zarr file4
     zarr_root = zarr.group(save_data_path)
@@ -337,6 +287,7 @@ if __name__ == '__main__':
                              compressor=compressor)
     zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(10000,), dtype='int64', overwrite=True,
                              compressor=compressor)
+
     zarr_data.create_dataset('left_wrist_img', data=left_wrist_img_arrays, chunks=wrist_img_chunk_size, dtype='uint8')
     
 
