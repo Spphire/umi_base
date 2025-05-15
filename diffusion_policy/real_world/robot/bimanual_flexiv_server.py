@@ -153,7 +153,7 @@ class BimanualFlexivServer():
         async def move_tcp(robot_side: str, request: TargetTCPRequest) -> Dict[str, str]:
             if robot_side not in ['left', 'right']:
                 raise HTTPException(status_code=400, detail="Invalid robot side. Use 'left' or 'right'.")
-            logger.info('receive commands')
+            # logger.info('receive commands')
             if self.right_robot is None and robot_side == 'right':
                 return {
                     "message": "right arm is not in use"
