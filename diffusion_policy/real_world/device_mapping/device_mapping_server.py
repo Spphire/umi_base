@@ -28,6 +28,7 @@ class DeviceToTopic(BaseModel):
     realsense: Dict[str, RealsenseCameraInfo] = {}
     usb: Dict[str, UsbCameraInfo] = {}
     capture_card: Dict[str, UsbCameraInfo] = {}
+    iphone: Dict[str, UsbCameraInfo] = {}
 
 class DeviceMappingServer:
     """Server class that defines the device mapping (device to ROS topic name)"""
@@ -80,6 +81,12 @@ class DeviceMappingServer:
         return camera_ids
     
     @staticmethod
+    def get_iphone_camera_ids():
+        camera_ids = [1]
+
+        return camera_ids
+    
+    @staticmethod
     def get_usb_capture_card_ids():
         result = subprocess.run(['v4l2-ctl', '--list-devices'], stdout=subprocess.PIPE, text=True)
         output = result.stdout
@@ -119,9 +126,11 @@ class DeviceMappingServer:
         usb camera ids is a list
         '''
         usb_camera_ids = self.get_usb_camera_ids()
+        iphone_camera_ids = self.get_iphone_camera_ids()
 
         # realsence camera
         if publisher_cfg.realsense_camera_publisher is not None:
+            print(publisher_cfg.realsense_camera_publisher)
             for rs_cam in publisher_cfg.realsense_camera_publisher:
                 context = rs.context()
                 for device in context.query_devices():
@@ -141,6 +150,16 @@ class DeviceMappingServer:
                 self.device_to_topic_mapping.usb[usb_cam.camera_name] = UsbCameraInfo(
                     topic_image=f'/{usb_cam.camera_name}/color/image_raw',
                     topic_marker=f'/{usb_cam.camera_name}/marker_offset/information',
+                    device_id=index,
+                    type="usb"
+                )
+        
+        # iphone camera
+        if publisher_cfg.iphone_camera_publisher is not None:
+            for index, iphone_cam in zip(iphone_camera_ids, publisher_cfg.iphone_camera_publisher):
+                self.device_to_topic_mapping.iphone[iphone_cam.camera_name] = UsbCameraInfo(
+                    topic_image=f'/{iphone_cam.camera_name}/color/image_raw',
+                    topic_marker=f'/{iphone_cam.camera_name}/marker_offset/information',
                     device_id=index,
                     type="usb"
                 )
