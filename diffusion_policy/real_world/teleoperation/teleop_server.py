@@ -314,10 +314,10 @@ class TeleopServer:
             # Get the target position from Unity and transform it to the robot base frame
             r_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.rightHand.pos + mes.rightHand.quat), False)
             l_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.leftHand.pos + mes.leftHand.quat), True)
-            # logger.info(f'left pose from unity is {l_pos_from_unity}, raw data is {np.array(mes.leftHand.pos + mes.leftHand.quat)}')
-            # end_time = time.time()
-            # precise_sleep(self.control_cycle_time - (end_time - start_time))
-            # continue
+
+            if mes.leftHand.cmd > 0:
+                self.debug_cmd_cnt += 1
+                logger.info(f"Cmd {mes.leftHand.cmd} Cnt: {self.debug_cmd_cnt}")
 
             if self.left_homing_state:
                 logger.debug("left still in homing state")
@@ -413,7 +413,7 @@ class TeleopServer:
                         self.left_tracking_state = False
                     else:
                         self.send_command('/move_tcp/left', {'target_tcp': left_target.tolist()})
-                        logger.debug(f'left target:{left_target.tolist()}')
+                        # logger.debug(f'left target:{left_target.tolist()}')
                         
 
                 if self.right_tracking_state:
