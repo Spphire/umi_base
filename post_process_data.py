@@ -16,7 +16,7 @@ from tqdm import tqdm
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.visualization_utils import visualize_rgb_image
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManager
-from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix
+from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix, orthogonalization
 
 DEBUG = False
 USE_DATA_FILTERING = False
@@ -37,11 +37,7 @@ def sixd_to_rotation_matrix(sixd):
     """
     a1 = sixd[:, :3]
     a2 = sixd[:, 3:6]
-    # 正交化
-    a1 = a1 / np.linalg.norm(a1, axis=1, keepdims=True)
-    a2 = a2 - np.sum(a1 * a2, axis=1, keepdims=True) * a1
-    a2 = a2 / np.linalg.norm(a2, axis=1, keepdims=True)
-    a3 = np.cross(a1, a2)
+    a3 = orthogonalization(a1, a2)  # shape: (N, 3)
     rotation_matrices = np.stack((a1, a2, a3), axis=2)  # shape: (N, 3, 3)
     return rotation_matrices
 
