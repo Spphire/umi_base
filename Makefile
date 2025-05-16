@@ -121,15 +121,6 @@ eval.launch_robot:
 	python teleop.py \
 	task=${TASK}
 
-eval.inference_pi0_gr00t:
-	${PREPARE_VENV} && \
-	${PREPARE_ROS} && \
-	export HYDRA_FULL_ERROR=1 && \
-	python eval_real_robot_flexiv_pi0_gr00t.py \
-	--config-name ${WKSPACE} \
-	task=${TASK} \
-	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio \
-
 eval.inference:
 	${PREPARE_VENV} && \
 	${PREPARE_ROS} && \
