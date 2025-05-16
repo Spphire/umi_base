@@ -59,19 +59,19 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
-        obs_dict['left_wrist_img'] = self.resize_image_by_size(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
+        obs_dict['left_wrist_img'] = cv2.resize(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
 
-        obs_dict['external_img'] = self.resize_image_by_size(sensor_msg.externalCameraRGB, size=self.resize_shape)
+        obs_dict['external_img'] = cv2.resize(sensor_msg.externalCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['external_img'])
         if self.mode == SensorMode.single_arm_two_realsense or self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
-        obs_dict['right_wrist_img'] = self.resize_image_by_size(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
-        obs_dict['right_gripper1_img'] = self.resize_image_by_size(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
-        obs_dict['right_gripper2_img'] = self.resize_image_by_size(sensor_msg.rightGripperCameraRGB2, size=self.resize_shape)
+        obs_dict['right_wrist_img'] = cv2.resize(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
+        obs_dict['right_gripper1_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
+        obs_dict['right_gripper2_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB2, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['right_wrist_img'])
             visualize_rgb_image(obs_dict['right_gripper1_img'])
@@ -81,9 +81,6 @@ class DataPostProcessingManager:
         else:
             raise NotImplementedError
 
-    @staticmethod
-    def resize_image_by_size(image: np.ndarray, size: tuple) -> np.ndarray:
-        return cv2.resize(image, size)
 
 # class DataPostProcessingManagerPi0:
 #     def __init__(self,
@@ -183,7 +180,7 @@ class DataPostProcessingManager:
 #         obs_dict['left_wrist_img'] = []
 #         for image in images_array:
 #             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-#             obs_dict['left_wrist_img'].append(self.resize_image_by_size(rgb_image, self.resize_shape))
+#             obs_dict['left_wrist_img'].append(cv2.resize(rgb_image, self.resize_shape))
 #             # cv2.imshow('test', rgb_image)
 #             # cv2.imshow('tset_resized', obs_dict['left_wrist_img'][0])
 #             # # Wait for a key press indefinitely or for a specified amount of time
@@ -195,7 +192,3 @@ class DataPostProcessingManager:
 #             visualize_rgb_image(obs_dict['left_wrist_img'])
 
 #         return obs_dict
-
-#     @staticmethod
-#     def resize_image_by_size(image: np.ndarray, size: tuple) -> np.ndarray:
-#         return cv2.resize(image, size)
