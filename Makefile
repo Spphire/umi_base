@@ -83,7 +83,7 @@ teleop.launch_robot:
 	task=${TASK}
 
 teleop.start_record:
-	${PREPARE_VENV} && \single_arm_iphone_teleop
+	${PREPARE_VENV} && \
 	    --save_base_dir /root/record_data \
 	    --save_file_dir ${SAVE_FILE_DIR} \
 	    --save_file_name ${SAVE_FILE_NAME} \
