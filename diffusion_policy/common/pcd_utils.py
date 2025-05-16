@@ -1,24 +1,6 @@
-# import pytorch3d.ops as torch3d_ops
 import torch
 import open3d as o3d
 import numpy as np
-
-# def farthest_point_sampling(points, num_points=1024, use_cuda=True):
-#     K = [num_points]
-#     if use_cuda:
-#         points = torch.from_numpy(points).cuda()
-#         sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-#         sampled_points = sampled_points.squeeze(0)
-#         sampled_points = sampled_points.cpu().numpy()
-#         indices = indices.cpu().numpy()
-#     else:
-#         points = torch.from_numpy(points)
-#         sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-#         sampled_points = sampled_points.squeeze(0)
-#         sampled_points = sampled_points.numpy()
-#         indices = indices.numpy()
-
-#     return sampled_points, indices
 
 def random_sample_points(points: np.ndarray, random_sample_num_points: int):
     if points.shape[0] > random_sample_num_points:
