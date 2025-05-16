@@ -89,10 +89,16 @@ teleop.start_record:
 	    --save_file_name ${SAVE_FILE_NAME} \
 	    --save_to_disk
 
-teleop.post_process:
+teleop.post_process_iphone:
 	${PREPARE_VENV} && \
 	${PREPARE_ROS} && \
 	python post_process_data_iphone.py \
+	--tag ${SAVE_FILE_DIR}
+
+teleop.post_process:
+	${PREPARE_VENV} && \
+	${PREPARE_ROS} && \
+	python post_process_data.py \
 	--tag ${SAVE_FILE_DIR}
 
 train:
