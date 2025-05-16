@@ -65,7 +65,7 @@ env_runner:
     gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
     gripper_width_threshold: 0.046
     enable_gripper_width_clipping: True
-  debug: True
+  debug: False
 
 dataset:
   _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset
