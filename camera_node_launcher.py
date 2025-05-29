@@ -17,6 +17,9 @@ import rclpy
 from loguru import logger
 
 from diffusion_policy.real_world.publisher.realsense_camera_publisher import RealsenseCameraPublisher
+from diffusion_policy.real_world.publisher.gopro_capture_card_publisher import UsbCaptureCardPublisher
+from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
+from diffusion_policy.real_world.publisher.iphone_camera_publisher import IPhoneCameraPublisher
 from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
 
 # add this to prevent assigning too may threads when using numpy
@@ -46,6 +49,10 @@ class CameraWorker:
         self.camera_config = camera_config
         if camera_config.camera_type == 'D400':
             self.camera_publisher = RealsenseCameraPublisher(**camera_config)
+        elif camera_config.camera_type == 'capture_card':
+            self.camera_publisher = UsbCaptureCardPublisher(**camera_config)
+        elif camera_config.camera_type == 'iphone':
+            self.camera_publisher = IPhoneCameraPublisher(**camera_config)
         else:
             raise NotImplementedError
     def handle_signal(self, signum, frame):
@@ -112,6 +119,40 @@ def main(cfg: DictConfig):
         for camera_name, camera_info in device_to_topic.usb.items():
             camera_config = None
             for cam in cfg.task.publisher.usb_camera_publisher:
+                if cam.camera_name == camera_name:
+                    camera_config = cam
+                    break
+            if camera_config:
+                # Assigning device_id and type
+                OmegaConf.set_struct(camera_config, False)
+                camera_config.camera_index = camera_info.device_id
+                OmegaConf.set_struct(camera_config, True)
+
+                p = multiprocessing.Process(target=start_camera_publisher, args=(camera_config,))
+                processes.append(p)
+                p.start()
+        
+        # Handle iphone cameras
+        for camera_name, camera_info in device_to_topic.iphone.items():
+            camera_config = None
+            for cam in cfg.task.publisher.iphone_camera_publisher:
+                if cam.camera_name == camera_name:
+                    camera_config = cam
+                    break
+            if camera_config:
+                # Assigning device_id and type
+                OmegaConf.set_struct(camera_config, False)
+                camera_config.camera_index = camera_info.device_id
+                OmegaConf.set_struct(camera_config, True)
+
+                p = multiprocessing.Process(target=start_camera_publisher, args=(camera_config,))
+                processes.append(p)
+                p.start()
+
+        # Handle capture card cameras
+        for camera_name, camera_info in device_to_topic.capture_card.items():
+            camera_config = None
+            for cam in cfg.task.publisher.capture_card_camera_publisher:
                 if cam.camera_name == camera_name:
                     camera_config = cam
                     break

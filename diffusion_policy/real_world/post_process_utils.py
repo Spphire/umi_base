@@ -6,8 +6,10 @@ from typing import Dict
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
-from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d
+from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d, pose_7d_to_pose_6d
 from omegaconf import DictConfig
+# from bson import BSON
+import os
 
 class DataPostProcessingManager:
     def __init__(self,
@@ -57,19 +59,19 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
-        obs_dict['left_wrist_img'] = self.resize_image_by_size(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
+        obs_dict['left_wrist_img'] = cv2.resize(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
 
-        obs_dict['external_img'] = self.resize_image_by_size(sensor_msg.externalCameraRGB, size=self.resize_shape)
+        obs_dict['external_img'] = cv2.resize(sensor_msg.externalCameraRGB, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['external_img'])
         if self.mode == SensorMode.single_arm_two_realsense or self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
-        obs_dict['right_wrist_img'] = self.resize_image_by_size(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
-        obs_dict['right_gripper1_img'] = self.resize_image_by_size(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
-        obs_dict['right_gripper2_img'] = self.resize_image_by_size(sensor_msg.rightGripperCameraRGB2, size=self.resize_shape)
+        obs_dict['right_wrist_img'] = cv2.resize(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
+        obs_dict['right_gripper1_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
+        obs_dict['right_gripper2_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB2, size=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['right_wrist_img'])
             visualize_rgb_image(obs_dict['right_gripper1_img'])
@@ -79,6 +81,114 @@ class DataPostProcessingManager:
         else:
             raise NotImplementedError
 
-    @staticmethod
-    def resize_image_by_size(image: np.ndarray, size: tuple) -> np.ndarray:
-        return cv2.resize(image, size)
+
+# class DataPostProcessingManagerPi0:
+#     def __init__(self,
+#                  image_resize_shape: tuple = (320, 240),
+#                  use_6d_rotation: bool = True,
+#                  debug: bool = False):
+#         self.use_6d_rotation = use_6d_rotation
+#         self.resize_shape = image_resize_shape
+#         self.debug = debug
+    
+#     @staticmethod
+#     def load_bson_file(file_path):
+#         try:
+#             with open(file_path, 'rb') as f:
+#                 bson_data = f.read()
+#             bson_dict = BSON(bson_data).decode()
+#             return bson_dict
+#         except Exception as e:
+#             print(e)
+#             return None
+
+#     @staticmethod
+#     def get_numpy_arrays(data):
+#         timestamps = np.array(data.get('timestamps', []))
+#         arkit_poses = np.array(data.get('arkitPose', []))
+#         gripper_widths = np.array(data.get('gripperWidth', []))
+        
+#         return timestamps, arkit_poses, gripper_widths
+
+#     def read_bson(self, file_path):
+#         data = self.load_bson_file(file_path)
+#         if data is None:
+#             return
+        
+#         timestamps, arkit_poses, gripper_widths = self.get_numpy_arrays(data)
+#         return timestamps, arkit_poses, gripper_widths
+
+#     def load_video_frames(self, video_path):
+#         # 打开视频文件
+#         cap = cv2.VideoCapture(video_path)    # 检查视频是否成功打开
+#         if not cap.isOpened():
+#             print("Error: Could not open video.")
+#             return None    
+#         frames = []    
+#         while True:
+#             # 读取一帧
+#             ret, frame = cap.read()        # 如果不能读取到帧，说明到达视频末尾
+#             if not ret:
+#                 break        # 将 BGR 转换为 RGB（OpenCV 默认使用 BGR 颜色空间）
+#             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)        # 将帧添加到帧列表中
+#             frames.append(rgb_frame)    # 释放视频捕获对象
+#         cap.release()    # 将帧列表转换为 NumPy 数组
+#         frames_array = np.array(frames)    
+#         return frames_array# 使用函数加载视频帧
+
+#     def extract_msg_to_obs_dict(self, msg_path: str) -> Dict[str, np.ndarray]:
+#         obs_dict = dict()
+#         t, a, g = self.read_bson(os.path.join(msg_path, "frame_data.bson"))
+#         a[:, 3:] = a[:, [6,3,4,5]]
+#         t = t[:, np.newaxis]
+#         g = g[:, np.newaxis]
+#         obs_dict['timestamp'] = t
+
+#         # Add independent key-value pairs for left robot
+#         obs_dict['left_robot_tcp_pose'] = a
+#         obs_dict['left_robot_gripper_width'] = g
+
+#         if self.use_6d_rotation:
+#             actions = np.zeros((obs_dict['left_robot_tcp_pose'].shape[0], 9))
+#             # actions = np.zeros((obs_dict['left_robot_tcp_pose'].shape[0], 6))
+#             for i in range(len(actions)):
+#                 actions[i] = pose_6d_to_pose_9d(pose_7d_to_pose_6d(obs_dict['left_robot_tcp_pose'][i]))
+#                 # actions[i] = pose_7d_to_pose_6d(obs_dict['left_robot_tcp_pose'][i])
+#             # actions_diff = np.diff(actions, axis=0)
+#             # positions = np.where(np.abs(actions_diff).max(axis=1) > 0.05)
+#             # large_diff = (np.abs(actions_diff).max(axis=1))[positions]
+#             # if len(positions[0]) > 0:
+#             #     x = np.max(positions)
+#             #     actions_new = actions[np.max(positions)+1:, :]
+#             #     actions_max = actions_new.max(axis=0)
+#             #     actions_min = actions_new.min(axis=0)
+#             #     actions_range = actions_max - actions_min
+#             # else:
+#             #     actions_max = actions.max(axis=0)
+#             #     actions_min = actions.min(axis=0)
+#             #     actions_range = actions_max - actions_min
+#             # if np.abs(actions_diff).max() > 0.05:
+#             #     logger.info(f"Warning: large difference {np.abs(actions_diff).max()} in actions")
+#             #     return None
+#             # else:
+#             #     logger.info(f"Info: small difference {np.abs(actions_diff).max()} in actions")
+#             obs_dict['left_robot_tcp_pose'] = actions
+        
+#         images_array = self.load_video_frames(os.path.join(msg_path, "recording.mp4"))
+
+#         # TODO: make all sensor post-processing in parallel
+#         obs_dict['left_wrist_img'] = []
+#         for image in images_array:
+#             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#             obs_dict['left_wrist_img'].append(cv2.resize(rgb_image, self.resize_shape))
+#             # cv2.imshow('test', rgb_image)
+#             # cv2.imshow('tset_resized', obs_dict['left_wrist_img'][0])
+#             # # Wait for a key press indefinitely or for a specified amount of time
+#             # cv2.waitKey(0)
+
+#             # # Close all OpenCV windows
+#             # cv2.destroyAllWindows()
+#         if self.debug:
+#             visualize_rgb_image(obs_dict['left_wrist_img'])
+
+#         return obs_dict

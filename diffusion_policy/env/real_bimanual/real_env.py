@@ -80,8 +80,12 @@ class RealRobotEnvironment(Node):
                  vcamera_server_ip: Optional[str] = None,
                  vcamera_server_port: Optional[int] = None,
                  time_check: bool = False,
-                 debug: bool = False):
+                 enable_tcp_gripper_compensation: bool = False,
+                 tcp_gripper_compensation: List[List[float]] = [[0, 0], [1, 0]],
+                 debug: bool = False,
+                 velocity_limit: float = 10.):
         super().__init__('real_env')
+        self.velocity_limit = velocity_limit
         self.robot_server_ip = robot_server_ip
         self.robot_server_port = robot_server_port
         self.transforms = transforms
@@ -100,6 +104,10 @@ class RealRobotEnvironment(Node):
 
         self.data_processing_manager = DataPostProcessingManager(transforms,
                                                                  **data_processing_params)
+        
+        self.enable_tcp_gripper_compensation = enable_tcp_gripper_compensation
+        self.tcp_gripper_compensation = tcp_gripper_compensation
+
         self.debug = debug
         self.subscribers = []
         self.obs_buffer = RingBuffer(size=1024, fps=max_fps)
@@ -230,7 +238,6 @@ class RealRobotEnvironment(Node):
         for i, msg in enumerate(msgs):
             topic_name = self.subscribers[i].topic
             topic_dict[topic_name] = msg
-
         if self.time_check:
             # check the time differences across topics and interval between time stamps
             for i, msg in enumerate(msgs):
@@ -402,13 +409,13 @@ class RealRobotEnvironment(Node):
         """
         self.send_command('/move_gripper/left', {
             'width': left_gripper_width_target,
-            'velocity': 10.0,
+            'velocity': self.velocity_limit,
             'force_limit': self.grasp_force
         })
         self.last_gripper_width_target[0] = left_gripper_width_target
         self.send_command('/move_gripper/right', {
             'width': right_gripper_width_target,
-            'velocity': 10.0,
+            'velocity': self.velocity_limit,
             'force_limit': self.grasp_force
         })
         self.last_gripper_width_target[1] = right_gripper_width_target
@@ -451,7 +458,7 @@ class RealRobotEnvironment(Node):
                 logger.debug(f"left gripper moving from {left_current_width} to target: {left_gripper_width_target}")
                 self.send_command('/move_gripper/left', {
                     'width': left_gripper_width_target,
-                    'velocity': 10.0,
+                    'velocity': self.velocity_limit,
                     'force_limit': grasp_force
                 })
             self.last_gripper_width_target[0] = left_gripper_width_target
@@ -471,7 +478,7 @@ class RealRobotEnvironment(Node):
                     logger.debug(f"right gripper moving from {right_current_width} to target: {right_gripper_width_target}")
                     self.send_command('/move_gripper/right', {
                         'width': right_gripper_width_target,
-                        'velocity': 10.0,
+                        'velocity': self.velocity_limit,
                         'force_limit': grasp_force
                     })
                 self.last_gripper_width_target[1] = right_gripper_width_target

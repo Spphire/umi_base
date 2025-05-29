@@ -9,20 +9,116 @@ import py_cli_interaction
 import matplotlib.pyplot as plt
 from hydra import initialize, compose
 from omegaconf import DictConfig
+from scipy.interpolate import interp1d
+from scipy.spatial.transform import Rotation as R, Slerp
+from tqdm import tqdm
 
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.visualization_utils import visualize_rgb_image
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManager
+from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix, orthogonalization
 
 DEBUG = False
 USE_DATA_FILTERING = False
 USE_ABSOLUTE_ACTION = True
 ACTION_DIM = 10  # (4 + 15)
-TEMPORAL_DOWNSAMPLE_RATIO = 3  # the ratio for temporal down-sampling
+# TEMPORAL_DOWNSAMPLE_RATIO = 3
+# TEMPORAL_UPSAMPLE_RATIO = 0
+# TEMPORAL_DOWNSAMPLE_RATIO = 0
+# TEMPORAL_UPSAMPLE_RATIO = 5./3
+TEMPORAL_DOWNSAMPLE_RATIO = 0
+TEMPORAL_UPSAMPLE_RATIO = 0
 SENSOR_MODE = 'single_arm_one_realsense'
 
+def sixd_to_rotation_matrix(sixd):
+    """
+    将6D旋转表示转换为3x3旋转矩阵。
+    6D表示由前两个列向量组成，第三列通过叉积计算获得正交基。
+    """
+    a1 = sixd[:, :3]
+    a2 = sixd[:, 3:6]
+    a3 = orthogonalization(a1, a2)  # shape: (N, 3)
+    rotation_matrices = np.stack((a1, a2, a3), axis=2)  # shape: (N, 3, 3)
+    return rotation_matrices
+
+def rotation_matrix_to_sixd(rotation_matrices):
+    """
+    将3x3旋转矩阵转换回6D表示。
+    返回前两列作为6D表示。
+    """
+    a1 = rotation_matrices[:, :, 0]
+    a2 = rotation_matrices[:, :, 1]
+    sixd = np.concatenate((a1, a2), axis=1)  # shape: (N, 6)
+    return sixd
+
+def interpolate_tcp_pose(tcp_pose, original_fps, target_fps):
+    assert tcp_pose.shape[1] == 9, "tcp_pose should have 9 columns"
+    num_original = tcp_pose.shape[0]
+    duration = num_original / original_fps
+    num_target = int(duration * target_fps)    
+    original_times = np.linspace(0, duration, num=num_original, endpoint=False)
+    target_times = np.linspace(0, duration, num=num_target, endpoint=False)
+    target_times = np.clip(target_times, min(original_times), max(original_times))    
+    interpolated_pose = np.zeros((num_target, tcp_pose.shape[1]))    # 分离tcp_pose的各个部分
+    position = tcp_pose[:, :3]          # xyz
+    sixd_rot = tcp_pose[:, 3:9]         # 6D rotation
+    interp_func = interp1d(original_times, position, axis=0, kind='linear', fill_value="extrapolate")
+    interpolated_pose[:, :3] = interp_func(target_times)
+
+    # print("Interpolating rotation using SLERP...")
+    # 转换6D到旋转矩阵
+    rotation_matrices = sixd_to_rotation_matrix(sixd_rot)  # shape: (N, 3, 3)
+    # 转换旋转矩阵到四元数
+    rotations = R.from_matrix(rotation_matrices)
+    # 定义slerp插值
+    slerp = Slerp(original_times, rotations)
+    # 插值
+    interpolated_rotations = slerp(target_times)
+    # 获取旋转矩阵
+    interpolated_rotation_matrices = interpolated_rotations.as_matrix()
+    # 转换旋转矩阵回6D
+    interpolated_sixd = rotation_matrix_to_sixd(interpolated_rotation_matrices)
+    # 插入到interpolated_pose
+    interpolated_pose[:, 3:9] = interpolated_sixd    
+    return interpolated_pose
+
+def interpolate_common(common, original_fps, target_fps):
+    num_original = common.shape[0]
+    duration = num_original / original_fps
+    num_target = int(duration * target_fps)    
+    original_times = np.linspace(0, duration, num=num_original, endpoint=False)
+    target_times = np.linspace(0, duration, num=num_target, endpoint=False)    
+    interp_func = interp1d(original_times, common, axis=0, kind='linear', fill_value="extrapolate")
+    interpolated_common = interp_func(target_times)
+    return interpolated_common
+
+def interpolate_images(images, original_fps, target_fps):
+    num_original = images.shape[0]
+    duration = num_original / original_fps
+    num_target = int(duration * target_fps)    
+    original_times = np.linspace(0, duration, num=num_original, endpoint=False)
+    target_times = np.linspace(0, duration, num=num_target, endpoint=False)    
+    interpolated_images = []    
+    for i in range(num_target):
+        t = target_times[i]
+        # 找到最接近的两个原始帧
+        if t >= original_times[-1]:
+            frame = images[-1]
+        else:
+            idx = np.searchsorted(original_times, t) - 1
+            idx = np.clip(idx, 0, num_original - 2)
+            t1, t2 = original_times[idx], original_times[idx + 1]
+            frame1, frame2 = images[idx], images[idx + 1]
+            alpha = (t - t1) / (t2 - t1)
+            # 混合两个帧
+            frame = cv2.addWeighted(frame1, 1 - alpha, frame2, alpha, 0)
+        interpolated_images.append(frame) 
+
+    return interpolated_images
+
 if __name__ == '__main__':
-    tag = 'real_pick_and_place_image'
+    tag = 'real_pick_and_place_pi0'
+    # tag = 'test'
     # we use the tag to determine if we want to use data filtering
 
     data_dir = f'data/{tag}'
@@ -67,6 +163,7 @@ if __name__ == '__main__':
     right_robot_tcp_wrench_arrays = []
     right_robot_gripper_width_arrays = []
     right_robot_gripper_force_arrays = []
+    episode_fps = []
 
     episode_ends_arrays = []
     total_count = 0
@@ -76,6 +173,7 @@ if __name__ == '__main__':
         if DEBUG and seq_idx <= 25:
             continue
         data_path = osp.join(data_dir, data_file)
+        timestamp_debug = []
 
         abs_path = os.path.abspath(data_path)
         save_data_path = os.path.abspath(save_data_path)
@@ -94,6 +192,7 @@ if __name__ == '__main__':
             # TODO: add timestamp
             obs_dict = data_processing_manager.convert_sensor_msg_to_obs_dict(sensor_msg)
             timestamp_arrays.append(sensor_msg.timestamp)
+            timestamp_debug.append(sensor_msg.timestamp)
 
             left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
             left_robot_tcp_vel_arrays.append(obs_dict['left_robot_tcp_vel'])
@@ -123,7 +222,9 @@ if __name__ == '__main__':
                              f'right_robot_tcp_pose: {obs_dict["right_robot_tcp_pose"]}')
 
             del sensor_msg, obs_dict
-
+        _ = np.mean(np.diff(np.array(timestamp_debug)))
+        logger.info(f'fps of episode {seq_idx} is {1./_:.2f}')
+        episode_fps.append(1./_)
         episode_ends_arrays.append(total_count)
 
     # Convert lists to arrays
@@ -144,34 +245,6 @@ if __name__ == '__main__':
     right_robot_gripper_width_arrays = np.stack(right_robot_gripper_width_arrays, axis=0)
     right_robot_gripper_force_arrays = np.stack(right_robot_gripper_force_arrays, axis=0)
 
-    if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 8: # (left_tcp_x, left_tcp_y, left_tcp_z, right_tcp_x, right_tcp_y, right_tcp_z, left_gripper_width, right_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], right_robot_tcp_pose_arrays[:, :3],
-                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 10: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, left_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, left_robot_gripper_width_arrays], axis=-1)
-    elif ACTION_DIM == 20: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, right_tcp_x, right_tcp_y, right_tcp_z, right_6d_rotation, left_gripper_width, right_gripper_width)
-        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, right_robot_tcp_pose_arrays,
-                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
-    else:
-        # TODO: support left_gripper1_marker_offset_emb_arrays
-        # TODO: support right_gripper1_marker_offset_emb_arrays
-        # TODO: support right_gripper2_marker_offset_emb_arrays
-        raise NotImplementedError
-    if USE_ABSOLUTE_ACTION:
-        # override action to absolute value
-        # action is basically next state
-        new_action_arrays = state_arrays[1:, ...].copy()
-        action_arrays = np.concatenate([new_action_arrays, new_action_arrays[-1][np.newaxis, :]], axis=0)
-        # fix the last action of each episode
-        for i in range(0, len(episode_ends_arrays)):
-            action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
-    else:
-        raise NotImplementedError
-    
-        
-    valid_mask = np.ones(len(action_arrays), dtype=bool)
 
     if TEMPORAL_DOWNSAMPLE_RATIO > 1:
         # Calculate indices to keep after downsampling
@@ -201,7 +274,6 @@ if __name__ == '__main__':
         keep_indices = np.array(keep_indices)
 
         # Downsample all arrays
-        action_arrays = action_arrays[keep_indices]
         timestamp_arrays = timestamp_arrays[keep_indices]
         external_img_arrays = external_img_arrays[keep_indices]
         left_wrist_img_arrays = left_wrist_img_arrays[keep_indices]
@@ -234,6 +306,184 @@ if __name__ == '__main__':
             current_episode_start = episode_end
 
         episode_ends_arrays = np.array(new_episode_ends)
+    if TEMPORAL_UPSAMPLE_RATIO > 0:
+        timestamp_arrays_new = []
+        external_img_arrays_new = []
+        left_wrist_img_arrays_new = []
+        right_wrist_img_arrays_new = []
+        # robot state arrays
+        left_robot_tcp_pose_arrays_new = []
+        left_robot_tcp_vel_arrays_new = []
+        left_robot_tcp_wrench_arrays_new = []
+        left_robot_gripper_width_arrays_new = []
+        left_robot_gripper_force_arrays_new = []
+        right_robot_tcp_pose_arrays_new = []
+        right_robot_tcp_vel_arrays_new = []
+        right_robot_tcp_wrench_arrays_new = []
+        right_robot_gripper_width_arrays_new = []
+        right_robot_gripper_force_arrays_new = []
+
+        episode_ends_array_new = []
+
+        current_episode_start = 0
+        total_count_new = 0
+        epi_num = 0
+
+        # Process each episode separately
+        for episode_end, original_fps in zip(episode_ends_arrays, episode_fps):
+            # Get indices for current episode
+            episode_indices = np.arange(current_episode_start, episode_end)
+            # Keep first and last frame of each episode, downsample middle frames
+            middle_indices = episode_indices[1:-1]
+            timestamp_arrays_new.append(timestamp_arrays[episode_indices[0]])
+            left_robot_tcp_pose_arrays_new.append(left_robot_tcp_pose_arrays[episode_indices[0]])
+            left_robot_tcp_vel_arrays_new.append(left_robot_tcp_vel_arrays[episode_indices[0]])
+            left_robot_tcp_wrench_arrays_new.append(left_robot_tcp_wrench_arrays[episode_indices[0]])
+            left_robot_gripper_width_arrays_new.append(left_robot_gripper_width_arrays[episode_indices[0]])
+            left_robot_gripper_force_arrays_new.append(left_robot_gripper_force_arrays[episode_indices[0]])
+            right_robot_tcp_pose_arrays_new.append(right_robot_tcp_pose_arrays[episode_indices[0]])
+            right_robot_tcp_vel_arrays_new.append(right_robot_tcp_vel_arrays[episode_indices[0]])
+            right_robot_tcp_wrench_arrays_new.append(right_robot_tcp_wrench_arrays[episode_indices[0]])
+            right_robot_gripper_width_arrays_new.append(right_robot_gripper_width_arrays[episode_indices[0]])
+            right_robot_gripper_force_arrays_new.append(right_robot_gripper_force_arrays[episode_indices[0]])
+            external_img_arrays_new.append(external_img_arrays[episode_indices[0]])
+            left_wrist_img_arrays_new.append(left_wrist_img_arrays[episode_indices[0]])
+            # Interpolate the data
+            interpolated= interpolate_common(timestamp_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)
+            timestamp_arrays_new = np.concatenate([timestamp_arrays_new, interpolated], axis=0).tolist()
+            total_count_new += len(interpolated) + 2
+            episode_ends_array_new.append(total_count_new)
+            left_robot_gripper_force_arrays_new = np.concatenate([left_robot_gripper_force_arrays_new, interpolate_common(left_robot_gripper_force_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            left_robot_tcp_pose_arrays_new = np.concatenate([left_robot_tcp_pose_arrays_new, interpolate_tcp_pose(left_robot_tcp_pose_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            left_robot_tcp_vel_arrays_new = np.concatenate([left_robot_tcp_vel_arrays_new, interpolate_common(left_robot_tcp_vel_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            left_robot_tcp_wrench_arrays_new = np.concatenate([left_robot_tcp_wrench_arrays_new, interpolate_common(left_robot_tcp_wrench_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            left_robot_gripper_width_arrays_new = np.concatenate([left_robot_gripper_width_arrays_new, interpolate_common(left_robot_gripper_width_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            right_robot_gripper_force_arrays_new = np.concatenate([right_robot_gripper_force_arrays_new, interpolate_common(right_robot_gripper_force_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            right_robot_tcp_pose_arrays_new = np.concatenate([right_robot_tcp_pose_arrays_new, interpolate_tcp_pose(right_robot_tcp_pose_arrays[middle_indices],    
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            right_robot_tcp_vel_arrays_new = np.concatenate([right_robot_tcp_vel_arrays_new, interpolate_common(right_robot_tcp_vel_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            right_robot_tcp_wrench_arrays_new = np.concatenate([right_robot_tcp_wrench_arrays_new, interpolate_common(right_robot_tcp_wrench_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            right_robot_gripper_width_arrays_new = np.concatenate([right_robot_gripper_width_arrays_new, interpolate_common(right_robot_gripper_width_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps)], axis=0).tolist()
+            external_img_arrays_new.extend(interpolate_images(external_img_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps))
+            left_wrist_img_arrays_new.extend(interpolate_images(left_wrist_img_arrays[middle_indices],
+                                                                        original_fps=original_fps,
+                                                                        target_fps=TEMPORAL_UPSAMPLE_RATIO * original_fps))
+            # Append the last frame of the episode
+            timestamp_arrays_new.append(timestamp_arrays[episode_indices[-1]])
+            left_robot_tcp_pose_arrays_new.append(left_robot_tcp_pose_arrays[episode_indices[-1]])
+            left_robot_tcp_vel_arrays_new.append(left_robot_tcp_vel_arrays[episode_indices[-1]])
+            left_robot_tcp_wrench_arrays_new.append(left_robot_tcp_wrench_arrays[episode_indices[-1]])
+            left_robot_gripper_width_arrays_new.append(left_robot_gripper_width_arrays[episode_indices[-1]])
+            left_robot_gripper_force_arrays_new.append(left_robot_gripper_force_arrays[episode_indices[-1]])
+            right_robot_tcp_pose_arrays_new.append(right_robot_tcp_pose_arrays[episode_indices[-1]])
+            right_robot_tcp_vel_arrays_new.append(right_robot_tcp_vel_arrays[episode_indices[-1]])
+            right_robot_tcp_wrench_arrays_new.append(right_robot_tcp_wrench_arrays[episode_indices[-1]])
+            right_robot_gripper_width_arrays_new.append(right_robot_gripper_width_arrays[episode_indices[-1]])
+            right_robot_gripper_force_arrays_new.append(right_robot_gripper_force_arrays[episode_indices[-1]])
+            external_img_arrays_new.append(external_img_arrays[episode_indices[-1]])
+            left_wrist_img_arrays_new.append(left_wrist_img_arrays[episode_indices[-1]])
+            logger.info(f'Interpolated {len(middle_indices)} frames in episode {epi_num} to {len(interpolated) + 2} frames, upsample ratio is {(len(interpolated) + 2) / len(middle_indices)}')
+            epi_num += 1
+            current_episode_start = episode_end
+
+        # Convert lists to arrays
+        external_img_arrays = np.stack(external_img_arrays_new, axis=0)
+        left_wrist_img_arrays = np.stack(left_wrist_img_arrays_new, axis=0)
+        
+        episode_ends_arrays = np.array(episode_ends_array_new)
+        
+        timestamp_arrays = np.array(timestamp_arrays_new)
+        left_robot_tcp_pose_arrays = np.stack(left_robot_tcp_pose_arrays_new, axis=0)
+        left_robot_tcp_vel_arrays = np.stack(left_robot_tcp_vel_arrays_new, axis=0)
+        left_robot_tcp_wrench_arrays = np.stack(left_robot_tcp_wrench_arrays_new, axis=0)
+        left_robot_gripper_width_arrays = np.stack(left_robot_gripper_width_arrays_new, axis=0)
+        left_robot_gripper_force_arrays = np.stack(left_robot_gripper_force_arrays_new, axis=0)
+        right_robot_tcp_pose_arrays = np.stack(right_robot_tcp_pose_arrays_new, axis=0)
+        right_robot_tcp_vel_arrays = np.stack(right_robot_tcp_vel_arrays_new, axis=0)
+        right_robot_tcp_wrench_arrays = np.stack(right_robot_tcp_wrench_arrays_new, axis=0)
+        right_robot_gripper_width_arrays = np.stack(right_robot_gripper_width_arrays_new, axis=0)
+        right_robot_gripper_force_arrays = np.stack(right_robot_gripper_force_arrays_new, axis=0)
+
+    if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 8: # (left_tcp_x, left_tcp_y, left_tcp_z, right_tcp_x, right_tcp_y, right_tcp_z, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], right_robot_tcp_pose_arrays[:, :3],
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 10: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 20: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, right_tcp_x, right_tcp_y, right_tcp_z, right_6d_rotation, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, right_robot_tcp_pose_arrays,
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    else:
+        # TODO: support left_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper2_marker_offset_emb_arrays
+        raise NotImplementedError
+    if USE_ABSOLUTE_ACTION:
+        # override action to absolute value
+        # action is basically next state
+        new_action_arrays = state_arrays[1:, ...].copy()
+        action_arrays = np.concatenate([new_action_arrays, new_action_arrays[-1][np.newaxis, :]], axis=0)
+        # fix the last action of each episode
+        for i in range(0, len(episode_ends_arrays)):
+            action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
+    else:
+        raise NotImplementedError
+        
+    valid_mask = np.ones(len(action_arrays), dtype=bool)
+
+    if ACTION_DIM == 4: # (left_tcp_x, left_tcp_y, left_tcp_z, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 8: # (left_tcp_x, left_tcp_y, left_tcp_z, right_tcp_x, right_tcp_y, right_tcp_z, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays[:, :3], right_robot_tcp_pose_arrays[:, :3],
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 10: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, left_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, left_robot_gripper_width_arrays], axis=-1)
+    elif ACTION_DIM == 20: # (left_tcp_x, left_tcp_y, left_tcp_z, left_6d_rotation, right_tcp_x, right_tcp_y, right_tcp_z, right_6d_rotation, left_gripper_width, right_gripper_width)
+        state_arrays = np.concatenate([left_robot_tcp_pose_arrays, right_robot_tcp_pose_arrays,
+                                       left_robot_gripper_width_arrays, right_robot_gripper_width_arrays], axis=-1)
+    else:
+        # TODO: support left_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper1_marker_offset_emb_arrays
+        # TODO: support right_gripper2_marker_offset_emb_arrays
+        raise NotImplementedError
+
+    if USE_ABSOLUTE_ACTION:
+        # override action to absolute value
+        # action is basically next state
+        new_action_arrays = state_arrays[1:, ...].copy()
+        action_arrays = np.concatenate([new_action_arrays, new_action_arrays[-1][np.newaxis, :]], axis=0)
+        # fix the last action of each episode
+        for i in range(0, len(episode_ends_arrays)):
+            action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
+    else:
+        raise NotImplementedError
+    
+        
+    valid_mask = np.ones(len(action_arrays), dtype=bool)
 
     # create zarr file4
     zarr_root = zarr.group(save_data_path)

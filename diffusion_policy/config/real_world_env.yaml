@@ -1,2 +1,2 @@
 defaults:
-  - task: single_arm_one_realsense_30fps
+  - task: single_arm_two_realsense_30fps

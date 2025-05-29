@@ -23,3 +23,5 @@ publisher:
         - 10
   # no usb camera
   usb_camera_publisher: []
+  iphone_camera_publisher: []
+  capture_card_camera_publisher: []

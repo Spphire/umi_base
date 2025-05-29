@@ -19,6 +19,13 @@ def ros_pose_to_6d_pose(pose: Pose) -> np.ndarray:
     trans = np.array([pose.position.x, pose.position.y, pose.position.z])
     return np.concatenate([trans, euler])
 
+def orthogonalization(a1: np.ndarray, a2: np.ndarray) -> np.ndarray:
+    a1 = a1 / np.linalg.norm(a1, axis=1, keepdims=True)
+    a2 = a2 - np.sum(a1 * a2, axis=1, keepdims=True) * a1
+    a2 = a2 / np.linalg.norm(a2, axis=1, keepdims=True)
+    a3 = np.cross(a1, a2)
+    return a3
+
 def pose_6d_to_pose_7d(pose: np.ndarray) -> np.ndarray:
     # convert 6D pose (x, y, z, r, p, y) to 7D pose (x, y, z, qw, qx, qy, qz)
     quat = t3d.euler.euler2quat(pose[3], pose[4], pose[5])

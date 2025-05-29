@@ -15,9 +15,16 @@ def get_topic_and_type(device_to_topic: DeviceToTopic):
         if info.topic_pointcloud != '':
             subs_name_type.append((f'/{camera_name}/depth/points', PointCloud2))
 
+    for camera_name, info in device_to_topic.iphone.items():
+        # logger.debug(f'camera info: {info}')
+        subs_name_type.append((f'/{camera_name}/color/image_raw', Image))
+
     for camera_name, info in device_to_topic.usb.items():
         subs_name_type.append((f'/{camera_name}/color/image_raw', Image))
         subs_name_type.append((f'/{camera_name}/marker_offset/information', PointCloud2))
+
+    for camera_name, info in device_to_topic.capture_card.items():
+        subs_name_type.append((f'/{camera_name}/color/image_raw', Image))
 
     subs_name_type.extend([
         ('/left_tcp_pose', PoseStamped),

@@ -5,7 +5,6 @@ defaults:
 name: single_right_arm_pick_and_place_s1_image_only
 
 image_shape: [3, 240, 320]
-dataset_path: data/real_pick_and_place_image_zarr
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -81,4 +80,5 @@ dataset:
   val_ratio: 0.00
   max_train_episodes: null
   delta_action: False
+  relative_action: True
 

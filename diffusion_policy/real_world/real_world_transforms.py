@@ -10,23 +10,23 @@ import json
 @dataclass
 class RealWorldTransforms:
     option: DictConfig = field(default=None)
-    external_camera_to_left_robot_base_transform: np.ndarray = field(default=np.eye(4))
-    external_camera_to_right_robot_base_transform: np.ndarray = field(default=np.eye(4))
-    world_to_external_camera_transform: np.ndarray = field(default=np.eye(4))
-    external_camera_to_world_transform: np.ndarray = field(default=np.eye(4))
-    left_wrist_camera_to_left_robot_tcp_transform: np.ndarray = field(default=np.eye(4))
-    right_wrist_camera_to_right_robot_tcp_transform: np.ndarray = field(default=np.eye(4))
-    world_to_left_robot_base_transform: np.ndarray = field(default=np.eye(4))
-    world_to_right_robot_base_transform: np.ndarray = field(default=np.eye(4))
-    left_robot_base_to_world_transform: np.ndarray = field(default=np.eye(4))
-    right_robot_base_to_world_transform: np.ndarray = field(default=np.eye(4))
-    left_robot_base_pos_in_world: np.ndarray = field(default=np.array([0.0, 0.0, 0.0]))
-    right_robot_base_pos_in_world: np.ndarray = field(default=np.array([0.0, 0.0, 0.0]))
-    unity_to_world_fit_matrix: np.ndarray = field(default=np.array(
+    external_camera_to_left_robot_base_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    external_camera_to_right_robot_base_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    world_to_external_camera_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    external_camera_to_world_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    left_wrist_camera_to_left_robot_tcp_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    right_wrist_camera_to_right_robot_tcp_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    world_to_left_robot_base_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    world_to_right_robot_base_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    left_robot_base_to_world_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    right_robot_base_to_world_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    left_robot_base_pos_in_world: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    right_robot_base_pos_in_world: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    unity_to_world_fit_matrix: np.ndarray = field(default_factory=lambda: np.array(
         [[0., 0., 1.],
          [-1, 0., 0.],
          [0., -1, 0.]]))
-    unity_to_world_transform: np.ndarray = field(default=np.array(
+    unity_to_world_transform: np.ndarray = field(default_factory=lambda: np.array(
         [[0., 0., 1., 0.],
          [-1, 0., 0., 0.],
          [0., 1, 0., 0.],
