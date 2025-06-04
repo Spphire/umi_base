@@ -1,0 +1,387 @@
+import pickle
+import os
+from loguru import logger
+import zarr
+import cv2
+import numpy as np
+import os.path as osp
+import py_cli_interaction
+import matplotlib.pyplot as plt
+from hydra import initialize, compose
+from omegaconf import DictConfig
+from scipy.interpolate import interp1d
+from scipy.spatial.transform import Rotation as R, Slerp
+from tqdm import tqdm
+import tarfile
+
+from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
+from diffusion_policy.common.visualization_utils import visualize_rgb_image
+from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
+from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix, orthogonalization
+
+def center_pad_and_resize_image(image, target_size=(224, 224)):
+    """
+    将图像放在中心，左右填充黑色至正方形，然后resize到目标大小
+    
+    参数:
+    image: 输入图像
+    target_size: 目标尺寸 (height, width)
+    
+    返回:
+    处理后的图像
+    """
+    h, w = image.shape[:2]
+    max_dim = max(h, w)
+    
+    # 创建黑色正方形背景
+    square_img = np.zeros((max_dim, max_dim, 3), dtype=np.uint8)
+    
+    # 计算居中位置
+    y_offset = (max_dim - h) // 2
+    x_offset = (max_dim - w) // 2
+    
+    # 将原图放在中心
+    square_img[y_offset:y_offset+h, x_offset:x_offset+w] = image
+    
+    # resize到目标尺寸
+    resized_img = cv2.resize(square_img, target_size)
+    
+    return resized_img
+
+def sixd_to_rotation_matrix(sixd):
+    """
+    将6D旋转表示转换为3x3旋转矩阵。
+    6D表示由前两个列向量组成，第三列通过叉积计算获得正交基。
+    """
+    a1 = sixd[:, :3]
+    a2 = sixd[:, 3:6]
+    a3 = orthogonalization(a1, a2)  # shape: (N, 3)
+    rotation_matrices = np.stack((a1, a2, a3), axis=2)  # shape: (N, 3, 3)
+    return rotation_matrices
+
+def rotation_matrix_to_sixd(rotation_matrices):
+    """
+    将3x3旋转矩阵转换回6D表示。
+    返回前两列作为6D表示。
+    """
+    a1 = rotation_matrices[:, :, 0]
+    a2 = rotation_matrices[:, :, 1]
+    sixd = np.concatenate((a1, a2), axis=1)  # shape: (N, 6)
+    return sixd
+
+def convert_data_to_zarr(
+    tag: str,
+    temporal_downsample_ratio: int = 3,
+    use_absolute_action: bool = True,
+    action_dim: int = 10,
+    debug: bool = False,
+    overwrite: bool = True,
+    use_dino: bool = False
+) -> str:
+    """
+    将原始数据转换为zarr格式存储。
+
+    参数:
+        tag (str): 数据标签，用于指定数据目录
+        temporal_downsample_ratio (int): 时序降采样比例
+        use_absolute_action (bool): 是否使用绝对动作值
+        action_dim (int): 动作维度 (4或10)
+        debug (bool): 是否开启调试模式
+        overwrite (bool): 是否覆盖已存在的数据
+        use_dino (bool): 是否使用DINO
+
+    返回:
+        str: 保存的zarr文件路径
+    """
+    data_dir = f'data/{tag}'
+    # 构建保存路径
+    if temporal_downsample_ratio > 1:
+        save_data_dir = f'{data_dir}_downsample{temporal_downsample_ratio}_filtered_zarr'
+    else:
+        save_data_dir = f'{data_dir}{"_debug" if debug else ""}_zarr'
+    save_data_path = osp.join(osp.abspath(os.getcwd()), save_data_dir, f'replay_buffer.zarr')
+    
+    # 创建保存目录
+    os.makedirs(save_data_dir, exist_ok=True)
+    
+    # 检查是否存在已有数据
+    if os.path.exists(save_data_path):
+        if not overwrite:
+            logger.info(f'Data already exists at {save_data_path}')
+            return save_data_path
+        else:
+            logger.warning(f'Overwriting {save_data_path}')
+            os.system(f'rm -rf {save_data_path}')
+
+    # 创建数据处理管理器
+    data_processing_manager = DataPostProcessingManageriPhone(use_6d_rotation=True)
+
+    # 初始化数据数组
+    timestamp_arrays = []
+    left_wrist_img_arrays = []
+    left_robot_tcp_pose_arrays = []
+    left_robot_gripper_width_arrays = []
+    episode_ends_arrays = []
+    total_count = 0
+
+    # 处理所有数据文件
+    data_files = sorted([f for f in os.listdir(data_dir) if f.endswith('.tar.gz')])
+    for seq_idx, data_file in enumerate(data_files):
+        if debug and seq_idx <= 5:
+            continue
+            
+        data_path = osp.join(data_dir, data_file)
+        abs_path = os.path.abspath(data_path)
+        dst_path = abs_path.split('.tar.gz')[0]
+        
+        # 解压数据文件
+        if not os.path.exists(dst_path):
+            os.makedirs(dst_path)
+            logger.info(f"Extracting {abs_path}...")
+            with tarfile.open(abs_path, 'r:gz') as tar:
+                tar.extractall(path=dst_path)
+
+        # 提取观测数据
+        obs_dict = data_processing_manager.extract_msg_to_obs_dict(dst_path)
+        if obs_dict is None:
+            logger.warning(f"obs_dict is None for {dst_path}")
+            continue
+            
+        # 收集数据
+        timestamp_arrays.append(obs_dict['timestamp'])
+        left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
+        left_robot_gripper_width_arrays.append(obs_dict['left_robot_gripper_width'])
+        total_count += len(obs_dict['timestamp'])
+        episode_ends_arrays.append(total_count)
+        
+        # 处理gripper width数据
+        while len(left_robot_gripper_width_arrays[-1]) < len(left_robot_tcp_pose_arrays[-1]):
+            left_robot_gripper_width_arrays[-1] = np.concatenate([
+                left_robot_gripper_width_arrays[-1], 
+                left_robot_gripper_width_arrays[-1][-1][np.newaxis, :]
+            ])
+
+        # 处理图像数据
+        if use_dino:
+            processed_images = []
+            for img in obs_dict['left_wrist_img']:
+                processed_img = center_pad_and_resize_image(img)
+                processed_images.append(processed_img)
+            left_wrist_img_arrays.append(np.array(processed_images))
+        else:
+            left_wrist_img_arrays.append(np.array(obs_dict['left_wrist_img']))
+
+    # 转换列表为数组
+    left_wrist_img_arrays = np.vstack(left_wrist_img_arrays)
+    episode_ends_arrays = np.array(episode_ends_arrays)
+    timestamp_arrays = np.vstack(timestamp_arrays)
+    left_robot_tcp_pose_arrays = np.vstack(left_robot_tcp_pose_arrays)
+    left_robot_gripper_width_arrays = np.vstack(left_robot_gripper_width_arrays)
+
+    # 时序降采样处理
+    if temporal_downsample_ratio > 1:
+        (
+            timestamp_arrays,
+            left_wrist_img_arrays,
+            left_robot_tcp_pose_arrays,
+            left_robot_gripper_width_arrays,
+            episode_ends_arrays
+        ) = downsample_temporal_data(
+            temporal_downsample_ratio,
+            timestamp_arrays,
+            left_wrist_img_arrays,
+            left_robot_tcp_pose_arrays,
+            left_robot_gripper_width_arrays,
+            episode_ends_arrays
+        )
+
+    # 构建状态数组
+    if action_dim == 4:
+        state_arrays = np.concatenate([
+            left_robot_tcp_pose_arrays[:, :3], 
+            left_robot_gripper_width_arrays
+        ], axis=-1)
+    elif action_dim == 10:
+        state_arrays = np.concatenate([
+            left_robot_tcp_pose_arrays,
+            left_robot_gripper_width_arrays
+        ], axis=-1)
+    else:
+        raise NotImplementedError(f"Unsupported action_dim: {action_dim}")
+
+    # 构建动作数组
+    if use_absolute_action:
+        action_arrays = create_absolute_actions(state_arrays, episode_ends_arrays)
+    else:
+        raise NotImplementedError("Only absolute actions are supported")
+
+    # 创建zarr存储
+    zarr_data, zarr_meta = create_zarr_storage(
+        save_data_path,
+        timestamp_arrays,
+        left_robot_tcp_pose_arrays,
+        left_robot_gripper_width_arrays,
+        state_arrays,
+        action_arrays,
+        episode_ends_arrays,
+        left_wrist_img_arrays
+    )
+
+    # 打印数据结构信息
+    logger.info('Zarr data structure')
+    logger.info(zarr_data.tree())
+    logger.info(f'Total count after filtering: {action_arrays.shape[0]}')
+    logger.info(f'Save data at {save_data_path}')
+
+    return save_data_path
+
+def downsample_temporal_data(
+    downsample_ratio: int,
+    timestamp_arrays: np.ndarray,
+    left_wrist_img_arrays: np.ndarray,
+    left_robot_tcp_pose_arrays: np.ndarray,
+    left_robot_gripper_width_arrays: np.ndarray,
+    episode_ends_arrays: np.ndarray
+) -> tuple:
+    """时序降采样处理函数"""
+    keep_indices = []
+    current_episode_start = 0
+    
+    for episode_end in episode_ends_arrays:
+        episode_indices = np.arange(current_episode_start, episode_end)
+        
+        if len(episode_indices) > 2:
+            middle_indices = episode_indices[1:-1]
+            downsampled_middle_indices = middle_indices[::downsample_ratio]
+            episode_keep_indices = np.concatenate([
+                [episode_indices[0]],
+                downsampled_middle_indices,
+                [episode_indices[-1]]
+            ])
+        else:
+            episode_keep_indices = episode_indices
+            
+        keep_indices.extend(episode_keep_indices)
+        current_episode_start = episode_end
+        
+    keep_indices = np.array(keep_indices)
+    
+    # 降采样所有数组
+    timestamp_arrays = timestamp_arrays[keep_indices]
+    left_wrist_img_arrays = left_wrist_img_arrays[keep_indices]
+    left_robot_tcp_pose_arrays = left_robot_tcp_pose_arrays[keep_indices]
+    left_robot_gripper_width_arrays = left_robot_gripper_width_arrays[keep_indices]
+    
+    # 重新计算episode_ends
+    new_episode_ends = []
+    count = 0
+    current_episode_start = 0
+    
+    for episode_end in episode_ends_arrays:
+        episode_indices = np.arange(current_episode_start, episode_end)
+        if len(episode_indices) > 2:
+            middle_indices = episode_indices[1:-1]
+            downsampled_middle_indices = middle_indices[::downsample_ratio]
+            count += len(downsampled_middle_indices) + 2
+        else:
+            count += len(episode_indices)
+        new_episode_ends.append(count)
+        current_episode_start = episode_end
+        
+    episode_ends_arrays = np.array(new_episode_ends)
+    
+    return (
+        timestamp_arrays,
+        left_wrist_img_arrays,
+        left_robot_tcp_pose_arrays,
+        left_robot_gripper_width_arrays,
+        episode_ends_arrays
+    )
+
+def create_absolute_actions(
+    state_arrays: np.ndarray,
+    episode_ends_arrays: np.ndarray
+) -> np.ndarray:
+    """创建绝对动作数组"""
+    new_action_arrays = state_arrays[1:, ...].copy()
+    action_arrays = np.concatenate([
+        new_action_arrays,
+        new_action_arrays[-1][np.newaxis, :]
+    ], axis=0)
+    
+    for i in range(len(episode_ends_arrays)):
+        action_arrays[episode_ends_arrays[i] - 1] = action_arrays[episode_ends_arrays[i] - 2]
+        
+    return action_arrays
+
+def create_zarr_storage(
+    save_data_path: str,
+    timestamp_arrays: np.ndarray,
+    left_robot_tcp_pose_arrays: np.ndarray,
+    left_robot_gripper_width_arrays: np.ndarray,
+    state_arrays: np.ndarray,
+    action_arrays: np.ndarray,
+    episode_ends_arrays: np.ndarray,
+    left_wrist_img_arrays: np.ndarray
+) -> tuple:
+    """创建zarr存储"""
+    zarr_root = zarr.group(save_data_path)
+    zarr_data = zarr_root.create_group('data')
+    zarr_meta = zarr_root.create_group('meta')
+    
+    # 计算chunk大小
+    wrist_img_chunk_size = (100, *left_wrist_img_arrays.shape[1:])
+    action_chunk_size = (10000, action_arrays.shape[1])
+    
+    # 创建压缩器
+    compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
+    
+    # 创建数据集
+    zarr_data.create_dataset('timestamp', data=timestamp_arrays,
+                           chunks=(10000,), dtype='float32',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_data.create_dataset('left_robot_tcp_pose', data=left_robot_tcp_pose_arrays,
+                           chunks=(10000, 9), dtype='float32',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_data.create_dataset('left_robot_gripper_width', data=left_robot_gripper_width_arrays,
+                           chunks=(10000, 1), dtype='float32',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_data.create_dataset('target', data=state_arrays,
+                           chunks=action_chunk_size, dtype='float32',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_data.create_dataset('action', data=action_arrays,
+                           chunks=action_chunk_size, dtype='float32',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays,
+                           chunks=(10000,), dtype='int64',
+                           overwrite=True, compressor=compressor)
+    
+    zarr_data.create_dataset('left_wrist_img', data=left_wrist_img_arrays,
+                           chunks=wrist_img_chunk_size, dtype='uint8')
+    
+    return zarr_data, zarr_meta
+
+if __name__ == '__main__':
+    # 示例使用
+    tag = 'real_pick_and_place_coffee_iphone'
+    debug = True  # 设置为True以进行调试
+    temporal_downsample_ratio = 3  # 设置时序降采样比例
+    use_absolute_action = True  # 使用绝对动作
+    action_dim = 10  # 设置动作维度
+    overwrite = True  # 是否覆盖已有数据
+    use_dino = False  # 是否使用DINO
+    
+    zarr_path = convert_data_to_zarr(
+        tag=tag,
+        temporal_downsample_ratio=temporal_downsample_ratio,
+        use_absolute_action=use_absolute_action,
+        action_dim=action_dim,
+        debug=debug,
+        overwrite=overwrite,
+        use_dino=use_dino
+    )
