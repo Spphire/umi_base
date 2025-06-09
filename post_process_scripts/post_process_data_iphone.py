@@ -70,7 +70,8 @@ def rotation_matrix_to_sixd(rotation_matrices):
     return sixd
 
 def convert_data_to_zarr(
-    tag: str,
+    input_dir: str,
+    output_dir: str,
     temporal_downsample_ratio: int = 3,
     use_absolute_action: bool = True,
     action_dim: int = 10,
@@ -82,7 +83,8 @@ def convert_data_to_zarr(
     将原始数据转换为zarr格式存储。
 
     参数:
-        tag (str): 数据标签，用于指定数据目录
+        input_dir (str): 输入数据目录，包含.tar.gz文件
+        output_dir (str): 输出目录，用于保存zarr文件
         temporal_downsample_ratio (int): 时序降采样比例
         use_absolute_action (bool): 是否使用绝对动作值
         action_dim (int): 动作维度 (4或10)
@@ -93,13 +95,9 @@ def convert_data_to_zarr(
     返回:
         str: 保存的zarr文件路径
     """
-    data_dir = f'data/{tag}'
-    # 构建保存路径
-    if temporal_downsample_ratio > 1:
-        save_data_dir = f'{data_dir}_downsample{temporal_downsample_ratio}_filtered_zarr'
-    else:
-        save_data_dir = f'{data_dir}{"_debug" if debug else ""}_zarr'
-    save_data_path = osp.join(osp.abspath(os.getcwd()), save_data_dir, f'replay_buffer.zarr')
+    data_dir = input_dir
+    save_data_dir = output_dir
+    save_data_path = osp.join(save_data_dir, f'replay_buffer.zarr')
     
     # 创建保存目录
     os.makedirs(save_data_dir, exist_ok=True)
@@ -368,7 +366,9 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    tag = 'real_pick_and_place_coffee_iphone'
+    # tag = 'real_pick_and_place_coffee_iphone'
+    input_dir = ''
+    output_dir = ''
     debug = True  # 设置为True以进行调试
     temporal_downsample_ratio = 3  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
@@ -377,7 +377,8 @@ if __name__ == '__main__':
     use_dino = False  # 是否使用DINO
     
     zarr_path = convert_data_to_zarr(
-        tag=tag,
+        input_dir=input_dir,
+        output_dir=output_dir,
         temporal_downsample_ratio=temporal_downsample_ratio,
         use_absolute_action=use_absolute_action,
         action_dim=action_dim,
