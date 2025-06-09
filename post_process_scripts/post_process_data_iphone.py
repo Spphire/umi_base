@@ -122,7 +122,7 @@ def convert_data_to_zarr(
     episode_ends_arrays = []
     total_count = 0
 
-    # 处理所有数据文件
+    # 处理所有未解压数据文件
     data_files = sorted([f for f in os.listdir(data_dir) if f.endswith('.tar.gz')])
     for seq_idx, data_file in enumerate(data_files):
         if debug and seq_idx <= 5:
@@ -138,7 +138,20 @@ def convert_data_to_zarr(
             logger.info(f"Extracting {abs_path}...")
             with tarfile.open(abs_path, 'r:gz') as tar:
                 tar.extractall(path=dst_path)
+    
+    # Get directories containing .bson files
+    dst_paths = []
+    subfolders = [f.path for f in os.scandir(data_dir) if f.is_dir()]
+    for subfolder in subfolders:
+        if any(f.endswith('.bson') for f in os.listdir(subfolder)):
+            dst_paths.append(subfolder)
 
+    if not dst_paths:
+        logger.warning(f"No .bson files found in subdirectories of {data_dir}")
+        return save_data_path
+
+    # Process each path containing .bson files
+    for dst_path in dst_paths:
         # 提取观测数据
         obs_dict = data_processing_manager.extract_msg_to_obs_dict(dst_path)
         if obs_dict is None:
