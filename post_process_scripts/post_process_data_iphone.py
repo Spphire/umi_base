@@ -169,9 +169,9 @@ def convert_data_to_zarr(
         episode_ends_arrays.append(total_count)
 
         gripper_width = obs_dict['left_robot_gripper_width']
-        for i in range(1, len(gripper_width) - 1):
-            if abs(gripper_width[i] - gripper_width[i-1]) > 0.1 and abs(gripper_width[i] - gripper_width[i+1]) > 0.1:
-                gripper_width[i] = (gripper_width[i-1] + gripper_width[i+1]) / 2
+        for i in range(1, len(gripper_width) - 2):
+            if abs(gripper_width[i] - gripper_width[i-1]) > 0.15:
+                gripper_width[i] = (gripper_width[i-1] + gripper_width[i+2]) / 2
         left_robot_gripper_width_arrays.append(gripper_width)
         
         gripper_width_abs_cnt = 0
