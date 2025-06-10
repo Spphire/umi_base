@@ -77,7 +77,9 @@ def convert_data_to_zarr(
     action_dim: int = 10,
     debug: bool = False,
     overwrite: bool = True,
-    use_dino: bool = False
+    use_dino: bool = False,
+    gripper_width_bias: float = 0.0,
+    gripper_width_scale: float = 0.1
 ) -> str:
     """
     将原始数据转换为zarr格式存储。
@@ -91,6 +93,8 @@ def convert_data_to_zarr(
         debug (bool): 是否开启调试模式
         overwrite (bool): 是否覆盖已存在的数据
         use_dino (bool): 是否使用DINO
+        gripper_width_bias (float): 夹爪宽度偏差
+        gripper_width_scale (float): 夹爪宽度缩放比例
 
     返回:
         str: 保存的zarr文件路径
@@ -188,6 +192,7 @@ def convert_data_to_zarr(
     timestamp_arrays = np.vstack(timestamp_arrays)
     left_robot_tcp_pose_arrays = np.vstack(left_robot_tcp_pose_arrays)
     left_robot_gripper_width_arrays = np.vstack(left_robot_gripper_width_arrays)
+    left_robot_gripper_width_arrays = (left_robot_gripper_width_arrays + gripper_width_bias) * gripper_width_scale
 
     # 时序降采样处理
     if temporal_downsample_ratio > 1:
@@ -388,6 +393,8 @@ if __name__ == '__main__':
     action_dim = 10  # 设置动作维度
     overwrite = True  # 是否覆盖已有数据
     use_dino = False  # 是否使用DINO
+    gripper_width_bias = 0.0  # 设置夹爪宽度偏差
+    gripper_width_scale = 0.1  # 设置夹爪宽度缩放比例
     
     zarr_path = convert_data_to_zarr(
         input_dir=input_dir,
@@ -397,5 +404,7 @@ if __name__ == '__main__':
         action_dim=action_dim,
         debug=debug,
         overwrite=overwrite,
-        use_dino=use_dino
+        use_dino=use_dino,
+        gripper_width_bias=gripper_width_bias,
+        gripper_width_scale=gripper_width_scale
     )
