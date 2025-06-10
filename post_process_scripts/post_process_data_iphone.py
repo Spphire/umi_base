@@ -165,16 +165,24 @@ def convert_data_to_zarr(
         # 收集数据
         timestamp_arrays.append(obs_dict['timestamp'])
         left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
-        left_robot_gripper_width_arrays.append(obs_dict['left_robot_gripper_width'])
         total_count += len(obs_dict['timestamp'])
         episode_ends_arrays.append(total_count)
+
+        gripper_width = obs_dict['left_robot_gripper_width']
+        for i in range(1, len(gripper_width) - 1):
+            if abs(gripper_width[i] - gripper_width[i-1]) > 0.1 and abs(gripper_width[i] - gripper_width[i+1]) > 0.1:
+                gripper_width[i] = (gripper_width[i-1] + gripper_width[i+1]) / 2
+        left_robot_gripper_width_arrays.append(gripper_width)
         
-        # 处理gripper width数据
+        gripper_width_abs_cnt = 0
         while len(left_robot_gripper_width_arrays[-1]) < len(left_robot_tcp_pose_arrays[-1]):
             left_robot_gripper_width_arrays[-1] = np.concatenate([
                 left_robot_gripper_width_arrays[-1], 
                 left_robot_gripper_width_arrays[-1][-1][np.newaxis, :]
             ])
+            gripper_width_abs_cnt += 1
+        if gripper_width_abs_cnt > 0:
+            logger.warning(f"Gripper width data padded {gripper_width_abs_cnt} times for {dst_path}")
 
         # 处理图像数据
         if use_dino:
