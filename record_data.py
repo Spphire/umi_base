@@ -8,6 +8,7 @@ from diffusion_policy.real_world.teleoperation.data_recorder import DataRecorder
 
 import os
 import psutil
+import re
 
 # add this to prevent assigning too may threads when using numpy
 os.environ["OPENBLAS_NUM_THREADS"] = "12"
@@ -48,6 +49,17 @@ def main(args=None):
     
 
     base_dir = osp.join(args.save_base_dir, args.save_file_dir)
+    if not osp.exists(base_dir):
+        os.makedirs(base_dir)
+
+    if args.save_file_name.startswith("trial") and args.save_file_name.endswith(".pkl"):
+        existing_trials = [
+            int(re.match(r"trial(\d+)\.pkl", f).group(1))
+            for f in os.listdir(base_dir)
+            if re.match(r"trial(\d+)\.pkl", f)
+        ]
+        next_trial = max(existing_trials, default=0) + 1
+        args.save_file_name = f"trial{next_trial}.pkl"
     save_path = osp.join(base_dir, args.save_file_name)
     
     transforms = RealWorldTransforms(option=cfg.task.transforms)
