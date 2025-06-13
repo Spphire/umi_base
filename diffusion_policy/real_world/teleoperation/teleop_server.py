@@ -18,7 +18,9 @@ from diffusion_policy.common.space_utils import (matrix4x4_to_pose_6d, pose_7d_t
                                                  pose_6d_to_pose_7d, pose_6d_to_4x4matrix)
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode
-
+import subprocess
+import signal
+import os
 
 class TeleopServer:
     gripper_interval_count: int = 0
@@ -36,6 +38,20 @@ class TeleopServer:
     left_gripper_width_history: deque = deque(maxlen=30)
     right_gripper_width_history: deque = deque(maxlen=30)
     velocity_limit = 0.5
+    teleop_source = 'iphone'
+    left_start_tcp_set_flag: bool = False
+    right_start_tcp_set_flag: bool = False
+    left_tracking_open_cnt = 0
+    left_tracking_close_cnt = 0
+    right_tracking_open_cnt = 0
+    right_tracking_close_cnt = 0
+    record_data_flag: bool = False
+    record_thread: threading.Thread = None
+    record_process: subprocess.Popen = None
+    record_stop_event: threading.Event = None
+    record_base_dir: str = None
+    record_file_dir: str = None
+    record_debug: bool = False
 
     def __init__(self,
                  robot_server_ip: str,
@@ -58,7 +74,11 @@ class TeleopServer:
                  relative_translation_scale: float = 1.0,
                  enable_tcp_gripper_compensation: bool = False,
                  tcp_gripper_compensation = None,
-                 debug: bool = False
+                 debug: bool = False,
+                 record_base_dir: str = '/root/umi_base_devel/data',
+                 record_file_dir: str = 'teleop_record',
+                 record_config_name: str = 'single_arm_iphone_teleop',
+                 record_debug: bool = False,
                  ):
         self.robot_server_ip = robot_server_ip
         self.robot_server_port = robot_server_port
@@ -68,6 +88,12 @@ class TeleopServer:
         self.fps = fps
         self.control_cycle_time = 1 / fps
         self.transforms = transforms
+        # set record vars
+        self.record_base_dir = record_base_dir
+        self.record_file_dir = record_file_dir
+        self.record_config_name = record_config_name
+        self.record_debug = record_debug
+        self.record_stop_event = threading.Event()
         # gripper control parameters
         self.use_force_control_for_gripper = use_force_control_for_gripper
         self.max_gripper_width = max_gripper_width
@@ -87,6 +113,85 @@ class TeleopServer:
         # Initialize the FastAPI server
         self.app = FastAPI()
         self.setup_routes()
+    
+    def start_recording(self):
+        """Start the recording process in a separate thread"""
+        if self.record_data_flag:
+            logger.warning("Recording already in progress")
+            return
+        
+        try:
+            from hydra import compose
+            import rclpy
+            import os.path as osp
+            from diffusion_policy.real_world.teleoperation.data_recorder import DataRecorder
+
+            import re
+            
+            def record_thread_func():
+                cfg = compose(config_name="real_world_env")
+                
+                rclpy.init()
+                
+                base_dir = osp.join(self.record_base_dir, self.record_file_dir)
+                if not osp.exists(base_dir):
+                    os.makedirs(base_dir)
+                
+                # Generate trial filename
+                existing_trials = [
+                    int(re.match(r"trial(\d+)\.pkl", f).group(1))
+                    for f in os.listdir(base_dir)
+                    if re.match(r"trial(\d+)\.pkl", f)
+                ]
+                next_trial = max(existing_trials, default=0) + 1
+                save_path = osp.join(base_dir, f"trial{next_trial}.pkl")
+                
+                node = DataRecorder(
+                    self.transforms,
+                    save_path=save_path,
+                    debug=self.record_debug,
+                    device_mapping_server_ip=cfg.task.device_mapping_server.host_ip,
+                    device_mapping_server_port=cfg.task.device_mapping_server.port
+                )
+                
+                try:
+                    while not self.record_stop_event.is_set():
+                        rclpy.spin_once(node, timeout_sec=0.1)
+                finally:
+                    node.save()
+                    node.destroy_node()
+                    rclpy.shutdown()
+            
+            self.record_stop_event.clear()
+            self.record_thread = threading.Thread(target=record_thread_func)
+            self.record_thread.start()
+            self.record_data_flag = True
+            logger.info("Started recording data")
+            
+        except Exception as e:
+            logger.error(f"Failed to start recording: {e}")
+            self.record_data_flag = False
+            if self.record_thread:
+                self.record_stop_event.set()
+                self.record_thread.join(timeout=5)
+    
+    def stop_recording(self):
+        """Stop the recording process"""
+        if not self.record_data_flag:
+            return
+        
+        try:
+            self.record_stop_event.set()
+            if self.record_thread:
+                self.record_thread.join(timeout=3)
+                if self.record_thread.is_alive():
+                    logger.warning("Had to force stop recording thread")
+                self.record_thread = None
+            logger.info("Stopped recording data")
+        except Exception as e:
+            logger.error(f"Error stopping recording: {e}")
+        finally:
+            self.record_data_flag = False
 
     def is_gripper_stable_open(self, gripper_width_history: deque[float], current_force: float) -> bool:
         if current_force >= self.grasp_force_vis_open_threshold:
@@ -109,6 +214,11 @@ class TeleopServer:
         @self.app.post('/unity')
         async def unity(mes: UnityMes):
             self.msg_buffer.push(mes)
+            # logger.info(f'raw unity message cmd is {mes.leftHand.cmd}')
+            return {'status': 'ok'}
+        
+        @self.app.get('/')
+        async def root():
             # logger.info(f'raw unity message cmd is {mes.leftHand.cmd}')
             return {'status': 'ok'}
 
@@ -145,11 +255,15 @@ class TeleopServer:
         try:
             teleop_thread.start()
             logger.info("Start Fast-API Tele-operation Server!")
-            uvicorn.run(self.app, host=self.host_ip, port=self.port)
+            uvicorn.run(self.app, host=self.host_ip, port=self.port, log_level='error')
             teleop_thread.join()
         except Exception as e:
             logger.exception(e)
             raise e
+        finally:
+            # Ensure recording is stopped when server exits
+            if self.record_data_flag:
+                self.stop_recording()
 
     def send_command(self, endpoint: str, data: dict = None):
         if 'gripper' in endpoint and 'velocity' in data:
@@ -222,6 +336,25 @@ class TeleopServer:
             
             if self.left_homing_state or self.right_homing_state:
                 continue
+
+            if mes.rightHand.cmd == 0 or mes.leftHand.cmd == 0:
+                # logger.warning('cmd 0 received, skipping processing')
+                precise_sleep(0.002)
+                # logger.debug(f"mes content: {mes}")
+                # exit()
+                continue
+
+            if self.teleop_source == 'iphone':
+                # logger.debug(f"mes cmd: {mes.rightHand.cmd}, {mes.leftHand.cmd}")
+                assert 10 <= mes.rightHand.cmd and 10 <= mes.leftHand.cmd
+                record_data_cmd = mes.rightHand.cmd // 10
+                mes.rightHand.cmd = mes.rightHand.cmd % 10
+                mes.leftHand.cmd = mes.leftHand.cmd % 10
+            
+            if record_data_cmd == 2 and not self.record_data_flag:
+                self.start_recording()
+            elif record_data_cmd != 2 and self.record_data_flag:
+                self.stop_recording()
             
             if mes.rightHand.cmd == 3 or mes.leftHand.cmd == 3:
                 self.left_tracking_state = False
@@ -315,35 +448,64 @@ class TeleopServer:
             r_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.rightHand.pos + mes.rightHand.quat), False)
             l_pos_from_unity = self.transforms.unity2robot_frame(np.array(mes.leftHand.pos + mes.leftHand.quat), True)
 
-            if mes.leftHand.cmd > 0:
-                self.debug_cmd_cnt += 1
-                logger.info(f"Cmd {mes.leftHand.cmd} Cnt: {self.debug_cmd_cnt}")
 
             if self.left_homing_state:
                 logger.debug("left still in homing state")
                 self.left_tracking_state = False
             else:
-                if mes.leftHand.cmd == 2:
-                    if self.left_tracking_state:
+                if self.teleop_source == 'iphone':
+                    if mes.leftHand.cmd == 2:
+                        if not self.left_start_tcp_set_flag:
+                            logger.info("left robot start tracking")
+                            self.set_start_tcp(left_tcp, l_pos_from_unity, is_left=True)
+                            self.left_start_tcp_set_flag = True
+                            self.left_tracking_open_cnt += 1
+                            logger.debug(f"left tracking open count: {self.left_tracking_open_cnt}")
+                    elif self.left_start_tcp_set_flag:
                         logger.info("left robot stop tracking")
                         self.left_tracking_state = False
                         self.send_command('/stop_gripper/left', {})
-                    else:
-                        logger.info("left robot start tracking")
-                        self.set_start_tcp(left_tcp, l_pos_from_unity, is_left=True)
+                        self.left_start_tcp_set_flag = False
+                        self.left_tracking_close_cnt += 1
+                        logger.debug(f"left tracking close count: {self.left_tracking_close_cnt}")
+                else:
+                    if mes.leftHand.cmd == 2:
+                        if self.left_tracking_state:
+                            logger.info("left robot stop tracking")
+                            self.left_tracking_state = False
+                            self.send_command('/stop_gripper/left', {})
+                        else:
+                            logger.info("left robot start tracking")
+                            self.set_start_tcp(left_tcp, l_pos_from_unity, is_left=True)
 
             if self.right_homing_state:
                 logger.debug("right still in homing state")
                 self.right_tracking_state = False
             else:
-                if mes.rightHand.cmd == 2:
-                    if self.right_tracking_state:
+                if self.teleop_source == 'iphone':
+                    if mes.rightHand.cmd == 2:
+                        if not self.right_start_tcp_set_flag:
+                            logger.info("right robot start tracking")
+                            self.set_start_tcp(right_tcp, r_pos_from_unity, is_left=False)
+                            self.right_start_tcp_set_flag = True
+                            self.right_tracking_open_cnt += 1
+                            logger.debug(f"right tracking open count: {self.right_tracking_open_cnt}")
+                    elif self.right_start_tcp_set_flag:
                         logger.info("right robot stop tracking")
                         self.right_tracking_state = False
                         self.send_command('/stop_gripper/right', {})
-                    else:
-                        logger.info("right robot start tracking")
-                        self.set_start_tcp(right_tcp, r_pos_from_unity, is_left=False)
+                        self.right_start_tcp_set_flag = False
+                        self.right_tracking_close_cnt += 1
+                        logger.debug(f"right tracking close count: {self.right_tracking_close_cnt}")
+                else:
+                    if mes.rightHand.cmd == 2:
+                        if self.right_tracking_state:
+                            logger.info("right robot stop tracking")
+                            self.right_tracking_state = False
+                            self.send_command('/stop_gripper/right', {})
+                        else:
+                            logger.info("right robot start tracking")
+                            self.set_start_tcp(right_tcp, r_pos_from_unity, is_left=False)
             
             if not self.left_homing_state and not self.right_homing_state:
                 threshold = 0.3
