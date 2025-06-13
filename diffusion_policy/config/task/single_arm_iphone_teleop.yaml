@@ -19,6 +19,10 @@ publisher:
     vr_server_ip: *vr_server_ip
     vr_server_tcp_port: 10001
     vr_server_force_port: 10005
+  realsense_camera_publisher: []
+  iphone_camera_publisher: []
+  usb_camera_publisher: []
+  capture_card_camera_publisher: []
 teleop_server:
   host_ip: "192.168.2.223"
   port: 8082
