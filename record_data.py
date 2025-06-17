@@ -1,4 +1,4 @@
-from diffusion_policy.real_world.record_data_manager_utils import DataRecordManager
+from diffusion_policy.real_world.record_data_manager import DataRecordManager
 
 import os
 import psutil

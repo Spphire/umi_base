@@ -18,7 +18,7 @@ from diffusion_policy.common.space_utils import (matrix4x4_to_pose_6d, pose_7d_t
                                                  pose_6d_to_pose_7d, pose_6d_to_4x4matrix)
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode
-from diffusion_policy.real_world.record_data_manager_utils import DataRecordManager
+from diffusion_policy.real_world.record_data_manager import DataRecordManager
 
 class TeleopServer:
     gripper_interval_count: int = 0
