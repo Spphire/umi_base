@@ -7,35 +7,7 @@ import os.path as osp
 import tarfile
 
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
-
-def center_pad_and_resize_image(image, target_size=(224, 224)):
-    """
-    将图像放在中心，左右填充黑色至正方形，然后resize到目标大小
-    
-    参数:
-    image: 输入图像
-    target_size: 目标尺寸 (height, width)
-    
-    返回:
-    处理后的图像
-    """
-    h, w = image.shape[:2]
-    max_dim = max(h, w)
-    
-    # 创建黑色正方形背景
-    square_img = np.zeros((max_dim, max_dim, 3), dtype=np.uint8)
-    
-    # 计算居中位置
-    y_offset = (max_dim - h) // 2
-    x_offset = (max_dim - w) // 2
-    
-    # 将原图放在中心
-    square_img[y_offset:y_offset+h, x_offset:x_offset+w] = image
-    
-    # resize到目标尺寸
-    resized_img = cv2.resize(square_img, target_size)
-    
-    return resized_img
+from diffusion_policy.common.image_utils import center_pad_and_resize_image
 
 def convert_data_to_zarr(
     input_dir: str,
