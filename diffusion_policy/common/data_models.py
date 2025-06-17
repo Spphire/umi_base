@@ -18,6 +18,28 @@ class HandMes(BaseModel):
     # # for right controller (Y, X, joystick, trigger, side_trigger)
     # buttonState: List[float]
 
+class interpreted_cmd():
+    def __init__(self, recording: bool = False, tracking: bool = False):
+        self.recording = recording
+        self.tracking = tracking
+
+iphone_cmd_interpreter = {
+    '10': interpreted_cmd(recording=False, tracking=False), # no recording, no tracking
+    '20': interpreted_cmd(recording=True, tracking=False),  # recording, no tracking
+    '12': interpreted_cmd(recording=False, tracking=True),  # no recording, tracking
+    '22': interpreted_cmd(recording=True, tracking=True),   # recording, tracking
+}
+
+vr_cmd_interpreter = {
+    '0': interpreted_cmd(tracking=False),  # no tracking
+    '2': interpreted_cmd(tracking=True),   # tracking
+}
+
+cmd_interpreter = {
+    'iphone': iphone_cmd_interpreter,
+    'vr': vr_cmd_interpreter,
+}
+
 class UnityMes(BaseModel):
     timestamp: float
     valid: bool

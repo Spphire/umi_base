@@ -17,7 +17,7 @@ from typing import List, Dict
 from diffusion_policy.common.space_utils import (matrix4x4_to_pose_6d, pose_7d_to_4x4matrix,
                                                  pose_6d_to_pose_7d, pose_6d_to_4x4matrix)
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
-from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode
+from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode, cmd_interpreter
 from diffusion_policy.real_world.record_data_manager import DataRecordManager
 
 class TeleopServer:
@@ -174,10 +174,6 @@ class TeleopServer:
         except Exception as e:
             logger.exception(e)
             raise e
-        finally:
-            # Ensure recording is stopped when server exits
-            if self.record_data_flag:
-                self.stop_recording()
 
     def send_command(self, endpoint: str, data: dict = None):
         if 'gripper' in endpoint and 'velocity' in data:
@@ -251,24 +247,27 @@ class TeleopServer:
             if self.left_homing_state or self.right_homing_state:
                 continue
 
-            if mes.rightHand.cmd == 0 or mes.leftHand.cmd == 0:
+            if self.teleop_source == 'iphone' and (mes.rightHand.cmd == 0 or mes.leftHand.cmd == 0):
                 # logger.warning('cmd 0 received, skipping processing')
                 precise_sleep(0.002)
                 # logger.debug(f"mes content: {mes}")
                 # exit()
                 continue
 
-            if self.teleop_source == 'iphone':
-                logger.debug(f"mes cmd: {mes.rightHand.cmd}, {mes.leftHand.cmd}")
-                assert 10 <= mes.rightHand.cmd and 10 <= mes.leftHand.cmd
-                record_data_cmd = mes.rightHand.cmd // 10
-                mes.rightHand.cmd = mes.rightHand.cmd % 10
-                mes.leftHand.cmd = mes.leftHand.cmd % 10
+            assert str(mes.rightHand.cmd) in cmd_interpreter[self.teleop_source], \
+                f"Unsupported command {mes.rightHand.cmd} for teleop source {self.teleop_source}"
+            assert str(mes.leftHand.cmd) in cmd_interpreter[self.teleop_source], \
+                f"Unsupported command {mes.leftHand.cmd} for teleop source {self.teleop_source}"
             
-            if record_data_cmd == 2:
-                self.data_record_manager.start_recording()
-            elif record_data_cmd != 2:
-                self.data_record_manager.stop_recording()
+            interpreted_left_cmd = cmd_interpreter[self.teleop_source][str(mes.leftHand.cmd)]
+            interpreted_right_cmd = cmd_interpreter[self.teleop_source][str(mes.rightHand.cmd)]
+
+            if interpreted_right_cmd.recording:
+                if not self.data_record_manager.record_data_flag:
+                    self.data_record_manager.start_recording()
+            else:
+                if self.data_record_manager.record_data_flag:
+                    self.data_record_manager.stop_recording()
 
             if mes.rightHand.cmd == 3 or mes.leftHand.cmd == 3:
                 self.left_tracking_state = False
@@ -368,7 +367,7 @@ class TeleopServer:
                 self.left_tracking_state = False
             else:
                 if self.teleop_source == 'iphone':
-                    if mes.leftHand.cmd == 2:
+                    if interpreted_left_cmd.tracking:
                         if not self.left_start_tcp_set_flag:
                             logger.info("left robot start tracking")
                             self.set_start_tcp(left_tcp, l_pos_from_unity, is_left=True)
@@ -383,7 +382,7 @@ class TeleopServer:
                         self.left_tracking_close_cnt += 1
                         logger.debug(f"left tracking close count: {self.left_tracking_close_cnt}")
                 else:
-                    if mes.leftHand.cmd == 2:
+                    if interpreted_left_cmd.tracking:
                         if self.left_tracking_state:
                             logger.info("left robot stop tracking")
                             self.left_tracking_state = False
@@ -397,7 +396,7 @@ class TeleopServer:
                 self.right_tracking_state = False
             else:
                 if self.teleop_source == 'iphone':
-                    if mes.rightHand.cmd == 2:
+                    if interpreted_right_cmd.tracking:
                         if not self.right_start_tcp_set_flag:
                             logger.info("right robot start tracking")
                             self.set_start_tcp(right_tcp, r_pos_from_unity, is_left=False)
@@ -412,7 +411,7 @@ class TeleopServer:
                         self.right_tracking_close_cnt += 1
                         logger.debug(f"right tracking close count: {self.right_tracking_close_cnt}")
                 else:
-                    if mes.rightHand.cmd == 2:
+                    if interpreted_right_cmd.tracking:
                         if self.right_tracking_state:
                             logger.info("right robot stop tracking")
                             self.right_tracking_state = False
