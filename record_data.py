@@ -1,13 +1,10 @@
-from hydra import initialize, compose
-import rclpy
-import os.path as osp
-import sys
-from loguru import logger
-from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
-from diffusion_policy.real_world.teleoperation.data_recorder import DataRecorder
+from diffusion_policy.real_world.record_data_manager import DataRecordManager
 
 import os
 import psutil
+import time
+import sys
+from loguru import logger
 
 # add this to prevent assigning too may threads when using numpy
 os.environ["OPENBLAS_NUM_THREADS"] = "12"
@@ -29,42 +26,37 @@ cores_to_bind = set(range(min(num_cores_to_bind, total_cores)))
 # Set CPU affinity for the current process to the first ten cores
 os.sched_setaffinity(0, cores_to_bind)
 
+
 def main(args=None):
     import argparse
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Data Recorder')
     parser.add_argument('--save_base_dir', type=str)
     parser.add_argument('--save_file_dir', type=str, default='tests')
-    parser.add_argument('--save_file_name', type=str, default='test.pkl', help='File name of the save file')
+    parser.add_argument('--save_file_name', type=str, default=None, help='File name of the save file')
     parser.add_argument('--save_to_disk', action='store_true', default=False, help='Whether to save the data to disk')
     parser.add_argument('--debug', action='store_true', default=False, help='Whether to print debug messages')
     args = parser.parse_args()
-        
-    with initialize(config_path='diffusion_policy/config', version_base="1.1"):
-        cfg = compose(config_name="real_world_env")
-
-    rclpy_args = sys.argv
-    rclpy.init(args=rclpy_args)
     
-
-    base_dir = osp.join(args.save_base_dir, args.save_file_dir)
-    save_path = osp.join(base_dir, args.save_file_name)
+    data_record_manager = DataRecordManager(
+        record_base_dir=args.save_base_dir,
+        record_file_dir=args.save_file_dir,
+        record_debug=args.debug,
+        save_to_disk=args.save_to_disk, 
+        record_file_name=args.save_file_name
+    )
     
-    transforms = RealWorldTransforms(option=cfg.task.transforms)
-    node = DataRecorder(transforms,
-                        save_path=save_path,
-                        debug=args.debug,
-                        device_mapping_server_ip=cfg.task.device_mapping_server.host_ip,
-                        device_mapping_server_port=cfg.task.device_mapping_server.port)
     try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        if args.save_to_disk:
-            node.save()
-        else:
-            logger.info("Data not saved to disk, quitting program now...")
+        data_record_manager.start_recording()
+        # Keep the main thread alive
+        while True:
+            time.sleep(1)
+    except Exception as e:
+        logger.error(f"Error occurred: {e}")
     finally:
-        node.destroy_node()
+        data_record_manager.stop_recording()
+        time.sleep(2)  # Reduced wait time
+        sys.exit(0)
 
 
 if __name__ == '__main__':
