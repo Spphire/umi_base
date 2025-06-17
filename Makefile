@@ -23,7 +23,7 @@ DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector
 SAVE_BASE_DIR := /root/umi_base_devel/data
 SAVE_FILE_DIR := ${TASK}
 # SAVE_FILE_DIR := test
-SAVE_FILE_NAME := trial1.pkl
+# SAVE_FILE_NAME := trial1.pkl
 
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel
@@ -89,8 +89,8 @@ teleop.start_record:
 	python record_data.py \
 	    --save_base_dir ${SAVE_BASE_DIR} \
 	    --save_file_dir ${SAVE_FILE_DIR} \
-	    --save_file_name ${SAVE_FILE_NAME} \
-	    --save_to_disk
+		--save_to_disk
+	    # --save_file_name ${SAVE_FILE_NAME} \ # auto numbered while not specified
 
 teleop.post_process_iphone:
 	${PREPARE_VENV} && \
