@@ -18,10 +18,9 @@ class HandMes(BaseModel):
     # # for right controller (Y, X, joystick, trigger, side_trigger)
     # buttonState: List[float]
 
-class interpreted_cmd():
-    def __init__(self, recording: bool = False, tracking: bool = False):
-        self.recording = recording
-        self.tracking = tracking
+class interpreted_cmd(BaseModel):
+    recording: bool = False
+    tracking: bool = False
 
 iphone_cmd_interpreter = {
     '10': interpreted_cmd(recording=False, tracking=False), # no recording, no tracking
@@ -35,7 +34,7 @@ vr_cmd_interpreter = {
     '2': interpreted_cmd(tracking=True),   # tracking
 }
 
-cmd_interpreter = {
+composed_cmd_interpreter = {
     'iphone': iphone_cmd_interpreter,
     'vr': vr_cmd_interpreter,
 }

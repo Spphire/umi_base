@@ -17,7 +17,7 @@ from typing import List, Dict
 from diffusion_policy.common.space_utils import (matrix4x4_to_pose_6d, pose_7d_to_4x4matrix,
                                                  pose_6d_to_pose_7d, pose_6d_to_4x4matrix)
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
-from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode, cmd_interpreter
+from diffusion_policy.common.data_models import UnityMes, BimanualRobotStates, TeleopMode, composed_cmd_interpreter
 from diffusion_policy.real_world.record_data_manager import DataRecordManager
 
 class TeleopServer:
@@ -254,13 +254,13 @@ class TeleopServer:
                 # exit()
                 continue
 
-            assert str(mes.rightHand.cmd) in cmd_interpreter[self.teleop_source], \
+            assert str(mes.rightHand.cmd) in composed_cmd_interpreter[self.teleop_source], \
                 f"Unsupported command {mes.rightHand.cmd} for teleop source {self.teleop_source}"
-            assert str(mes.leftHand.cmd) in cmd_interpreter[self.teleop_source], \
+            assert str(mes.leftHand.cmd) in composed_cmd_interpreter[self.teleop_source], \
                 f"Unsupported command {mes.leftHand.cmd} for teleop source {self.teleop_source}"
             
-            interpreted_left_cmd = cmd_interpreter[self.teleop_source][str(mes.leftHand.cmd)]
-            interpreted_right_cmd = cmd_interpreter[self.teleop_source][str(mes.rightHand.cmd)]
+            interpreted_left_cmd = composed_cmd_interpreter[self.teleop_source][str(mes.leftHand.cmd)]
+            interpreted_right_cmd = composed_cmd_interpreter[self.teleop_source][str(mes.rightHand.cmd)]
 
             if interpreted_right_cmd.recording:
                 if not self.data_record_manager.record_data_flag:
