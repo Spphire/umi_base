@@ -119,27 +119,25 @@ class DataPostProcessingManageriPhone:
         return timestamps, arkit_poses, gripper_widths
 
     def load_video_frames(self, video_path):
-        # 打开视频文件
-        cap = cv2.VideoCapture(video_path)    # 检查视频是否成功打开
+        cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             print("Error: Could not open video.")
             return None    
         frames = []    
         while True:
-            # 读取一帧
-            ret, frame = cap.read()        # 如果不能读取到帧，说明到达视频末尾
+            ret, frame = cap.read()
             if not ret:
-                break        # 将 BGR 转换为 RGB（OpenCV 默认使用 BGR 颜色空间）
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)        # 将帧添加到帧列表中
-            frames.append(rgb_frame)    # 释放视频捕获对象
-        cap.release()    # 将帧列表转换为 NumPy 数组
+                break
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(rgb_frame)
+        cap.release()
         frames_array = np.array(frames)    
-        return frames_array# 使用函数加载视频帧
+        return frames_array
 
     def extract_msg_to_obs_dict(self, msg_path: str) -> Dict[str, np.ndarray]:
         obs_dict = dict()
         t, a, g = self.read_bson(os.path.join(msg_path, "frame_data.bson"))
-        a[:, 3:] = a[:, [6,3,4,5]]
+        a[:, 3:] = a[:, [6,3,4,5]] # convert quat format from [x, y, z, w] to [w, x, y, z]
         t = t[:, np.newaxis]
         g = g[:, np.newaxis]
         obs_dict['timestamp'] = t
@@ -147,32 +145,6 @@ class DataPostProcessingManageriPhone:
         # Add independent key-value pairs for left robot
         obs_dict['left_robot_tcp_pose'] = a
         obs_dict['left_robot_gripper_width'] = g
-
-        if self.use_6d_rotation:
-            actions = np.zeros((obs_dict['left_robot_tcp_pose'].shape[0], 9))
-            # actions = np.zeros((obs_dict['left_robot_tcp_pose'].shape[0], 6))
-            for i in range(len(actions)):
-                actions[i] = pose_6d_to_pose_9d(pose_7d_to_pose_6d(obs_dict['left_robot_tcp_pose'][i]))
-                # actions[i] = pose_7d_to_pose_6d(obs_dict['left_robot_tcp_pose'][i])
-            # actions_diff = np.diff(actions, axis=0)
-            # positions = np.where(np.abs(actions_diff).max(axis=1) > 0.05)
-            # large_diff = (np.abs(actions_diff).max(axis=1))[positions]
-            # if len(positions[0]) > 0:
-            #     x = np.max(positions)
-            #     actions_new = actions[np.max(positions)+1:, :]
-            #     actions_max = actions_new.max(axis=0)
-            #     actions_min = actions_new.min(axis=0)
-            #     actions_range = actions_max - actions_min
-            # else:
-            #     actions_max = actions.max(axis=0)
-            #     actions_min = actions.min(axis=0)
-            #     actions_range = actions_max - actions_min
-            # if np.abs(actions_diff).max() > 0.05:
-            #     logger.info(f"Warning: large difference {np.abs(actions_diff).max()} in actions")
-            #     return None
-            # else:
-            #     logger.info(f"Info: small difference {np.abs(actions_diff).max()} in actions")
-            obs_dict['left_robot_tcp_pose'] = actions
         
         images_array = self.load_video_frames(os.path.join(msg_path, "recording.mp4"))
 
