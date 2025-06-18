@@ -1,73 +1,13 @@
-import pickle
 import os
 from loguru import logger
 import zarr
 import cv2
 import numpy as np
 import os.path as osp
-import py_cli_interaction
-import matplotlib.pyplot as plt
-from hydra import initialize, compose
-from omegaconf import DictConfig
-from scipy.interpolate import interp1d
-from scipy.spatial.transform import Rotation as R, Slerp
-from tqdm import tqdm
 import tarfile
 
-from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
-from diffusion_policy.common.visualization_utils import visualize_rgb_image
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
-from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix, orthogonalization
-
-def center_pad_and_resize_image(image, target_size=(224, 224)):
-    """
-    将图像放在中心，左右填充黑色至正方形，然后resize到目标大小
-    
-    参数:
-    image: 输入图像
-    target_size: 目标尺寸 (height, width)
-    
-    返回:
-    处理后的图像
-    """
-    h, w = image.shape[:2]
-    max_dim = max(h, w)
-    
-    # 创建黑色正方形背景
-    square_img = np.zeros((max_dim, max_dim, 3), dtype=np.uint8)
-    
-    # 计算居中位置
-    y_offset = (max_dim - h) // 2
-    x_offset = (max_dim - w) // 2
-    
-    # 将原图放在中心
-    square_img[y_offset:y_offset+h, x_offset:x_offset+w] = image
-    
-    # resize到目标尺寸
-    resized_img = cv2.resize(square_img, target_size)
-    
-    return resized_img
-
-def sixd_to_rotation_matrix(sixd):
-    """
-    将6D旋转表示转换为3x3旋转矩阵。
-    6D表示由前两个列向量组成，第三列通过叉积计算获得正交基。
-    """
-    a1 = sixd[:, :3]
-    a2 = sixd[:, 3:6]
-    a3 = orthogonalization(a1, a2)  # shape: (N, 3)
-    rotation_matrices = np.stack((a1, a2, a3), axis=2)  # shape: (N, 3, 3)
-    return rotation_matrices
-
-def rotation_matrix_to_sixd(rotation_matrices):
-    """
-    将3x3旋转矩阵转换回6D表示。
-    返回前两列作为6D表示。
-    """
-    a1 = rotation_matrices[:, :, 0]
-    a2 = rotation_matrices[:, :, 1]
-    sixd = np.concatenate((a1, a2), axis=1)  # shape: (N, 6)
-    return sixd
+from diffusion_policy.common.image_utils import center_pad_and_resize_image
 
 def convert_data_to_zarr(
     input_dir: str,

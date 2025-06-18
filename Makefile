@@ -6,23 +6,24 @@ PREPARE_VENV := . ../real_env/venv/bin/activate
 PREPARE_ROS := source /opt/ros/humble/setup.bash && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-# TASK := real_pick_and_place_image_iphone
+# TASK := real_pick_and_place_image_iphone_dino
 # TASK := real_pick_and_place_image
 # TASK := real_pick_and_place_gr00t
-TASK := real_pick_and_place_pi0
-# TASK := single_arm_iphone_teleop
+# TASK := real_pick_and_place_pi0
+TASK := single_arm_iphone_teleop
 # TASK := single_arm_one_realsense_30fps
 # TASK := bimanual_one_realsense_rgb_left_30fps
 
 # workspace config , have to be consistent with the task
-WKSPACE := train_diffusion_unet_real_image_workspace
-DATASET_PATH := /root/umi_base_devel/data/real_pick_and_place_iphone_zarr
+# WKSPACE := train_diffusion_unet_real_image_workspace
+WKSPACE := train_diffusion_unet_timm_umi_workspace
+DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
-SAVE_BASE_DIR := /home/wangyi/umi_base/data
+SAVE_BASE_DIR := /root/umi_base_devel/data
 SAVE_FILE_DIR := ${TASK}
 # SAVE_FILE_DIR := test
-SAVE_FILE_NAME := trial1.pkl
+# SAVE_FILE_NAME := trial1.pkl
 
 PROJECT_BASE_DIR = /home/wangyi/umi_base
 PROJECT_NAME = umi_base_devel
@@ -42,7 +43,7 @@ docker.build:
 # 			-w /root/${PROJECT_NAME} \
 # 			--name teleop \
 # 			--shm-size 32G \
-# 			${IMAGE_NAME}:latest \
+# 			${IMAGE_NAME}:latest \real_world_env
 # 			tail -f /dev/null; \
 # 	fi && \
 # 	docker exec -it teleop bash
@@ -84,10 +85,12 @@ teleop.launch_robot:
 
 teleop.start_record:
 	${PREPARE_VENV} && \
-	    --save_base_dir /root/record_data \
+	${PREPARE_ROS} && \
+	python record_data.py \
+	    --save_base_dir ${SAVE_BASE_DIR} \
 	    --save_file_dir ${SAVE_FILE_DIR} \
-	    --save_file_name ${SAVE_FILE_NAME} \
-	    --save_to_disk
+		--save_to_disk
+	    # --save_file_name ${SAVE_FILE_NAME} \ # auto numbered while not specified
 
 teleop.post_process_iphone:
 	${PREPARE_VENV} && \
@@ -129,4 +132,4 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir=data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_vedio \
-	+ckpt_path=data/outputs/2025.04.25/08.55.50_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt
+	+ckpt_path=data/outputs/2025.05.22/03.16.41_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt
