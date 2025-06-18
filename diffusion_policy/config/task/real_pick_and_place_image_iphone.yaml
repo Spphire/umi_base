@@ -69,9 +69,8 @@ env_runner:
   debug: False
 
 dataset:
-  _target_: diffusion_policy.dataset.real_pick_and_place_image_dataset.RealPickAndPlaceImageDataset
+  _target_: diffusion_policy.dataset.cloud_pick_and_place_image_dataset.CloudPickAndPlaceImageDataset
   shape_meta: *shape_meta
-  dataset_path: ${task.dataset_path}
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
   pad_after: ${eval:'${n_action_steps}-1'}
@@ -82,4 +81,13 @@ dataset:
   max_train_episodes: null
   delta_action: False
   relative_action: True
+  # cloud and data processing params
+  datacloud_endpoint: http://127.0.0.1:8083
+  identifier: Pick and place an empty cup
+  use_data_filtering: False
+  use_absolute_action: True
+  action_dim: 10
+  temporal_downsample_ratio: 0
+  temporal_upsample_ratio: 0
+  use_dino: False
 

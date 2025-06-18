@@ -40,7 +40,6 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             temporal_downsample_ratio=0,
             temporal_upsample_ratio=0,
             use_dino=False,
-            sensor_mode="single_arm_one_realsense",
             **kwargs
         ):
         """
@@ -56,7 +55,6 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         self.action_dim = action_dim
         self.temporal_downsample_ratio = temporal_downsample_ratio
         self.temporal_upsample_ratio = temporal_upsample_ratio
-        self.sensor_mode = sensor_mode
         self.use_dino = use_dino
 
         self.config_hash = self._generate_config_hash()
@@ -84,8 +82,6 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         assert len(self.records) > 0, "No records found for the given identifier."
 
         cloud_uuid_list = [record['uuid'] for record in self.records]
-        for record in self.records:
-            print(f"Record UUID: {record['uuid']}")
         logger.info(f"Found {len(cloud_uuid_list)} records in the cloud for identifier '{self.identifier}'.")
         cached_uuid_list = metadata.get('cached_uuid_list', [])
         if set(cloud_uuid_list) != set(cached_uuid_list):
@@ -181,12 +177,12 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             logger.info("Cache hit for cloud dataset.")
         
         # Step7: Load the zarr dataset
-        zarr_path = metadata.get('zarr_path', None)
+        zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
         assert zarr_path is not None, "Zarr path should not be None after cache validation."
         logger.info(f"Loading dataset from zarr path: {zarr_path}")
         super().__init__(
+            dataset_path=zarr_path,
             **kwargs,
-            dataset_path=zarr_path
         )
         
 
@@ -203,7 +199,6 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             'action_dim': self.action_dim,
             'temporal_downsample_ratio': self.temporal_downsample_ratio,
             'temporal_upsample_ratio': self.temporal_upsample_ratio,
-            'sensor_mode': self.sensor_mode,
             'use_dino': self.use_dino,
         }
 
