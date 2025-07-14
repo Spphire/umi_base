@@ -8,6 +8,7 @@ import tarfile
 
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
 from diffusion_policy.common.image_utils import center_pad_and_resize_image
+from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix
 
 def convert_data_to_zarr(
     input_dir: str,

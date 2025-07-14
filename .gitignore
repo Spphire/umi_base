@@ -177,3 +177,4 @@ ckpt
 pretrained_model
 test_script
 test
+.debug

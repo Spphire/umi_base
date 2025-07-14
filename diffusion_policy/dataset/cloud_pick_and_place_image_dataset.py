@@ -59,7 +59,41 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
 
         self.config_hash = self._generate_config_hash()
         self.cache_dir = '.cache/cloud_pick_and_place_image_dataset/{}'.format(self.config_hash)
+
+        # Step1-6: Prepare the cloud cache and validate metadata
+        metadata = self._prepare_cloud_cache()
         
+        # Step7: Load the zarr dataset
+        zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
+        assert zarr_path is not None, "Zarr path should not be None after cache validation."
+        logger.info(f"Loading dataset from zarr path: {zarr_path}")
+        super().__init__(
+            dataset_path=zarr_path,
+            **kwargs,
+        )
+        
+
+    def _generate_config_hash(self) -> str:
+        """
+        Generate a hash based on the dataset configuration to ensure unique identification.
+        This is useful for caching and avoiding redundant downloads.
+        """
+        config_dict = {
+            'datacloud_endpoint': self.datacloud_endpoint,
+            'identifier': self.identifier,
+            'use_data_filtering': self.use_data_filtering,
+            'use_absolute_action': self.use_absolute_action,
+            'action_dim': self.action_dim,
+            'temporal_downsample_ratio': self.temporal_downsample_ratio,
+            'temporal_upsample_ratio': self.temporal_upsample_ratio,
+            'use_dino': self.use_dino,
+        }
+
+        config_str = json.dumps(config_dict, sort_keys=True, ensure_ascii=True)
+        hash_object = hashlib.sha256(config_str.encode('utf-8'))
+        return hash_object.hexdigest()[:16]
+
+    def _prepare_cloud_cache(self) -> Dict:
         # Step1: check cache directory and metadata
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir, exist_ok=True)
@@ -175,33 +209,5 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
                 
         else:
             logger.info("Cache hit for cloud dataset.")
-        
-        # Step7: Load the zarr dataset
-        zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
-        assert zarr_path is not None, "Zarr path should not be None after cache validation."
-        logger.info(f"Loading dataset from zarr path: {zarr_path}")
-        super().__init__(
-            dataset_path=zarr_path,
-            **kwargs,
-        )
-        
 
-    def _generate_config_hash(self) -> str:
-        """
-        Generate a hash based on the dataset configuration to ensure unique identification.
-        This is useful for caching and avoiding redundant downloads.
-        """
-        config_dict = {
-            'datacloud_endpoint': self.datacloud_endpoint,
-            'identifier': self.identifier,
-            'use_data_filtering': self.use_data_filtering,
-            'use_absolute_action': self.use_absolute_action,
-            'action_dim': self.action_dim,
-            'temporal_downsample_ratio': self.temporal_downsample_ratio,
-            'temporal_upsample_ratio': self.temporal_upsample_ratio,
-            'use_dino': self.use_dino,
-        }
-
-        config_str = json.dumps(config_dict, sort_keys=True, ensure_ascii=True)
-        hash_object = hashlib.sha256(config_str.encode('utf-8'))
-        return hash_object.hexdigest()[:16]
+        return metadata
