@@ -83,7 +83,7 @@ dataset:
   relative_action: True
   # cloud and data processing params
   datacloud_endpoint: http://127.0.0.1:8083
-  identifier: pick and place an empty cup
+  identifier: New pp
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10
