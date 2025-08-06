@@ -27,10 +27,11 @@ env_runner:
   max_duration_time: 60
   use_relative_action: True
   tcp_action_update_interval: 10
-  gripper_action_update_interval: 12
-  latency_step: 1
-  control_fps: 10 
-  inference_fps: 5 
+  gripper_action_update_interval: 10
+  latency_step: 3
+  gripper_latency_step: 3
+  control_fps: 10
+  inference_fps: 5
   obs_temporal_downsample_ratio: 3
   n_obs_steps: ${n_obs_steps}
   task_name: ${task_name}
@@ -83,11 +84,11 @@ dataset:
   relative_action: True
   # cloud and data processing params
   datacloud_endpoint: http://127.0.0.1:8083
-  identifier: New pp
+  identifier: pick and place
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10
-  temporal_downsample_ratio: 0
+  temporal_downsample_ratio: 3
   temporal_upsample_ratio: 0
   use_dino: False
 

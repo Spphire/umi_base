@@ -9,16 +9,23 @@ image_shape: [3, 240, 320]
 shape_meta: &shape_meta # acceptable types: rgb, low_dim
     obs:
         left_wrist_img:
+            horizon: ${n_obs_steps}
             shape: ${task.image_shape}
             type: rgb
         left_robot_tcp_pose:
+            horizon: ${n_obs_steps}
             shape: [9]
             type: low_dim
         left_robot_gripper_width:
+            horizon: ${n_obs_steps}
             shape: [1]
             type: low_dim
     action:
         shape: [10]
+        # horizon: ${task.action_horizon}
+        # latency_steps: 0 # float
+        # down_sample_steps: ${task.action_down_sample_steps} # int
+        # rotation_rep: rotation_6d
 
 env_runner:
     _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
@@ -86,6 +93,6 @@ dataset:
     use_data_filtering: False
     use_absolute_action: True
     action_dim: 10
-    temporal_downsample_ratio: 0
+    temporal_downsample_ratio: 3
     temporal_upsample_ratio: 0
-    use_dino: False
+    use_dino: True
