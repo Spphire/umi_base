@@ -8,7 +8,8 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := real_pick_and_place_image_iphone
+TASK := dino_try
+# TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image
 # TASK := real_pick_and_place_gr00t
@@ -18,8 +19,8 @@ TASK := real_pick_and_place_image_iphone
 # TASK := bimanual_one_realsense_rgb_left_30fps
 
 # workspace config , have to be consistent with the task
-WKSPACE := train_diffusion_unet_real_image_workspace
-# WKSPACE := train_diffusion_unet_timm_umi_workspace
+# WKSPACE := train_diffusion_unet_real_image_workspace
+WKSPACE := train_diffusion_unet_timm_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
@@ -125,6 +126,13 @@ eval.launch_robot:
 	python teleop.py \
 	task=${TASK}
 
+eval.replay:
+	${PREPARE_ROS} && \
+	export HYDRA_FULL_ERROR=1 && \
+	python replay.py \
+	--config-name ${WKSPACE} \
+	task=replay_cloud_data
+
 eval.inference:
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
@@ -132,7 +140,7 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/umi_base/data/outputs/2025.07.11/15.29.02_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt'
+	+ckpt_path='/home/fangyuan/Documents/umi_base/data/outputs/2025.07.17/18.01.18_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt'
 
 test.cloud_dataset:
 	${PREPARE_VENV} && \

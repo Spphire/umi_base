@@ -5,10 +5,12 @@ import cv2
 import numpy as np
 import os.path as osp
 import tarfile
+from tqdm import tqdm
 
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
-from diffusion_policy.common.image_utils import center_pad_and_resize_image
+from diffusion_policy.common.image_utils import center_pad_and_resize_image, center_crop_and_resize_image
 from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix
+from diffusion_policy.common.space_utils import pose_3d_9d_to_homo_matrix_batch, homo_matrix_to_pose_9d_batch
 
 def convert_data_to_zarr(
     input_dir: str,
@@ -20,7 +22,9 @@ def convert_data_to_zarr(
     overwrite: bool = True,
     use_dino: bool = False,
     gripper_width_bias: float = 0.0,
-    gripper_width_scale: float = 0.1
+    gripper_width_scale: float = 0.1,
+    tcp_transform: np.ndarray = np.eye(4, dtype=np.float32),
+    image_mask_path: str = ''
 ) -> str:
     """
     将原始数据转换为zarr格式存储。
@@ -96,7 +100,7 @@ def convert_data_to_zarr(
         return save_data_path
 
     # Process each path containing .bson files
-    for dst_path in dst_paths:
+    for dst_path in tqdm(dst_paths, dynamic_ncols=True):
         # 提取观测数据
         obs_dict = data_processing_manager.extract_msg_to_obs_dict(dst_path)
         if obs_dict is None:
@@ -105,7 +109,20 @@ def convert_data_to_zarr(
             
         # 收集数据
         timestamp_arrays.append(obs_dict['timestamp'])
-        left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
+
+        # Transform robot TCP pose
+        # if np.eye == tcp_transform:
+        #     left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
+        # else:
+        from tests.test_tcp_translation import get_tcp_transforms
+        # tcp_transform = get_tcp_transforms()
+        for i in range(len(obs_dict['left_robot_tcp_pose'])):
+            pose_array = obs_dict['left_robot_tcp_pose'][i][np.newaxis, :]
+            pose_homo_matrix = pose_3d_9d_to_homo_matrix_batch(pose_array)
+            transformed_tcp_matrix = tcp_transform @ pose_homo_matrix
+            transformed_9d_pose = homo_matrix_to_pose_9d_batch(transformed_tcp_matrix).squeeze()
+            left_robot_tcp_pose_arrays.append(transformed_9d_pose)
+
         total_count += len(obs_dict['timestamp'])
         episode_ends_arrays.append(total_count)
 
@@ -126,10 +143,16 @@ def convert_data_to_zarr(
             logger.warning(f"Gripper width data padded {gripper_width_abs_cnt} times for {dst_path}")
 
         # 处理图像数据
+        # 保存第一张图片到.cache/left_wrist_img_0.png
+        if not os.path.exists('.cache'):
+            os.makedirs('.cache')
+        first_image_path = '.cache/left_wrist_img_0.png'
+        cv2.imwrite(first_image_path, obs_dict['left_wrist_img'][0])
+        logger.info(f"First image saved to {first_image_path}")
         if use_dino:
             processed_images = []
             for img in obs_dict['left_wrist_img']:
-                processed_img = center_pad_and_resize_image(img)
+                processed_img = center_crop_and_resize_image(img)
                 processed_images.append(processed_img)
             left_wrist_img_arrays.append(np.array(processed_images))
         else:
