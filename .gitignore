@@ -178,3 +178,7 @@ pretrained_model
 test_script
 test
 .debug
+ignore-*
+*.ckpt
+
+.zed

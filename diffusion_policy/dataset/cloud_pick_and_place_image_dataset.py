@@ -40,6 +40,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             temporal_downsample_ratio=0,
             temporal_upsample_ratio=0,
             use_dino=False,
+            debug=False,
             **kwargs
         ):
         """
@@ -67,11 +68,15 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
         assert zarr_path is not None, "Zarr path should not be None after cache validation."
         logger.info(f"Loading dataset from zarr path: {zarr_path}")
-        super().__init__(
-            dataset_path=zarr_path,
-            **kwargs,
-        )
-        
+
+        if debug:
+            self.zarr_path = zarr_path
+        else:
+            super().__init__(
+                dataset_path=zarr_path,
+                **kwargs,
+            )
+
 
     def _generate_config_hash(self) -> str:
         """
