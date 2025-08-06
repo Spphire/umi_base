@@ -385,7 +385,7 @@ class IPhoneCameraPublisher(Node):
                 # depth = cv2.flip(depth, 1)
                 rgb = cv2.flip(rgb, 1)
 
-            rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            # rgb = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
             # Show the RGBD Stream
             # cv2.imshow('RGB', rgb)
