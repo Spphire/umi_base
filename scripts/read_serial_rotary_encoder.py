@@ -22,6 +22,7 @@ from rich.table import Table
 from rich import box
 import keyboard
 import rerun as rr
+import pyfiglet
 
 
 class AngleReader:
@@ -61,7 +62,7 @@ class AngleReader:
             'error_count': 0
         }
 
-        rr.init("GripperWidthCorrection", spawn=True)
+        # rr.init("GripperWidthCorrection", spawn=True)
     
     def connect_serial(self):
         """连接串口"""
@@ -199,7 +200,7 @@ class AngleReader:
         # 标题
         layout["header"].update(
             Panel(
-                Text("串口角度读取器 - 按 'q' 退出", style="bold white", justify="center"),
+                Text("串口角度读取器 - 按 'q' / Ctrl+C 退出", style="bold white", justify="center"),
                 style="blue",
                 box=box.ROUNDED
             )
@@ -285,8 +286,11 @@ class AngleReader:
                     live.update(layout)
                     
                     # 检查退出按键
-                    if keyboard.is_pressed('q'):
-                        break
+                    try:
+                        if keyboard.is_pressed('q'):
+                            break
+                    except ImportError:
+                        continue
                     
                     # time.sleep(0.01)
         
@@ -302,7 +306,8 @@ class AngleReader:
 def main():
     """主函数"""
     # 可以在这里修改串口参数
-    PORT = "COM4"        # 串口号
+    # PORT = "COM4"        # 串口号 on Windows
+    PORT = "/dev/ttyUSB0"
     BAUDRATE = 1000000   # 波特率 (1M)
     
     # try:
