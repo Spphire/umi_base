@@ -72,6 +72,8 @@ class EnsembleBuffer:
             self.actions.popleft()
             self.actions_timestep.popleft()
             self.actions_start_timestep += 1
+        if len(self.actions) == 0 or len(self.actions_timestep) == 0:
+            return None
         actions = self.actions[0]
         actions_timestep = self.actions_timestep[0]
         if actions == []:

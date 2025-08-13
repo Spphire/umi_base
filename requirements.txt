@@ -1,4 +1,4 @@
-numpy==1.26.4
+numpy
 loguru
 scipy
 cffi
@@ -33,11 +33,11 @@ diffusers
 av
 cmake
 # trick to force reinstall imagecodecs via pip
-imagecodecs==2022.9.26
+imagecodecs
 pygame
 open3d
 bson
-hydra-core==1.2.0
+hydra-core
 matplotlib
 transforms3d
 fastapi
@@ -45,10 +45,10 @@ uvicorn
 pyrealsense2
 requests
 opencv-python>=4.10.0.82
-zarr==2.12.0
+zarr
 py_cli_interaction
 omegaconf
-numba==0.60.0
+numba
 termcolor
 # install this by yourself
 # torch==1.13.1

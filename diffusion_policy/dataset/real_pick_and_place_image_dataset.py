@@ -140,6 +140,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                         relative_data_dict[key].append(data['obs'][key])
             relative_data_dict = dict_apply(relative_data_dict, np.stack)
 
+            # from diffusion_policy.scripts.check_iphone_data_distribution import plot_data
+            # plot_data(relative_data_dict['left_robot_tcp_pose'].reshape(-1, 9), image_name="iphone_rel_tcp_pose_distribution")
+            # plot_data(relative_data_dict['action'].reshape(-1, 10), image_name="iphone_rel_action_distribution")
+
         # action
         if self.relative_action:
             action_all = relative_data_dict['action']

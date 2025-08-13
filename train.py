@@ -26,6 +26,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 def main(cfg: OmegaConf):
     # resolve immediately so all the ${now:} resolvers
     # will use the same time.
+    print(f"target: {cfg}")
     OmegaConf.resolve(cfg)
 
     cls = hydra.utils.get_class(cfg._target_)

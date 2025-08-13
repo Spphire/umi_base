@@ -29,3 +29,29 @@ def center_pad_and_resize_image(image, target_size=(224, 224)):
     resized_img = cv2.resize(square_img, target_size)
     
     return resized_img
+
+def center_crop_and_resize_image(image, target_size=(224, 224)):
+    """
+    Center crop the image to square using min(h, w), then resize to target size
+    
+    Args:
+        image: Input image
+        target_size: Target size (height, width)
+    
+    Returns:
+        Processed image
+    """
+    h, w = image.shape[:2]
+    min_dim = min(h, w)
+    
+    # Calculate center crop coordinates
+    y_start = (h - min_dim) // 2
+    x_start = (w - min_dim) // 2
+    
+    # Center crop to square
+    cropped_img = image[y_start:y_start+min_dim, x_start:x_start+min_dim]
+    
+    # Resize to target size
+    resized_img = cv2.resize(cropped_img, target_size)
+    
+    return resized_img

@@ -137,7 +137,7 @@ class BimanualRobotPublisher(Node):
         robot_states = BimanualRobotStates.model_validate(self.send_command(f'/get_current_robot_states'))
         timestamp = self.get_clock().now().to_msg()
 
-        self.send_robot_msg(robot_states)
+        # self.send_robot_msg(robot_states)
 
         # Create and publish left gripper state
         left_gripper_state = JointState()

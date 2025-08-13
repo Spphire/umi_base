@@ -30,10 +30,13 @@ from diffusion_policy.common.action_utils import (
 )
 import requests
 
+from diffusion_policy.env_runner.replay_cloud_data_runner import visualize_pose_matrices
+from diffusion_policy.common.space_utils import pose_3d_9d_to_homo_matrix_batch, pose_6d_to_4x4matrix
 
 import os
 import psutil
 from copy import deepcopy
+import rerun as rr
 
 # add this to prevent assigning too may threads when using numpy
 os.environ["OPENBLAS_NUM_THREADS"] = "12"
@@ -91,7 +94,8 @@ class RealPickAndPlaceImageRunner:
         self.transforms = RealWorldTransforms(option=transform_params)
         self.shape_meta = dict(shape_meta)
         self.eval_episodes = eval_episodes
-        self.debug = debug
+        self.debug = True
+        # self.debug = False
 
         rgb_keys = list()
         lowdim_keys = list()
@@ -108,7 +112,8 @@ class RealPickAndPlaceImageRunner:
         rclpy.init(args=None)
         self.env = RealRobotEnvironment(transforms=self.transforms, **env_params)
         # set gripper to max width
-        self.env.send_gripper_command_direct(self.env.max_gripper_width, self.env.max_gripper_width)
+        if not self.debug:
+            self.env.send_gripper_command_direct(self.env.max_gripper_width, self.env.max_gripper_width)
         time.sleep(2)
 
         self.max_duration_time = max_duration_time
@@ -151,6 +156,8 @@ class RealPickAndPlaceImageRunner:
 
         self.stop_event = threading.Event()
         self.session = requests.Session()
+
+        rr.init("inference", spawn=True)
 
     @staticmethod
     def spin_executor(executor):
@@ -216,14 +223,14 @@ class RealPickAndPlaceImageRunner:
                 raise NotImplementedError
         else:
             raise NotImplementedError
-        # clip action (x, y, z)
-        left_action_6d[:, :3] = np.clip(left_action_6d[:, :3], np.array(self.tcp_pos_clip_range[0]), np.array(self.tcp_pos_clip_range[1]))
-        if right_action_6d is not None:
-            right_action_6d[:, :3] = np.clip(right_action_6d[:, :3], np.array(self.tcp_pos_clip_range[2]), np.array(self.tcp_pos_clip_range[3]))
-        # clip action (r, p, y)
-        left_action_6d[:, 3:] = np.clip(left_action_6d[:, 3:], np.array(self.tcp_rot_clip_range[0]), np.array(self.tcp_rot_clip_range[1]))
-        if right_action_6d is not None:
-            right_action_6d[:, 3:] = np.clip(right_action_6d[:, 3:], np.array(self.tcp_rot_clip_range[2]), np.array(self.tcp_rot_clip_range[3]))
+        # # clip action (x, y, z)
+        # left_action_6d[:, :3] = np.clip(left_action_6d[:, :3], np.array(self.tcp_pos_clip_range[0]), np.array(self.tcp_pos_clip_range[1]))
+        # if right_action_6d is not None:
+        #     right_action_6d[:, :3] = np.clip(right_action_6d[:, :3], np.array(self.tcp_pos_clip_range[2]), np.array(self.tcp_pos_clip_range[3]))
+        # # clip action (r, p, y)
+        # left_action_6d[:, 3:] = np.clip(left_action_6d[:, 3:], np.array(self.tcp_rot_clip_range[0]), np.array(self.tcp_rot_clip_range[1]))
+        # if right_action_6d is not None:
+        #     right_action_6d[:, 3:] = np.clip(right_action_6d[:, 3:], np.array(self.tcp_rot_clip_range[2]), np.array(self.tcp_rot_clip_range[3]))
         # add gripper action
         if action.shape[-1] == 4:
             left_action = np.concatenate([left_action_6d, action[:, 3][:, np.newaxis],
@@ -262,6 +269,7 @@ class RealPickAndPlaceImageRunner:
             tcp_step_action = self.tcp_ensemble_buffer.get_action()
             gripper_step_action = self.gripper_ensemble_buffer.get_action()
             if tcp_step_action is None or gripper_step_action is None:  # no action in the buffer => no movement.
+                logger.debug(f"None: {tcp_step_action is None}, {gripper_step_action is None}")
                 cur_time = time.time()
                 precise_sleep(max(0., self.control_interval_time - (cur_time - start_time)))
                 logger.debug(f"Step: {self.action_step_count}, control_interval_time: {self.control_interval_time}, "
@@ -269,13 +277,21 @@ class RealPickAndPlaceImageRunner:
                 self.action_step_count += 1
                 continue
 
+            # [debug]
+            # gripper_step_action *= 0.9
+
             combined_action = np.concatenate([tcp_step_action, gripper_step_action], axis=-1)
             # convert to 16-D robot action (TCP + gripper of both arms)
             # TODO: handle rotation in temporal ensemble buffer!
-            if self.debug:
-                logger.debug(f"Step: {self.action_step_count}, combined_action: {combined_action[np.newaxis, :]}")
+            # if self.debug:
+            #     logger.debug(f"Step: {self.action_step_count}, combined_action: {combined_action[np.newaxis, :]}")
             step_action, is_bimanual = self.post_process_action(combined_action[np.newaxis, :])
             step_action = step_action.squeeze(0)
+
+
+            action_mat = pose_6d_to_4x4matrix(step_action[:6])
+            visualize_pose_matrices(action_mat, f"executed_absolute_action/frame_{self.action_step_count}", show_coordinate_frame=True)
+            rr.log("executed_gripper_width", rr.Scalars(float(step_action[6])))
 
             # send action to the robot
             if self.debug:
@@ -303,6 +319,45 @@ class RealPickAndPlaceImageRunner:
             else:
                 logger.error(f"Failed to stop recording video")
 
+    def visualize_dict_with_rerun(self, obs_dict: Dict, prefix: str = "obs"):
+        """Visualize observation data using rerun.
+
+        Args:
+            obs_dict: Dictionary containing observation data
+            prefix: Prefix for the rerun entity path
+        """
+        try:
+            timestamp = time.time()
+            # rr.set_time(timeline="reactive_diffusion_policy_extended_obs_visualization", timestamp=timestamp)
+
+            for key, value in obs_dict.items():
+                if value is None:
+                    continue
+
+                entity_path = f"{prefix}/{key}"
+
+                # Handle different types of observations
+                if isinstance(value, np.ndarray):
+                    # assert value.shape[0] == 1, "Only support single step observation for rerun visualization."
+                    value = value[0]  # Get the first step
+                    if len(value.shape) == 3 and value.shape[-1] == 3:  # RGB images
+                        rr.log(entity_path, rr.Image(value))
+                    elif len(value.shape) == 1 and len(value) <= 15:
+                        for i, v in enumerate(value):
+                            rr.log(f"{entity_path}/{i}", rr.Scalars(float(v)))
+                    else:
+                        # General tensor logging
+                        rr.log(entity_path, rr.Tensor(value))
+
+                    # Also log some statistics for numerical data
+                    if value.dtype.kind in 'biufc':  # numeric types
+                        stats_path = f"{entity_path}_stats"
+                        rr.log(f"{stats_path}/mean", rr.Scalars(float(np.mean(value))))
+                        rr.log(f"{stats_path}/norm", rr.Scalars(float(np.linalg.norm(value))))
+
+        except Exception as e:
+            logger.error(f"Failed to visualize observation data with rerun: {e}")
+
     def run(self, policy: Union[DiffusionUnetImagePolicy, VqBetImagePolicy]):
         device = policy.device
 
@@ -328,7 +383,8 @@ class RealPickAndPlaceImageRunner:
                 # start rollout
                 self.env.reset()
                 # set gripper to max width
-                self.env.send_gripper_command_direct(self.env.max_gripper_width, self.env.max_gripper_width)
+                if not self.debug:
+                    self.env.send_gripper_command_direct(self.env.max_gripper_width, self.env.max_gripper_width)
                 time.sleep(1)
 
                 policy.reset()
@@ -378,10 +434,20 @@ class RealPickAndPlaceImageRunner:
                             env_obs=np_obs_dict, shape_meta=self.shape_meta)
                         np_obs_dict, np_absolute_obs_dict = self.pre_process_obs(np_obs_dict)
 
+                        # self.visualize_dict_with_rerun(np_obs_dict, prefix="real_obs")
+
                         # device transfer
                         obs_dict = dict_apply(np_obs_dict,
                                               lambda x: torch.from_numpy(x).unsqueeze(0).to(
                                                   device=device))
+
+                        # debug
+                        imgs = obs_dict['left_wrist_img'][0].cpu().numpy()
+                        for i in imgs:
+                            i = i.transpose(1, 2, 0)  # CTHW to THWC
+                            # save to .debug
+                            rr.log("left_wrist_img", rr.Image(i))
+
 
                         policy_time = time.time()
                         # run policy
@@ -395,6 +461,13 @@ class RealPickAndPlaceImageRunner:
 
                         action_all = np_action_dict['action'].squeeze(0)
 
+                        for n in range(action_all.shape[0]):
+                            rr.log(f"gripper_width_pred/{n}", rr.Scalars(float(action_all[n, 9])))
+
+                        if True:
+                            action_all_homo = pose_3d_9d_to_homo_matrix_batch(action_all[:, :9])
+                            visualize_pose_matrices(action_all_homo, "real_action_all", show_coordinate_frame=True)
+
                         if self.use_relative_action:
                             base_absolute_action = np.concatenate([
                                 np_absolute_obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in np_absolute_obs_dict else np.array([]),
@@ -402,12 +475,45 @@ class RealPickAndPlaceImageRunner:
                             ], axis=-1)
                             action_all = relative_actions_to_absolute_actions(action_all, base_absolute_action)
 
+                            # [debug]
+                            visualize_pose_matrices(
+                                pose_3d_9d_to_homo_matrix_batch(
+                                    relative_actions_to_absolute_actions(
+                                        obs_dict['left_robot_tcp_pose'][0].cpu().numpy(),
+                                        base_absolute_action
+                                    )
+                                ),
+                                f"obs_tcp_pose/frame_{step_count}",
+                                show_coordinate_frame=True
+                            )
+
+                        if self.debug:
+                            action_all_homo = pose_3d_9d_to_homo_matrix_batch(action_all[:, :9])
+                            visualize_pose_matrices(action_all_homo, "real_absolute_action_all", show_coordinate_frame=True)
+
+
                         if self.action_interpolation_ratio > 1:
                             action_all = interpolate_actions_with_ratio(action_all, self.action_interpolation_ratio)
 
+                        # [debug]
+                        # Local function to visualize action poses
+                        def visualize_action_poses(action_all, step_count):
+                            """Extract pose matrices from action_all and visualize them"""
+                            if action_all.shape[-1] >= 9:
+                                # Extract first 9 dimensions (xyz + 6d rotation) for pose
+                                pose_data = action_all[:, :9]
+                                pose_matrices = pose_3d_9d_to_homo_matrix_batch(pose_data)
+                                visualize_pose_matrices(
+                                    pose_matrices,
+                                    f"predict_absolute_action/frame_{step_count}",
+                                    show_coordinate_frame=True
+                                )
+                        visualize_action_poses(action_all, step_count)
+                        # []
+
                         # TODO: only takes the first n_action_steps and add to the ensemble buffer
                         if step_count % self.tcp_action_update_interval == 0:
-                            
+
                             if action_all.shape[-1] == 4:
                                 tcp_action = action_all[self.latency_step:, :3]
                             elif action_all.shape[-1] == 8:
@@ -419,7 +525,9 @@ class RealPickAndPlaceImageRunner:
                             else:
                                 raise NotImplementedError
                             # add to ensemble buffer
-                            logger.debug(f"Step: {step_count}, Add TCP action to ensemble buffer: {tcp_action}")
+                            tcp_action_str = np.array2string(tcp_action, formatter={'float_kind': lambda x: f"{x:.3f}"})
+                            logger.debug(f"step {step_count} add tcp: {tcp_action_str}")
+
                             self.tcp_ensemble_buffer.add_action(tcp_action, step_count)
 
                             if self.env.enable_exp_recording:
@@ -438,11 +546,22 @@ class RealPickAndPlaceImageRunner:
                             else:
                                 raise NotImplementedError
                             # add to ensemble buffer
-                            logger.debug(f"Step: {step_count}, Add gripper action to ensemble buffer: {gripper_action}")
+                            gripper_action_str = np.array2string(gripper_action, formatter={'float_kind': lambda x: f"{x:.3f}"})
+                            logger.debug(f"step {step_count} add gripper: {gripper_action_str}")
                             self.gripper_ensemble_buffer.add_action(gripper_action, step_count)
 
                             if self.env.enable_exp_recording:
                                 self.env.get_predicted_action(gripper_action, type='full_gripper')
+
+                        if self.debug and False:
+                            combined_action = np.concatenate([tcp_action, gripper_action], axis=-1)
+                            # convert to 16-D robot action (TCP + gripper of both arms)
+                            # TODO: handle rotation in temporal ensemble buffer!
+                            step_action, is_bimanual = self.post_process_action(combined_action)
+                            # step_action = step_action.squeeze(0)
+                            action_mat = np.array([pose_6d_to_4x4matrix(step_action[i,:6]) for i in range(step_action.shape[0])])
+                            visualize_pose_matrices(action_mat, f"real2_action_{step_count}", show_coordinate_frame=True)
+                            pass
 
                         cur_time = time.time()
                         precise_sleep(max(0., self.inference_interval_time - (cur_time - start_time)))

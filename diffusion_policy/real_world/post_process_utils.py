@@ -8,7 +8,7 @@ from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
 from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d, pose_7d_to_pose_6d
 from omegaconf import DictConfig
-from bson import BSON
+import bson
 import os
 
 class DataPostProcessingManager:
@@ -59,19 +59,19 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
-        obs_dict['left_wrist_img'] = cv2.resize(sensor_msg.leftWristCameraRGB, size=self.resize_shape)
+        obs_dict['left_wrist_img'] = cv2.resize(sensor_msg.leftWristCameraRGB, dsize=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
 
-        obs_dict['external_img'] = cv2.resize(sensor_msg.externalCameraRGB, size=self.resize_shape)
+        obs_dict['external_img'] = cv2.resize(sensor_msg.externalCameraRGB, dsize=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['external_img'])
         if self.mode == SensorMode.single_arm_two_realsense or self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
-        obs_dict['right_wrist_img'] = cv2.resize(sensor_msg.rightWristCameraRGB, size=self.resize_shape)
-        obs_dict['right_gripper1_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB1, size=self.resize_shape)
-        obs_dict['right_gripper2_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB2, size=self.resize_shape)
+        obs_dict['right_wrist_img'] = cv2.resize(sensor_msg.rightWristCameraRGB, dsize=self.resize_shape)
+        obs_dict['right_gripper1_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB1, dsize=self.resize_shape)
+        obs_dict['right_gripper2_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB2, dsize=self.resize_shape)
         if self.debug:
             visualize_rgb_image(obs_dict['right_wrist_img'])
             visualize_rgb_image(obs_dict['right_gripper1_img'])
@@ -96,7 +96,7 @@ class DataPostProcessingManageriPhone:
         try:
             with open(file_path, 'rb') as f:
                 bson_data = f.read()
-            bson_dict = BSON(bson_data).decode()
+            bson_dict = bson.loads(bson_data)
             return bson_dict
         except Exception as e:
             print(e)
@@ -143,7 +143,12 @@ class DataPostProcessingManageriPhone:
         obs_dict['timestamp'] = t
 
         # Add independent key-value pairs for left robot
-        obs_dict['left_robot_tcp_pose'] = a
+        if self.use_6d_rotation:
+            a_9d = [pose_6d_to_pose_9d(pose_7d_to_pose_6d(pose)) for pose in a]
+            obs_dict['left_robot_tcp_pose'] = a_9d
+        else:
+            obs_dict['left_robot_tcp_pose'] = a
+            
         obs_dict['left_robot_gripper_width'] = g
         
         images_array = self.load_video_frames(os.path.join(msg_path, "recording.mp4"))
