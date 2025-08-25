@@ -11,8 +11,8 @@ exp_name: "default"
 
 horizon: 16
 n_obs_steps: 2
-n_action_steps: 8
-n_latency_steps: 0
+n_action_steps: 8 # check eval.py, this may be overridden
+n_latency_steps: 0 # for dataset
 dataset_obs_steps: ${n_obs_steps}
 past_action_visible: False
 keypoint_visible_rate: 1.0
@@ -22,7 +22,7 @@ policy:
   _target_: diffusion_policy.policy.diffusion_unet_timm_policy.DiffusionUnetTimmPolicy
 
   shape_meta: ${shape_meta}
-  
+
   noise_scheduler:
     _target_: diffusers.DDIMScheduler
     num_train_timesteps: 50
@@ -45,7 +45,7 @@ policy:
     frozen: False
     use_lora: False
     lora_rank: 8
-    drop_path_rate: 0.0   
+    drop_path_rate: 0.0
 
     global_pool: ''
     # 'avg' or 'max' or 'soft_attention' or 'spatial_embedding' or 'transformer' or 'attention_pool_2d'
@@ -72,9 +72,9 @@ policy:
     three_augment: False
     fused_model_name: ''
 
-  horizon: ${horizon}
-  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
-  n_obs_steps: ${n_obs_steps}
+  # horizon: ${horizon}
+  # n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
+  # n_obs_steps: ${n_obs_steps}
   num_inference_steps: 100
   obs_as_global_cond: ${obs_as_global_cond}
   # crop_shape: null

@@ -1,5 +1,5 @@
 defaults:
-  - single_arm_one_realsense_30fps@_here_
+  - single_arm_one_iphone_30fps@_here_
   - _self_
 
 name: single_right_arm_pick_and_place_s1_image_only
@@ -25,13 +25,13 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
     horizon: ${horizon}
 
 env_runner:
-  _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
+  _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
   eval_episodes: 10
   max_duration_time: 60
   use_relative_action: True
   tcp_action_update_interval: 10
   gripper_action_update_interval: 12
-  latency_step: 1
+  latency_step: 3
   control_fps: 10
   inference_fps: 5
   obs_temporal_downsample_ratio: 3
@@ -39,10 +39,8 @@ env_runner:
   task_name: ${task_name}
   transform_params: ${task.transforms}
   shape_meta: *shape_meta
-  tcp_pos_clip_range: [[0.4, -0.05, 0.45], [0.65, 0.3, 0.7]]
-  tcp_rot_clip_range: [[-2.75, 0.3, -3.0], [-2.0, 0.85, -2.5]]
   tcp_ensemble_buffer_params:
-    ensemble_mode: "new"
+    ensemble_mode: "act"
   gripper_ensemble_buffer_params:
     ensemble_mode: "new"
   enable_video_recording: False
@@ -56,6 +54,8 @@ env_runner:
     data_processing_params:
       # TODO: fix this (support left or right)
       mode: "single_arm_one_realsense"
+      image_resize_shape: [224, 224]
+      image_resize_mode: 'center_crop'
       use_6d_rotation: True
       debug: False
     max_fps: 30
@@ -86,10 +86,10 @@ dataset:
   relative_action: True
   # cloud and data processing params
   datacloud_endpoint: http://127.0.0.1:8083
-  identifier: pick and place
+  identifier: pp 8.13
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10
-  temporal_downsample_ratio: 3
+  temporal_downsample_ratio: 0
   temporal_upsample_ratio: 0
   use_dino: True
