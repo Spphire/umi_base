@@ -85,6 +85,8 @@ dataset:
   delta_action: False
   relative_action: True
   # cloud and data processing params
+  # local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/49bb725486f80deb/replay_buffer.zarr"
+  local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/cloud_pick_and_place_image_dataset/977c4bd77775cb02/replay_buffer.zarr"
   datacloud_endpoint: http://127.0.0.1:8083
   identifier: pp 8.13
   use_data_filtering: False
@@ -93,3 +95,4 @@ dataset:
   temporal_downsample_ratio: 0
   temporal_upsample_ratio: 0
   use_dino: True
+
