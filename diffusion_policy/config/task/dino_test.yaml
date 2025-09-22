@@ -1,5 +1,6 @@
 defaults:
   - single_arm_one_iphone_30fps@_here_
+  # - single_arm_one_realsense_30fps@_here_
   - _self_
 
 name: single_right_arm_pick_and_place_s1_image_only
@@ -30,8 +31,8 @@ env_runner:
   max_duration_time: 60
   use_relative_action: True
   tcp_action_update_interval: 10
-  gripper_action_update_interval: 12
-  latency_step: 3
+  gripper_action_update_interval: 10
+  latency_step: 4
   control_fps: 10
   inference_fps: 5
   obs_temporal_downsample_ratio: 3
@@ -40,7 +41,7 @@ env_runner:
   transform_params: ${task.transforms}
   shape_meta: *shape_meta
   tcp_ensemble_buffer_params:
-    ensemble_mode: "act"
+    ensemble_mode: "avg"
   gripper_ensemble_buffer_params:
     ensemble_mode: "new"
   enable_video_recording: False
@@ -88,7 +89,7 @@ dataset:
   # local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/49bb725486f80deb/replay_buffer.zarr"
   local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/cloud_pick_and_place_image_dataset/977c4bd77775cb02/replay_buffer.zarr"
   datacloud_endpoint: http://127.0.0.1:8083
-  identifier: pp 8.13
+  identifier: Fold towel 9.4
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10

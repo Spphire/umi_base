@@ -8,7 +8,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := dino_try
+TASK := dino_test
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image
@@ -140,7 +140,9 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/umi_base/data/outputs/2025.07.17/18.01.18_train_diffusion_unet_image_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt'
+	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/fold-towel/latest2.ckpt'
+# 	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/.cache/umi_base/wood_9.1-small_finger-iphone-ble-100-train9.3/checkpoints/latest.ckpt'
+# 	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/.cache/umi_base/dino_test-pp_wo_8.13-8.29/checkpoints/latest.ckpt'
 
 test.cloud_dataset:
 	${PREPARE_VENV} && \

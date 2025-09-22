@@ -48,7 +48,7 @@ def main(cfg):
             policy.eval().to(device)
 
             policy.num_inference_steps = 8
-            policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
+            # policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
         else:
             raise NotImplementedError("Non-diffusion model not implemented in flexiv mode.")
 
@@ -59,4 +59,8 @@ def main(cfg):
         env_runner.run()
 
 if __name__ == '__main__':
+    # import debugpy
+    # debugpy.listen(4071)
+    # print("Waiting for debugger to attach...")
+    # debugpy.wait_for_client()
     main()

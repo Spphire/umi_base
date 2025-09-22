@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from einops import rearrange, reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from loguru import logger
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
@@ -141,10 +142,12 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
 
         # condition through global feature
         global_cond = self.obs_encoder(nobs)
+        # [debug, !!!]
+        # global_cond = torch.from_numpy(np.load("ignore-/0825-dino-inference/1/global_cond_0.npy")).to(self.device)
 
         if debug is not None:
             np.save(
-                f"ignore-/0825-dino-inference/1/global_cond_{debug}.npy",
+                f"ignore-/0825-dino-inference/2/global_cond_{debug}.npy",
                 global_cond.cpu().numpy(),
             )
 

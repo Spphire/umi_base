@@ -7,6 +7,7 @@ from diffusion_policy.real_world.real_world_transforms import RealWorldTransform
 from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
 from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d, pose_7d_to_pose_6d
+from diffusion_policy.common.image_utils import center_crop_and_resize_image
 from omegaconf import DictConfig
 import bson
 import os
@@ -16,13 +17,23 @@ class DataPostProcessingManager:
                  transforms: RealWorldTransforms,
                  mode: str = 'single_arm_one_realsense',
                  image_resize_shape: tuple = (320, 240),
+                 # [todo] support 'center_crop', 'cv2', 'center_pad'
+                 image_resize_mode: str = 'cv2',
                  use_6d_rotation: bool = True,
                  debug: bool = False):
         self.transforms = transforms
         self.mode = SensorMode[mode]
         self.use_6d_rotation = use_6d_rotation
         self.resize_shape = image_resize_shape
+        self.resize_mode = image_resize_mode
         self.debug = debug
+
+    def resize_img(self, img: np.ndarray) -> np.ndarray:
+        if self.resize_mode == 'cv2':
+            return cv2.resize(img, dsize=self.resize_shape)
+        if self.resize_mode == 'center_crop':
+            return center_crop_and_resize_image(img, self.resize_shape)
+        raise NotImplementedError
 
     def convert_sensor_msg_to_obs_dict(self, sensor_msg: SensorMessage) -> Dict[str, np.ndarray]:
         obs_dict = dict()
@@ -59,19 +70,22 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
-        obs_dict['left_wrist_img'] = cv2.resize(sensor_msg.leftWristCameraRGB, dsize=self.resize_shape)
+        obs_dict['left_wrist_img'] = self.resize_img(sensor_msg.leftWristCameraRGB)
+
         if self.debug:
             visualize_rgb_image(obs_dict['left_wrist_img'])
 
-        obs_dict['external_img'] = cv2.resize(sensor_msg.externalCameraRGB, dsize=self.resize_shape)
+        obs_dict['external_img'] = self.resize_img(sensor_msg.externalCameraRGB)
         if self.debug:
             visualize_rgb_image(obs_dict['external_img'])
         if self.mode == SensorMode.single_arm_two_realsense or self.mode == SensorMode.single_arm_one_realsense:
             return obs_dict
 
-        obs_dict['right_wrist_img'] = cv2.resize(sensor_msg.rightWristCameraRGB, dsize=self.resize_shape)
-        obs_dict['right_gripper1_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB1, dsize=self.resize_shape)
-        obs_dict['right_gripper2_img'] = cv2.resize(sensor_msg.rightGripperCameraRGB2, dsize=self.resize_shape)
+        obs_dict['right_wrist_img'] = self.resize_img(sensor_msg.rightWristCameraRGB)
+        obs_dict['right_gripper1_img'] = self.resize_img(sensor_msg.rightGripperCameraRGB1)
+        obs_dict['right_gripper2_img'] = self.resize_img(sensor_msg.rightGripperCameraRGB2)
+
+
         if self.debug:
             visualize_rgb_image(obs_dict['right_wrist_img'])
             visualize_rgb_image(obs_dict['right_gripper1_img'])
@@ -90,7 +104,7 @@ class DataPostProcessingManageriPhone:
         self.use_6d_rotation = use_6d_rotation
         self.resize_shape = image_resize_shape
         self.debug = debug
-    
+
     @staticmethod
     def load_bson_file(file_path):
         try:
@@ -107,14 +121,14 @@ class DataPostProcessingManageriPhone:
         timestamps = np.array(data.get('timestamps', []))
         arkit_poses = np.array(data.get('arkitPose', []))
         gripper_widths = np.array(data.get('gripperWidth', []))
-        
+
         return timestamps, arkit_poses, gripper_widths
 
     def read_bson(self, file_path):
         data = self.load_bson_file(file_path)
         if data is None:
             return
-        
+
         timestamps, arkit_poses, gripper_widths = self.get_numpy_arrays(data)
         return timestamps, arkit_poses, gripper_widths
 
@@ -122,8 +136,8 @@ class DataPostProcessingManageriPhone:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             print("Error: Could not open video.")
-            return None    
-        frames = []    
+            return None
+        frames = []
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -131,7 +145,7 @@ class DataPostProcessingManageriPhone:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append(rgb_frame)
         cap.release()
-        frames_array = np.array(frames)    
+        frames_array = np.array(frames)
         return frames_array
 
     def extract_msg_to_obs_dict(self, msg_path: str) -> Dict[str, np.ndarray]:
@@ -148,9 +162,9 @@ class DataPostProcessingManageriPhone:
             obs_dict['left_robot_tcp_pose'] = a_9d
         else:
             obs_dict['left_robot_tcp_pose'] = a
-            
+
         obs_dict['left_robot_gripper_width'] = g
-        
+
         images_array = self.load_video_frames(os.path.join(msg_path, "recording.mp4"))
 
         # TODO: make all sensor post-processing in parallel
