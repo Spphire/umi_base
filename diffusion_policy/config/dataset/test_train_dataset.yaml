@@ -1,0 +1,47 @@
+defaults:
+  - train_dataset@_self_
+
+# Test configuration for train_dataset functionality
+name: test_train_dataset
+
+# Cloud data source configuration
+datacloud_endpoint: http://127.0.0.1:8083
+identifier: test_identifier
+
+# Time range filters (ISO format strings for testing)
+start_times: ["2023-01-01T00:00:00", "2023-01-02T00:00:00"]
+end_times: ["2023-01-01T23:59:59", "2023-01-02T23:59:59"]
+
+# Dataset parameters for testing
+num: 5  # limit to 5 episodes for testing
+num_start: 0
+comment: "test_run"
+
+# Data processing parameters for testing
+use_data_filtering: false
+use_absolute_action: true
+action_dim: 10
+temporal_downsample_ratio: 2
+temporal_upsample_ratio: 0
+use_dino: false
+
+# Output configuration for testing
+output_dir: data/test_datasets  # separate directory for test outputs
+overwrite: true
+
+# Image processing for testing
+image_shape: [3, 224, 224]
+image_resize_mode: center_crop
+
+# Gripper parameters for testing
+gripper_width_bias: 0.0
+gripper_width_scale: 1.0
+
+# TCP transformation (identity matrix for testing)
+tcp_transform: [[1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0]]
+
+# Debug mode enabled for testing
+debug: true
