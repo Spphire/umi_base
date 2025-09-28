@@ -123,11 +123,11 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         accelerator = Accelerator(log_with='wandb')
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
         wandb_cfg.pop('project')
-        # accelerator.init_trackers(
-        #     project_name=cfg.logging.project,
-        #     config=OmegaConf.to_container(cfg, resolve=True),
-            # init_kwargs={"wandb": wandb_cfg}
-        # )
+        accelerator.init_trackers(
+            project_name=cfg.logging.project,
+            config=OmegaConf.to_container(cfg, resolve=True),
+            init_kwargs={"wandb": wandb_cfg}
+        )
 
         # resume training
         if cfg.training.resume:
@@ -141,18 +141,20 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
+
+        # [mkdir if output_dir does not exist]
+        if accelerator.is_main_process:
+            os.makedirs(self.output_dir, exist_ok=False)
         
         # normalizer = dataset.get_normalizer()
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
         
-        # [debug, !!!]
-        # if accelerator.is_main_process:
-        #     normalizer = dataset.get_normalizer()
-        #     with open(normalizer_path, 'wb') as f:
-        #         pickle.dump(normalizer, f)
+        if accelerator.is_main_process:
+            normalizer = dataset.get_normalizer()
+            with open(normalizer_path, 'wb') as f:
+                pickle.dump(normalizer, f)
 
-        # load normalizer on all processes
         accelerator.wait_for_everyone()
         normalizer = pickle.load(open(normalizer_path, 'rb'))
 
