@@ -145,11 +145,7 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         # [debug, !!!]
         # global_cond = torch.from_numpy(np.load("ignore-/0825-dino-inference/1/global_cond_0.npy")).to(self.device)
 
-        if debug is not None:
-            np.save(
-                f"ignore-/0825-dino-inference/2/global_cond_{debug}.npy",
-                global_cond.cpu().numpy(),
-            )
+        # Removed debug code that saves tensor data to hardcoded paths.
 
         # empty data for action
         cond_data = torch.zeros(
