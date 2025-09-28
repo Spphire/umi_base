@@ -59,8 +59,4 @@ def main(cfg):
         env_runner.run()
 
 if __name__ == '__main__':
-    # import debugpy
-    # debugpy.listen(4071)
-    # print("Waiting for debugger to attach...")
-    # debugpy.wait_for_client()
     main()
