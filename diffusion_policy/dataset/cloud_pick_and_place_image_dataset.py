@@ -69,7 +69,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             metadata = { 'zarr_path': local_files_only }
         
         # Step7: Load the zarr dataset
-        zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
+        zarr_path = metadata.get('zarr_path')
         assert zarr_path is not None, "Zarr path should not be None after cache validation."
         logger.info(f"Loading dataset from zarr path: {zarr_path}")
 

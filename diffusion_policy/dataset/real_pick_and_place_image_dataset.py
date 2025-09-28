@@ -39,7 +39,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         print(dataset_path)
         assert os.path.isdir(dataset_path)
 
-        zarr_path = os.path.join(dataset_path, 'replay_buffer.zarr')
+        zarr_path = os.path.join(dataset_path)
         replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['left_robot_tcp_pose', 'left_robot_gripper_width',
                              'action', 'left_wrist_img'])
