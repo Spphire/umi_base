@@ -94,7 +94,7 @@ class TimmImageRunner:
         task_name=None,
     ):
         self.debug = debug
-        self.debug_gripper_width_scale = 0.85
+        self.debug_gripper_width_scale = 1.40
         self.task_name = task_name
         self.transforms = RealWorldTransforms(option=transform_params)
         self.shape_meta = dict(shape_meta)
@@ -117,9 +117,8 @@ class TimmImageRunner:
         # set gripper to max width
         if not self.debug:
             self.env.send_gripper_command_direct(
-                self.env.max_gripper_width, self.env.max_gripper_width
+                0.138, 0.138
             )
-        time.sleep(2)
 
         self.max_duration_time = max_duration_time
         self.tcp_action_update_interval = tcp_action_update_interval
@@ -136,6 +135,7 @@ class TimmImageRunner:
         )
         self.n_obs_steps = n_obs_steps
         self.obs_temporal_downsample_ratio = obs_temporal_downsample_ratio
+        logger.warning(f"obs_temporal_downsample_ratio: {obs_temporal_downsample_ratio}")
         self.dataset_obs_temporal_downsample_ratio = (
             dataset_obs_temporal_downsample_ratio
         )
@@ -375,7 +375,7 @@ class TimmImageRunner:
                 f"executed_absolute_action/frame_{self.action_step_count}",
                 show_coordinate_frame=True,
             )
-            rr.log("executed_gripper_width", rr.Scalars(float(step_action[6])))
+            rr.log("executed_gripper_width", rr.Scalars(float(step_action[6] / self.debug_gripper_width_scale)))
 
             # send action to the robot
             if self.debug:
@@ -383,6 +383,7 @@ class TimmImageRunner:
                     f"[debug] Step: {self.action_step_count}, Send action to the robot: {step_action}"
                 )
             else:
+                logger.warning("execute_action")
                 self.env.execute_action(step_action, use_relative_action=False, is_bimanual=is_bimanual)
                 pass
 
@@ -404,7 +405,6 @@ class TimmImageRunner:
             )
             spin_thread.start()
 
-            time.sleep(2)
             for episode_idx in tqdm.tqdm(
                 range(0, self.eval_episodes),
                 desc=f"Eval in Real {self.task_name} Pointcloud Env",
@@ -423,12 +423,6 @@ class TimmImageRunner:
                 logger.info("Start episode rollout.")
                 # start rollout
                 self.env.reset()
-                # set gripper to max width
-                if not self.debug:
-                    self.env.send_gripper_command_direct(
-                        self.env.max_gripper_width, self.env.max_gripper_width
-                    )
-                time.sleep(1)
 
                 policy.reset()
                 self.tcp_ensemble_buffer.clear()
@@ -499,6 +493,8 @@ class TimmImageRunner:
                             .unsqueeze(0)
                             .to(device=device),  # add batchsize
                         )
+                        # [debug, !!!] scale gripper width
+                        obs_dict['left_robot_gripper_width'] /= self.debug_gripper_width_scale
 
                         # [debug]
                         imgs = obs_dict["left_wrist_img"][0].cpu().numpy()
@@ -520,11 +516,11 @@ class TimmImageRunner:
                         action_all = np_action_dict["action"].squeeze(0)
 
                         # [debug]
-                        for n in range(action_all.shape[0]):
-                            rr.log(
-                                f"gripper_width_pred/{n}",
-                                rr.Scalars(float(action_all[n, 9])),
-                            )
+                        # for n in range(action_all.shape[0]):
+                        #     rr.log(
+                        #         f"gripper_width_pred/{n}",
+                        #         rr.Scalars(float(action_all[n, 9])),
+                        #     )
 
                         if self.use_relative_action:
                             base_absolute_action = np.concatenate(
@@ -633,6 +629,14 @@ class TimmImageRunner:
                                 self.env.get_predicted_action(
                                     gripper_action, type="full_gripper"
                                 )
+
+                            # [debug]
+                            rr.log('width_obs[0]', rr.Scalars(
+                                float(obs_dict['left_robot_gripper_width'][0][1][0].detach().cpu().numpy()))
+                            )
+                            rr.log('width_add[0]', rr.Scalars(
+                                float(gripper_action[0][0]))
+                            )
 
                         cur_time = time.time()
                         precise_sleep(
