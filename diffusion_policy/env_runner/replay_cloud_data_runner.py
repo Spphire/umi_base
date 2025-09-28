@@ -6,8 +6,7 @@ import threading
 import time
 from rclpy.executors import MultiThreadedExecutor
 from loguru import logger
-from diffusion_policy.common.space_utils import pose_3d_9d_to_homo_matrix_batch, matrix4x4_to_pose_6d
-from diffusion_policy.dataset.cloud_pick_and_place_image_dataset import CloudPickAndPlaceImageDataset
+from diffusion_policy.common.space_utils import pose_3d_9d_to_homo_matrix_batch, matrix4x4_to_pose_6d, homo_matrix_to_pose_9d_batch
 from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions, relative_actions_to_absolute_actions
 
 from omegaconf import DictConfig, ListConfig
@@ -133,7 +132,8 @@ class ReplayCloudDataRunner:
                  vcamera_server_ip: Optional[Union[str, ListConfig]] = None,
                  vcamera_server_port: Optional[Union[int, ListConfig]] = None,
                  task_name=None,
-                 debug: bool = True) -> None:
+                 debug: bool = True,
+                 episode_to_replay: int = 0) -> None:
         
         # 初始化ROS和环境
         rclpy.init(args=None)
@@ -149,27 +149,41 @@ class ReplayCloudDataRunner:
         self.env.send_gripper_command_direct(self.env.max_gripper_width, self.env.max_gripper_width)
 
         # 加载数据集
+
+        from diffusion_policy.dataset.cloud_pick_and_place_image_dataset import CloudPickAndPlaceImageDataset
         self.dataset = CloudPickAndPlaceImageDataset(
-            identifier='Replay',
+            identifier="arrange_mouse",
             debug=True
         )
 
         # 读取TCP姿态数据
         self.zarr_data = zarr.open(self.dataset.zarr_path + 'replay_buffer.zarr', mode='r')
+
         self.tcp_pose = np.array(self.zarr_data['data/left_robot_tcp_pose'])
+        self.episode_ends = np.array(self.zarr_data['meta/episode_ends'])
+
+        self.start_idx = self.episode_ends[episode_to_replay - 1] if episode_to_replay > 0 else 0
+        self.end_idx = self.episode_ends[episode_to_replay]
+        self.tcp_pose = self.tcp_pose[self.start_idx:self.end_idx]
+
         logger.info(f"Loaded {self.tcp_pose.shape[0]} TCP poses from the dataset.")
 
         # 初始化Rerun可视化
         rr.init("replay_cloud_data", spawn=True)
 
-        # 转换为4x4齐次变换矩阵
+        # 转换为4x4齐次变换矩阵pick and place
         tcp_homo = pose_3d_9d_to_homo_matrix_batch(self.tcp_pose)
         
         # 生成渐变色
         self.colors = generate_gradient_colors(len(tcp_homo))
 
         # 可视化原始TCP姿态
-        visualize_pose_matrices(tcp_homo, "tcp_original", colors=self.colors, show_coordinate_frame=False)
+        visualize_pose_matrices(
+            tcp_homo,
+            "tcp_original",
+            colors=self.colors,
+            show_coordinate_frame=False,
+        )
 
         # 计算相对姿态
         self.tcp_relative = absolute_actions_to_relative_actions(self.tcp_pose)
@@ -206,7 +220,9 @@ class ReplayCloudDataRunner:
         tcp_robot = relative_actions_to_absolute_actions(self.tcp_relative, base_absolute_action=robot_tcp[0])
 
         tcp_robot = np.array(tcp_robot)
-        
+
+        tcp_robot = pose_3d_9d_to_homo_matrix_batch(tcp_robot)
+
         # 可视化预期的机器人TCP轨迹
         visualize_pose_matrices(tcp_robot, "tcp_robot_expected", 
                               colors=self.colors, show_coordinate_frame=True)
@@ -222,7 +238,7 @@ class ReplayCloudDataRunner:
             tcp_6d = matrix4x4_to_pose_6d(tcp_robot[i])
             
             # 执行动作（如果需要的话）
-            # self.env.execute_action(np.concatenate([tcp_6d, np.zeros(10)]))
+            self.env.execute_action(np.concatenate([tcp_6d, np.zeros(10)]))
             
             # 获取当前实际姿态
             obs = self.env.get_obs()

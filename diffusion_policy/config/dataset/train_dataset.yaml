@@ -6,13 +6,13 @@ datacloud_endpoint: http://127.0.0.1:8083
 identifier: arrange_mouse  # query-id for cloud data
 
 # Time range filters (ISO format strings)
-start_times: ["2025-09-24 11:42:53"]
-end_times: ["2025-09-24 12:14:31"]
+start_times: ["2025-09-24 15:08:35"]
+end_times: ["2025-09-24 15:21:46"]
 
 # Dataset parameters
 num: null  # number of episodes to include (null for all)
 num_start: 0  # starting index when num is specified
-comment: "yuting"  # comment for naming the output zarr file
+comment: "lvjun"  # comment for naming the output zarr file
 
 # Data processing parameters
 use_data_filtering: false
@@ -24,10 +24,11 @@ use_dino: true
 
 # Output configuration
 output_dir: data/train_datasets  # base directory for output zarr files
-overwrite: true  # whether to overwrite existing zarr files
+overwrite: false  # whether to overwrite existing zarr files
 
 # Image processing
 image_shape: [3, 224, 224]
+# Now only `center_crop` is supported
 image_resize_mode: center_crop
 
 # Gripper parameters

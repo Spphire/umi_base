@@ -140,9 +140,7 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse-dataset.9.22-train.9.22-down.1-latest.ckpt'
-# 	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/.cache/umi_base/wood_9.1-small_finger-iphone-ble-100-train9.3/checkpoints/latest.ckpt'
-# 	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/.cache/umi_base/dino_test-pp_wo_8.13-8.29/checkpoints/latest.ckpt'
+	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250926_lvjun.ckpt'
 
 test.cloud_dataset:
 	${PREPARE_ROS} && \
