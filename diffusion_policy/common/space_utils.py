@@ -1,23 +1,29 @@
 import numpy as np
 from typing import Tuple, Union
 import transforms3d as t3d
-# from geometry_msgs.msg import Pose
 
-# def ros_pose_to_4x4matrix(pose: Pose) -> np.ndarray:
-#     # Convert ROS Pose message to 4x4 transformation matrix
-#     mat = np.eye(4)
-#     quat = [pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z]
-#     rot_mat = t3d.quaternions.quat2mat(quat)
-#     mat[:3, :3] = rot_mat
-#     mat[:3, 3] = np.array([pose.position.x, pose.position.y, pose.position.z])
-#     return mat
+try:
+    from geometry_msgs.msg import Pose
+    HAS_GEOMETRY_MSGS = True
+except ImportError:
+    HAS_GEOMETRY_MSGS = False
 
-# def ros_pose_to_6d_pose(pose: Pose) -> np.ndarray:
-#     # convert ROS Pose message to 6D pose (x, y, z, r, p, y)
-#     quat = np.array([pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z])
-#     euler = t3d.euler.quat2euler(quat)
-#     trans = np.array([pose.position.x, pose.position.y, pose.position.z])
-#     return np.concatenate([trans, euler])
+if HAS_GEOMETRY_MSGS:
+    def ros_pose_to_4x4matrix(pose: Pose) -> np.ndarray:
+        # Convert ROS Pose message to 4x4 transformation matrix
+        mat = np.eye(4)
+        quat = [pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z]
+        rot_mat = t3d.quaternions.quat2mat(quat)
+        mat[:3, :3] = rot_mat
+        mat[:3, 3] = np.array([pose.position.x, pose.position.y, pose.position.z])
+        return mat
+
+    def ros_pose_to_6d_pose(pose: Pose) -> np.ndarray:
+        # convert ROS Pose message to 6D pose (x, y, z, r, p, y)
+        quat = np.array([pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z])
+        euler = t3d.euler.quat2euler(quat)
+        trans = np.array([pose.position.x, pose.position.y, pose.position.z])
+        return np.concatenate([trans, euler])
 
 def orthogonalization(a1: np.ndarray, a2: np.ndarray) -> np.ndarray:
     a1 = a1 / np.linalg.norm(a1, axis=1, keepdims=True)
