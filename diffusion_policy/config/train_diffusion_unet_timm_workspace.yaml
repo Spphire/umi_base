@@ -3,7 +3,7 @@ defaults:
   - task: lift_image_abs
 
 name: train_diffusion_unet_timm
-_target_: diffusion_policy.workspace.train_diffusion_unet_image_workspace.TrainDiffusionUnetImageWorkspace
+_target_: diffusion_policy.workspace.train_diffusion_unet_timm_workspace.TrainDiffusionUnetTimmWorkspace
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
@@ -11,8 +11,8 @@ exp_name: "default"
 
 horizon: 16
 n_obs_steps: 2
-n_action_steps: 8
-n_latency_steps: 0
+n_action_steps: 8 # check eval.py, this may be overridden
+n_latency_steps: 0 # for dataset
 dataset_obs_steps: ${n_obs_steps}
 past_action_visible: False
 keypoint_visible_rate: 1.0
@@ -22,7 +22,7 @@ policy:
   _target_: diffusion_policy.policy.diffusion_unet_timm_policy.DiffusionUnetTimmPolicy
 
   shape_meta: ${shape_meta}
-  
+
   noise_scheduler:
     _target_: diffusers.DDIMScheduler
     num_train_timesteps: 50
@@ -45,7 +45,7 @@ policy:
     frozen: False
     use_lora: False
     lora_rank: 8
-    drop_path_rate: 0.0   
+    drop_path_rate: 0.0
 
     global_pool: ''
     # 'avg' or 'max' or 'soft_attention' or 'spatial_embedding' or 'transformer' or 'attention_pool_2d'
@@ -72,20 +72,13 @@ policy:
     three_augment: False
     fused_model_name: ''
 
-  horizon: ${horizon}
-  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
-  n_obs_steps: ${n_obs_steps}
-  num_inference_steps: 100
-  obs_as_global_cond: ${obs_as_global_cond}
-  # crop_shape: null
+  num_inference_steps: 16
+  obs_as_global_cond: True
   diffusion_step_embed_dim: 128
   down_dims: [512, 1024, 2048]
   kernel_size: 5
   n_groups: 8
   cond_predict_scale: True
-
-  # scheduler.step params
-  # predict_epsilon: True
 
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
@@ -100,7 +93,7 @@ dataloader:
   num_workers: 4
   shuffle: True
   pin_memory: True
-  persistent_workers: False
+  persistent_workers: True
 
 val_dataloader:
   batch_size: 64
@@ -108,24 +101,25 @@ val_dataloader:
   # shuffle: False
   shuffle: True
   pin_memory: True
-  persistent_workers: False
+  persistent_workers: True
 
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 1.0e-4
+  lr: 3.0e-4
   betas: [0.95, 0.999]
   eps: 1.0e-8
   weight_decay: 1.0e-6
+  encoder_weight_decay: 1.0e-6
 
 training:
-  device: "cuda:0"
+  # device: "cuda:0,1,2,3,4,5" not used
   seed: 42
   debug: False
   resume: False
   # optimization
   lr_scheduler: cosine
   lr_warmup_steps: 2000
-  num_epochs: 120
+  num_epochs: 600
   gradient_accumulate_every: 1
   layer_decay: 1.0
   # EMA destroys performance when used with BatchNorm
@@ -150,7 +144,7 @@ training:
 
 logging:
   project: diffusion_policy_debug
-  resume: True
+  resume: False
   mode: online
   name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
   tags: ["${name}", "${task_name}", "${exp_name}"]
@@ -159,12 +153,13 @@ logging:
 
 checkpoint:
   topk:
-    monitor_key: test_mean_score
-    mode: max
+    monitor_key: train_loss
+    mode: min
     k: 5
-    format_str: 'epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt'
+    format_str: 'epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt'
   save_last_ckpt: True
   save_last_snapshot: False
+  only_save_recent: True
 
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}

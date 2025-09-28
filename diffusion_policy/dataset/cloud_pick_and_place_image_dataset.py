@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 import os
 import tempfile
@@ -32,6 +32,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             # max_train_episodes=None,
             # delta_action=False,
             # relative_action=False,
+            local_files_only: Optional[str]=None,
             datacloud_endpoint: str="http://127.0.0.1:8083",
             identifier: str='Pick and place an empty cup',
             use_data_filtering=False,
@@ -62,10 +63,13 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         self.cache_dir = '.cache/cloud_pick_and_place_image_dataset/{}'.format(self.config_hash)
 
         # Step1-6: Prepare the cloud cache and validate metadata
-        metadata = self._prepare_cloud_cache()
+        if local_files_only is None:
+            metadata = self._prepare_cloud_cache()
+        else:
+            metadata = { 'zarr_path': local_files_only }
         
         # Step7: Load the zarr dataset
-        zarr_path = metadata.get('zarr_path', None).split('replay_buffer.zarr')[0]
+        zarr_path = metadata.get('zarr_path')
         assert zarr_path is not None, "Zarr path should not be None after cache validation."
         logger.info(f"Loading dataset from zarr path: {zarr_path}")
 

@@ -18,7 +18,7 @@ shape_meta: &shape_meta
     left_robot_gripper_width:
       shape: [1]
       type: low_dim
-  action: 
+  action:
     shape: [10]
 
 env_runner:
@@ -27,7 +27,7 @@ env_runner:
   max_duration_time: 60
   use_relative_action: True
   tcp_action_update_interval: 10
-  gripper_action_update_interval: 10
+  gripper_action_update_interval: 12
   latency_step: 3
   gripper_latency_step: 3
   control_fps: 10
@@ -88,7 +88,6 @@ dataset:
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10
-  temporal_downsample_ratio: 3
+  temporal_downsample_ratio: 0
   temporal_upsample_ratio: 0
   use_dino: False
-

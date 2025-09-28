@@ -1,0 +1,45 @@
+defaults:
+  - _self_
+
+# Cloud data source configuration
+datacloud_endpoint: http://127.0.0.1:8083
+identifier: arrange_mouse  # query-id for cloud data
+
+# Time range filters (ISO format strings)
+start_times: ["2025-09-24 15:08:35"]
+end_times: ["2025-09-24 15:21:46"]
+
+# Dataset parameters
+num: null  # number of episodes to include (null for all)
+num_start: 0  # starting index when num is specified
+comment: "lvjun"  # comment for naming the output zarr file
+
+# Data processing parameters
+use_data_filtering: false
+use_absolute_action: true
+action_dim: 10
+temporal_downsample_ratio: 2
+temporal_upsample_ratio: 0
+use_dino: true
+
+# Output configuration
+output_dir: data/train_datasets  # base directory for output zarr files
+overwrite: false  # whether to overwrite existing zarr files
+
+# Image processing
+image_shape: [3, 224, 224]
+# Now only `center_crop` is supported
+image_resize_mode: center_crop
+
+# Gripper parameters
+gripper_width_bias: 0.0
+gripper_width_scale: 1.0
+
+# TCP transformation (identity matrix by default)
+tcp_transform: [[1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0]]
+
+# Debug mode
+debug: false

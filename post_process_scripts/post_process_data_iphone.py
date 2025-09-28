@@ -22,7 +22,7 @@ def convert_data_to_zarr(
     overwrite: bool = True,
     use_dino: bool = False,
     gripper_width_bias: float = 0.0,
-    gripper_width_scale: float = 0.1,
+    gripper_width_scale: float = 1.0,
     tcp_transform: np.ndarray = np.eye(4, dtype=np.float32),
     image_mask_path: str = ''
 ) -> str:
@@ -114,7 +114,7 @@ def convert_data_to_zarr(
         # if np.eye == tcp_transform:
         #     left_robot_tcp_pose_arrays.append(obs_dict['left_robot_tcp_pose'])
         # else:
-        from tests.test_tcp_translation import get_tcp_transforms
+        # from tests.test_tcp_translation import get_tcp_transforms
         # tcp_transform = get_tcp_transforms()
         for i in range(len(obs_dict['left_robot_tcp_pose'])):
             pose_array = obs_dict['left_robot_tcp_pose'][i][np.newaxis, :]
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     overwrite = True  # 是否覆盖已有数据
     use_dino = False  # 是否使用DINO
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
-    gripper_width_scale = 0.1  # 设置夹爪宽度缩放比例
+    gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
     
     zarr_path = convert_data_to_zarr(
         input_dir=input_dir,

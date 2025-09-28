@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 import rclpy
 from loguru import logger
 
-from diffusion_policy.real_world.publisher.realsense_camera_publisher import RealsenseCameraPublisher
+from diffusion_policy.real_world.publisher.realsense_camera_publisher2 import RealsenseCameraPublisher
 from diffusion_policy.real_world.publisher.gopro_capture_card_publisher import UsbCaptureCardPublisher
 from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
 from diffusion_policy.real_world.publisher.iphone_camera_publisher import IPhoneCameraPublisher
@@ -131,7 +131,7 @@ def main(cfg: DictConfig):
                 p = multiprocessing.Process(target=start_camera_publisher, args=(camera_config,))
                 processes.append(p)
                 p.start()
-        
+
         # Handle iphone cameras
         for camera_name, camera_info in device_to_topic.iphone.items():
             camera_config = None

@@ -13,6 +13,7 @@ import hydra
 from omegaconf import OmegaConf
 import pathlib
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
+from hydra.core.hydra_config import HydraConfig
 
 # allows arbitrary python code execution in configs using the ${eval:''} resolver
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -30,7 +31,7 @@ def main(cfg: OmegaConf):
     OmegaConf.resolve(cfg)
 
     cls = hydra.utils.get_class(cfg._target_)
-    workspace: BaseWorkspace = cls(cfg)
+    workspace: BaseWorkspace = cls(cfg, output_dir=HydraConfig.get().runtime.output_dir)
     workspace.run()
 
 if __name__ == "__main__":
