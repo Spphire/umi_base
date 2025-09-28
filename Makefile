@@ -160,4 +160,4 @@ utils.check_iphone_data:
 train.dataset:
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
-	python scripts/train_dataset.py
+	python scripts/generate_offline_dataset_from_datacloud.py

@@ -481,7 +481,7 @@ class TimmImageRunner:
                             env_obs=np_obs_dict, shape_meta=self.shape_meta
                         )
 
-                        # [debug, !!!] to BGR
+                        # [todo] fix zarr data type (now it's BGR)
                         np_obs_dict['left_wrist_img'] = np_obs_dict['left_wrist_img'][:, ::-1]
 
                         np_obs_dict, np_absolute_obs_dict = self.pre_process_obs(
@@ -493,7 +493,7 @@ class TimmImageRunner:
                             .unsqueeze(0)
                             .to(device=device),  # add batchsize
                         )
-                        # [debug, !!!] scale gripper width
+                        # [todo] better way to scale gripper width
                         obs_dict['left_robot_gripper_width'] /= self.debug_gripper_width_scale
 
                         # [debug]
