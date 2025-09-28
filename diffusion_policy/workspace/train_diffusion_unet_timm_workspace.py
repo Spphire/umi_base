@@ -144,7 +144,7 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
 
         # [mkdir if output_dir does not exist]
         if accelerator.is_main_process:
-            os.makedirs(self.output_dir, exist_ok=False)
+            os.makedirs(self.output_dir, exist_ok=True)
         
         # normalizer = dataset.get_normalizer()
         # compute normalizer on the main process and save to disk

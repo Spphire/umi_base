@@ -116,6 +116,13 @@ train:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 
+train.acc:
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/4gpu-no_mix.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	task.dataset.local_files_only=${LOCAL_FILES_ONLY}
+
 eval.launch_camera:
 	${PREPARE_ROS} && \
 	python camera_node_launcher.py \
