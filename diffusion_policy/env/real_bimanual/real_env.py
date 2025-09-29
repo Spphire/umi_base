@@ -83,7 +83,7 @@ class RealRobotEnvironment(Node):
                  enable_tcp_gripper_compensation: bool = False,
                  tcp_gripper_compensation: List[List[float]] = [[0, 0], [1, 0]],
                  debug: bool = False,
-                 velocity_limit: float = 10.):
+                 velocity_limit: float = 0.1):
         super().__init__('real_env')
         self.velocity_limit = velocity_limit
         self.robot_server_ip = robot_server_ip

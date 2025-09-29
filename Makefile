@@ -156,7 +156,7 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250926_lvjun.ckpt'
+	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250925_wangyi_mixbf.ckpt'
 
 test.cloud_dataset:
 	${PREPARE_ROS} && \

@@ -78,7 +78,7 @@ class TargetTCPRequest(BaseModel):
     target_tcp: List[float]  # (7) (x, y, z, qw, qx, qy, qz)
 
 class ActionPrimitiveRequest(BaseModel):
-    primitive_cmd: str
+    primitive_name: str
     input_params: dict = {}
 
 class SensorMessage(BaseModel):

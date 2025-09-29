@@ -38,9 +38,15 @@ class BimanualFlexivServer():
             self.right_robot.robot.SwitchMode(self.right_robot.mode.NRT_CARTESIAN_MOTION_FORCE)
 
         # open the gripper
-        self.left_robot.gripper.move(0.1, 10, 0)
+        self.left_robot.gripper.Move(
+            self.left_robot.gripper.params().max_width,
+            self.left_robot.gripper.params().max_vel,
+            self.left_robot.gripper.params().min_force)
         if self.right_robot is not None:
-            self.right_robot.gripper.move(0.1, 10, 0)
+            self.right_robot.gripper.Move(
+                self.right_robot.gripper.params().max_width,
+                self.right_robot.gripper.params().max_vel,
+                self.right_robot.gripper.params().min_force)
 
         if use_planner:
             # TODO: support bimanual planner

@@ -48,6 +48,7 @@ class FlexivController():
             if gripper_name is not None:
                 logger.info(f"Enabling gripper {gripper_name} ...")
                 self.gripper.Enable(gripper_name)
+                self.gripper.Init()
             else:
                 logger.info("No gripper name provided, using dummy gripper ...")
                 self.gripper = DummyGripper()
