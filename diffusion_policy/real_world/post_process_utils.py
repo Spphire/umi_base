@@ -170,8 +170,8 @@ class DataPostProcessingManageriPhone:
         # TODO: make all sensor post-processing in parallel
         obs_dict['left_wrist_img'] = []
         for image in images_array:
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            obs_dict['left_wrist_img'].append(cv2.resize(rgb_image, self.resize_shape))
+            # rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            obs_dict['left_wrist_img'].append(cv2.resize(image, self.resize_shape))
             # cv2.imshow('test', rgb_image)
             # cv2.imshow('tset_resized', obs_dict['left_wrist_img'][0])
             # # Wait for a key press indefinitely or for a specified amount of time
