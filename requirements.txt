@@ -1,4 +1,6 @@
 numpy
+spdlog
+flexivrdk
 loguru
 scipy
 cffi
@@ -51,5 +53,5 @@ omegaconf
 numba
 termcolor
 # install this by yourself
-# torch==1.13.1
-# torchvision==0.14.1
+# torch==2.7.1
+# torchvision==0.22.1
