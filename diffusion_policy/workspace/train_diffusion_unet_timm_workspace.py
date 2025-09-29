@@ -15,6 +15,8 @@ import torch.optim as optim
 from omegaconf import OmegaConf
 import pathlib
 from torch.utils.data import DataLoader
+from torch.amp import GradScaler
+from torch.cuda.amp import autocast
 from torchvision import datasets, transforms
 import copy
 import random
@@ -35,6 +37,8 @@ from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from diffusion_policy.model.common.lr_decay import param_groups_lrd
 from accelerate import Accelerator
+
+from loguru import logger
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -117,8 +121,28 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         self.global_step = 0
         self.epoch = 0
 
+        self.scaler = None
+        if cfg.training.use_amp:
+            self.scaler = GradScaler()
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
+
+        use_amp = cfg.training.use_amp
+        amp_dtype = cfg.training.amp_dtype
+
+        if use_amp:
+            if amp_dtype == 'bf16' and torch.cuda.is_bf16_supported():
+                logger.info(f"Using bf16 for AMP")
+                amp_dtype = torch.bfloat16
+            elif amp_dtype == 'fp16':
+                logger.info(f"Using fp16 for AMP")
+                amp_dtype = torch.float16
+            else:
+                logger.warning(f"AMP dtype {amp_dtype} not supported or bf16 not available, falling back to fp16")
+                amp_dtype = torch.float16
+        else:
+            amp_dtype = None
 
         accelerator = Accelerator(log_with='wandb')
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
@@ -263,13 +287,22 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             train_sampling_batch = batch
 
                         # compute loss
-                        raw_loss = self.model(batch)
-                        loss = raw_loss / cfg.training.gradient_accumulate_every
-                        accelerator.backward(loss)
+                        with autocast(enabled=use_amp, dtype=amp_dtype):
+                            raw_loss = self.model(batch)
+                            loss = raw_loss / cfg.training.gradient_accumulate_every
+
+                        if use_amp:
+                            self.scaler.scale(raw_loss).backward()
+                        else:
+                            raw_loss.backward()
 
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
-                            self.optimizer.step()
+                            if use_amp:
+                                self.scaler.step(self.optimizer)
+                                self.scaler.update()
+                            else:
+                                self.optimizer.step()
                             self.optimizer.zero_grad()
                             lr_scheduler.step()
                         
@@ -325,10 +358,11 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             num = 0
                             loss = None
                             for batch_idx, batch in enumerate(tepoch):
-                                if loss is None:
-                                    loss = self.model(batch)
-                                else:
-                                    loss += self.model(batch)
+                                with autocast(enabled=use_amp, dtype=amp_dtype):
+                                    if loss is None:
+                                        loss = self.model(batch)
+                                    else:
+                                        loss += self.model(batch)
                                 num += 1
 
                                 if (cfg.training.max_val_steps is not None) \
