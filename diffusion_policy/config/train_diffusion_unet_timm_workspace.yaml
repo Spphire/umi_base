@@ -145,9 +145,6 @@ training:
   encoder_lr_coefficient: 0.1
   use_in_the_wild_val: False
   in_the_wild_type: ["seen_object-unseen_env", "unseen_object-seen_env", "unseen_object-unseen_env"]
-  # mix precision training
-  use_amp: Fasle
-  amp_dtype: bf16
 
 logging:
   project: diffusion_policy_debug

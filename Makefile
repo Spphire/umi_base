@@ -125,13 +125,10 @@ train_acc:
 
 train_acc_amp:
 	export HYDRA_FULL_ERROR=1 && \
-	accelerate launch --config_file accelerate/4gpu.yaml train.py \
+	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK} \
-	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr \
-	training.use_amp=True
-
-
+	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 eval.launch_camera:
 	${PREPARE_ROS} && \
 	python camera_node_launcher.py \
