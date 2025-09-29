@@ -79,6 +79,7 @@ class TargetTCPRequest(BaseModel):
 
 class ActionPrimitiveRequest(BaseModel):
     primitive_cmd: str
+    input_params: dict = {}
 
 class SensorMessage(BaseModel):
     # TODO: adaptable for different dimensions, considering abolishing the 2-D version
