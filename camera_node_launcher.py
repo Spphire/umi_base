@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 import rclpy
 from loguru import logger
 
-from diffusion_policy.real_world.publisher.realsense_camera_publisher2 import RealsenseCameraPublisher
+from diffusion_policy.real_world.publisher.realsense_camera_publisher import RealsenseCameraPublisher
 from diffusion_policy.real_world.publisher.gopro_capture_card_publisher import UsbCaptureCardPublisher
 from diffusion_policy.real_world.device_mapping.device_mapping_server import DeviceToTopic, DeviceMappingServer
 from diffusion_policy.real_world.publisher.iphone_camera_publisher import IPhoneCameraPublisher

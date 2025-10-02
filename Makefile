@@ -8,7 +8,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := dino_test
+TASK := real_pick_and_place_dino
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image
@@ -110,19 +110,25 @@ teleop.post_process:
 	--tag ${SAVE_FILE_DIR}
 
 train:
-	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
 	python train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK} \
+	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 
-train.acc:
+train_acc:
 	export HYDRA_FULL_ERROR=1 && \
-	accelerate launch --config_file accelerate/4gpu-no_mix.yaml train.py \
+	accelerate launch --config_file accelerate/4gpu.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK} \
-	task.dataset.local_files_only=${LOCAL_FILES_ONLY}
+	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 
+train_acc_amp:
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 eval.launch_camera:
 	${PREPARE_ROS} && \
 	python camera_node_launcher.py \
@@ -147,7 +153,7 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250926_lvjun.ckpt'
+	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250925_wangyi_mixbf.ckpt'
 
 test.cloud_dataset:
 	${PREPARE_ROS} && \

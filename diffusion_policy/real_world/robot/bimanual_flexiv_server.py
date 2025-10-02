@@ -1,5 +1,5 @@
 import threading
-from typing import List, Dict
+from typing import List, Dict, Optional
 import time
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -15,30 +15,38 @@ class BimanualFlexivServer():
     """
     # TODO: use UDP to respond
     def __init__(self,
+                 left_robot_serial_number,
+                 right_robot_serial_number,
+                 left_gripper_name: Optional[str] = None,
+                 right_gripper_name: Optional[str] = None,
                  host_ip="192.168.2.187",
                  port: int = 8092,
-                 left_robot_ip="192.168.2.110",
-                 right_robot_ip="192.168.2.111",
                  use_planner: bool = False
                  ) -> None:
         self.host_ip = host_ip
         self.port = port
-        self.left_robot = FlexivController(local_ip=host_ip,
-                                           robot_ip=left_robot_ip, )
-        if right_robot_ip is None:
+        self.left_robot = FlexivController(robot_serial_number=left_robot_serial_number,
+                                           gripper_name=left_gripper_name)
+        if right_robot_serial_number is None:
             self.right_robot = None
         else:
-            self.right_robot = FlexivController(local_ip=host_ip,
-                                                robot_ip=right_robot_ip, )
+            self.right_robot = FlexivController(robot_serial_number=right_robot_serial_number,
+                                                gripper_name=right_gripper_name)
 
-        self.left_robot.robot.setMode(self.left_robot.mode.NRT_CARTESIAN_MOTION_FORCE)
+        self.left_robot.robot.SwitchMode(self.left_robot.mode.NRT_CARTESIAN_MOTION_FORCE)
         if self.right_robot is not None:
-            self.right_robot.robot.setMode(self.right_robot.mode.NRT_CARTESIAN_MOTION_FORCE)
+            self.right_robot.robot.SwitchMode(self.right_robot.mode.NRT_CARTESIAN_MOTION_FORCE)
 
         # open the gripper
-        self.left_robot.gripper.move(0.1, 10, 0)
+        self.left_robot.gripper.Move(
+            self.left_robot.gripper.params().max_width,
+            self.left_robot.gripper.params().max_vel,
+            self.left_robot.gripper.params().min_force)
         if self.right_robot is not None:
-            self.right_robot.gripper.move(0.1, 10, 0)
+            self.right_robot.gripper.Move(
+                self.right_robot.gripper.params().max_width,
+                self.right_robot.gripper.params().max_vel,
+                self.right_robot.gripper.params().min_force)
 
         if use_planner:
             # TODO: support bimanual planner
@@ -53,14 +61,16 @@ class BimanualFlexivServer():
     def setup_routes(self):
         @self.app.post('/clear_fault')
         async def clear_fault() -> List[str]:
-            if self.left_robot.robot.isFault():
+            fault_msgs = []
+
+            if self.left_robot.robot.fault():
                 logger.warning("Fault occurred on left robot server, trying to clear ...")
                 thread_left = threading.Thread(target=self.left_robot.clear_fault)
                 thread_left.start()
             else:
                 thread_left = None
             if self.right_robot is not None:
-                if self.right_robot.robot.isFault():
+                if self.right_robot.robot.fault():
                     logger.warning("Fault occurred on right robot server, trying to clear ...")
                     thread_right = threading.Thread(target=self.right_robot.clear_fault)
                     thread_right.start()
@@ -85,20 +95,20 @@ class BimanualFlexivServer():
                 right_robot_state = self.right_robot.get_current_robot_states()
                 right_robot_gripper_state = self.right_robot.get_current_gripper_states()
 
-                return BimanualRobotStates(leftRobotTCP=left_robot_state.tcpPose,
-                                        rightRobotTCP=right_robot_state.tcpPose,
-                                        leftRobotTCPVel=left_robot_state.tcpVel,
-                                        rightRobotTCPVel=right_robot_state.tcpVel,
-                                        leftRobotTCPWrench=left_robot_state.extWrenchInTcp,
-                                        rightRobotTCPWrench=right_robot_state.extWrenchInTcp,
+                return BimanualRobotStates(leftRobotTCP=left_robot_state.tcp_pose,
+                                        rightRobotTCP=right_robot_state.tcp_pose,
+                                        leftRobotTCPVel=left_robot_state.tcp_vel,
+                                        rightRobotTCPVel=right_robot_state.tcp_vel,
+                                        leftRobotTCPWrench=left_robot_state.ext_wrench_in_tcp,
+                                        rightRobotTCPWrench=right_robot_state.ext_wrench_in_tcp,
                                         leftGripperState=[left_robot_gripper_state.width,
                                                                 left_robot_gripper_state.force],
                                         rightGripperState=[right_robot_gripper_state.width,
                                                                     right_robot_gripper_state.force])
             else:
-                return BimanualRobotStates(leftRobotTCP=left_robot_state.tcpPose,
-                                        leftRobotTCPVel=left_robot_state.tcpVel,
-                                        leftRobotTCPWrench=left_robot_state.extWrenchInTcp,
+                return BimanualRobotStates(leftRobotTCP=left_robot_state.tcp_pose,
+                                        leftRobotTCPVel=left_robot_state.tcp_vel,
+                                        leftRobotTCPWrench=left_robot_state.ext_wrench_in_tcp,
                                         leftGripperState=[left_robot_gripper_state.width,
                                                                 left_robot_gripper_state.force])
 
@@ -113,7 +123,7 @@ class BimanualFlexivServer():
                 }
             
             robot_gripper = self.left_robot.gripper if robot_side == 'left' else self.right_robot.gripper
-            robot_gripper.move(request.width, request.velocity, request.force_limit)
+            robot_gripper.Move(request.width, request.velocity, request.force_limit)
             return {
                 "message": f"{robot_side.capitalize()} gripper moving to width {request.width} "
                            f"with velocity {request.velocity} and force limit {request.force_limit}"}
@@ -130,7 +140,7 @@ class BimanualFlexivServer():
             
             robot_gripper = self.left_robot.gripper if robot_side == 'left' else self.right_robot.gripper
             # use force control mode to grasp
-            robot_gripper.grasp(request.force_limit)
+            robot_gripper.Grasp(request.force_limit)
             return {
                 "message": f"{robot_side.capitalize()} gripper grasp with force limit {request.force_limit}"}
 
@@ -145,8 +155,7 @@ class BimanualFlexivServer():
                 }
             
             robot_gripper = self.left_robot.gripper if robot_side == 'left' else self.right_robot.gripper
-
-            robot_gripper.stop()
+            robot_gripper.Stop()
             return {"message": f"{robot_side.capitalize()} gripper stopping"}
 
         @self.app.post('/move_tcp/{robot_side}')
@@ -160,9 +169,7 @@ class BimanualFlexivServer():
                 }
             
             robot = self.left_robot if robot_side == 'left' else self.right_robot
-
             robot.tcp_move(request.target_tcp)
-            # logger.debug(f"{robot_side.capitalize()} robot moving to target tcp {request.target_tcp}")
             return {"message": f"{robot_side.capitalize()} robot moving to target tcp {request.target_tcp}"}
 
         @self.app.post('/execute_primitive/{robot_side}')
@@ -176,8 +183,7 @@ class BimanualFlexivServer():
                 }
             
             robot = self.left_robot if robot_side == 'left' else self.right_robot
-
-            robot.execute_primitive(request.primitive_cmd)
+            robot.execute_primitive(request.primitive_name, request.input_params)
             return {"message": f"{robot_side.capitalize()} robot executing primitive {request}"}
 
         @self.app.get('/get_current_tcp/{robot_side}')
@@ -191,16 +197,15 @@ class BimanualFlexivServer():
                 }
             
             robot = self.left_robot if robot_side == 'left' else self.right_robot
-
             return robot.get_current_tcp()
 
         @self.app.post('/birobot_go_home')
         async def birobot_go_home() -> Dict[str, str]:
             if self.planner is None:
                 return {"message": "Planner is not available"}
-            self.left_robot.robot.setMode(self.left_robot.mode.NRT_JOINT_POSITION)
+            self.left_robot.robot.SwitchMode(self.left_robot.mode.NRT_JOINT_POSITION)
             if self.right_robot is not None:
-                self.right_robot.robot.setMode(self.right_robot.mode.NRT_JOINT_POSITION)
+                self.right_robot.robot.SwitchMode(self.right_robot.mode.NRT_JOINT_POSITION)
 
                 current_q = self.left_robot.get_current_q() + self.right_robot.get_current_q()
                 waypoints = self.planner.getGoHomeTraj(current_q)

@@ -75,10 +75,14 @@ policy:
   num_inference_steps: 16
   obs_as_global_cond: True
   diffusion_step_embed_dim: 128
-  down_dims: [512, 1024, 2048]
+  down_dims: [256,512,1024]
   kernel_size: 5
   n_groups: 8
   cond_predict_scale: True
+  input_pertub: 0.1 # reference: https://github.com/forever208/DDPM-IP
+  # train multiple diffusion steps per obs encoder forward pass
+  # doing this too much will cause instability!
+  train_diffusion_n_samples: 1
 
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
@@ -99,7 +103,7 @@ val_dataloader:
   batch_size: 64
   num_workers: 4
   # shuffle: False
-  shuffle: True
+  shuffle: False
   pin_memory: True
   persistent_workers: True
 

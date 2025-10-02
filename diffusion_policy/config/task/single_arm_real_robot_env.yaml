@@ -1,12 +1,10 @@
 robot_server:
   host_ip: "192.168.2.223"
   port: 8092
-  # left_robot_ip: "192.168.2.110"
-  # right_robot_ip: "192.168.2.111"
-  # left_robot_ip: "192.168.2.100"
-  # right_robot_ip: "192.168.2.101"
-  left_robot_ip: "192.168.2.101"
-  right_robot_ip: null
+  left_robot_serial_number: "Rizon4-00044"
+  right_robot_serial_number: null
+  left_gripper_name: "GripperDahuanModbus"
+  right_gripper_name: null
 publisher:
   #  vr_server_ip: '10.53.21.67'
   vr_server_ip: &vr_server_ip '192.168.2.203'
@@ -26,7 +24,7 @@ teleop_server:
   use_force_control_for_gripper: False
   max_gripper_width: 0.1
   min_gripper_width: 0.0
-  grasp_force: 7.0
+  grasp_force: 35.0
   gripper_control_time_interval: 10  # 30 for Flexiv Gripper, 20 for PGC-50 gripper
   gripper_control_width_precision: 0.01  # 0.01 for PGC-50 gripper, 0.01 for Flexiv Grav Gripper
   teleop_mode: 'left_arm_6DOF'
