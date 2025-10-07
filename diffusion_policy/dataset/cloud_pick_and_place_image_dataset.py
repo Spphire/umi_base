@@ -134,7 +134,6 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         }
         url = f"{self.datacloud_endpoint}/v1/logs"
         try:
-            response = requests.get(url)
             response = requests.post(
                 url,
                 json=list_recordings_request,
