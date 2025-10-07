@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Union
 import numpy as np
 import os
 import tempfile
@@ -11,6 +11,7 @@ from diffusion_policy.common.replay_buffer import ReplayBuffer
 from loguru import logger
 from post_process_scripts.post_process_data_iphone import convert_data_to_zarr
 from tqdm import tqdm
+from omegaconf import OmegaConf, DictConfig
 
 class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
     """
@@ -35,6 +36,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             local_files_only: Optional[str]=None,
             datacloud_endpoint: str="http://127.0.0.1:8083",
             identifier: str='Pick and place an empty cup',
+            query_filter: Union[str, DictConfig, dict]={},
             use_data_filtering=False,
             use_absolute_action=True,
             action_dim=10,
@@ -51,6 +53,14 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         """
         self.datacloud_endpoint = datacloud_endpoint
         self.identifier = identifier
+        if isinstance(query_filter, str):
+            self.query_filter = json.loads(query_filter)
+        elif isinstance(query_filter, DictConfig):
+            self.query_filter = OmegaConf.to_container(query_filter, resolve=True)
+        elif isinstance(query_filter, dict):
+            self.query_filter = query_filter
+        else:
+            raise ValueError("query_filter should be a dict or a JSON string.")
 
         self.use_data_filtering = use_data_filtering
         self.use_absolute_action = use_absolute_action
@@ -90,6 +100,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         config_dict = {
             'datacloud_endpoint': self.datacloud_endpoint,
             'identifier': self.identifier,
+            'query_filter': self.query_filter,
             'use_data_filtering': self.use_data_filtering,
             'use_absolute_action': self.use_absolute_action,
             'action_dim': self.action_dim,
@@ -115,9 +126,20 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             metadata = {}
 
         # Step2: check if the local cache is valid. If not, rebuild zarr cache.
-        url = f"{self.datacloud_endpoint}/v1/logs/{self.identifier}"
+        list_recordings_request = {
+            "identifier": self.identifier,
+            "query_filter": self.query_filter,
+            "limit": 10000,
+            "skip": 0,
+        }
+        url = f"{self.datacloud_endpoint}/v1/logs"
         try:
             response = requests.get(url)
+            response = requests.post(
+                url,
+                json=list_recordings_request,
+                headers={"Content-Type": "application/json"}
+            )
         except Exception as e:
             print(f"Request failed: {str(e)}")
             return None
@@ -125,7 +147,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         assert len(self.records) > 0, "No records found for the given identifier."
 
         cloud_uuid_list = [record['uuid'] for record in self.records]
-        logger.info(f"Found {len(cloud_uuid_list)} records in the cloud for identifier '{self.identifier}'.")
+        logger.info(f"Found {len(cloud_uuid_list)} records in the cloud for identifier '{self.identifier}' with query filter: {self.query_filter}.")
         cached_uuid_list = metadata.get('cached_uuid_list', [])
         if set(cloud_uuid_list) != set(cached_uuid_list):
             logger.info("Cache miss for cloud dataset. Rebuilding zarr dataset.")
