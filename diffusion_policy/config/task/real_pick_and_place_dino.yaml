@@ -95,3 +95,8 @@ dataset:
   temporal_downsample_ratio: 2
   temporal_upsample_ratio: 0
   use_dino: True
+  # query_filter:
+    # metadata.start_time:
+      # "$regex": "2025-10-09"
+    # metadata.task_description:
+      # "$eq": "Fold the square towel twice along the diagonal. (yuting at lab)" 
