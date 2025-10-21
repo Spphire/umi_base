@@ -129,6 +129,21 @@ train_acc_amp:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
+
+train_remote:
+	export HYDRA_FULL_ERROR=1 && \
+	python train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	task.dataset.identifier=fold_towel
+
+train_acc_amp_remote:
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	task.dataset.identifier=fold_towel
+
 eval.launch_camera:
 	${PREPARE_ROS} && \
 	python camera_node_launcher.py \
