@@ -10,13 +10,8 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer, SingleFie
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import (
     SequenceSampler, get_val_mask, downsample_mask)
-from diffusion_policy.common.normalize_util import (
-    get_range_normalizer_from_stat,
-    get_image_range_normalizer,
-    get_identity_normalizer_from_stat,
-    array_to_stats
-)
-from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions
+from diffusion_policy.common.normalize_util import get_image_range_normalizer
+from diffusion_policy.common.action_utils import absolute_actions_to_relative_actions, get_inter_gripper_actions
 from loguru import logger
 import tqdm
 from diffusion_policy.common.normalize_util import get_action_normalizer
@@ -36,13 +31,22 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             delta_action=False,
             relative_action=False,
         ):
-        print(dataset_path)
         assert os.path.isdir(dataset_path)
 
+        rgb_keys = list()
+        lowdim_keys = list()
+        obs_shape_meta = shape_meta['obs']
+        for key, attr in obs_shape_meta.items():
+            type = attr.get('type', 'low_dim')
+            if type == 'rgb':
+                rgb_keys.append(key)
+            elif type == 'low_dim':
+                lowdim_keys.append(key)
+        
         zarr_path = os.path.join(dataset_path)
-        replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['left_robot_tcp_pose', 'left_robot_gripper_width',
-                             'action', 'left_wrist_img'])
+        zarr_load_keys = rgb_keys + lowdim_keys + ['action']
+        zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
+        replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
         
         if delta_action:
             # replace action as relative to previous frame
@@ -61,16 +65,6 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 # to ensure consistency with positional mode
                 actions_diff[start+1:end] = np.diff(actions[start:end], axis=0)
             replay_buffer['action'][:] = actions_diff
-
-        rgb_keys = list()
-        lowdim_keys = list()
-        obs_shape_meta = shape_meta['obs']
-        for key, attr in obs_shape_meta.items():
-            type = attr.get('type', 'low_dim')
-            if type == 'rgb':
-                rgb_keys.append(key)
-            elif type == 'low_dim':
-                lowdim_keys.append(key)
         
         key_first_k = dict()
         if n_obs_steps is not None:
@@ -132,13 +126,22 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
 
         if self.relative_action:
             relative_data_dict = {key: list() for key in (self.lowdim_keys + ['action']) if ('robot_tcp_pose' in key and 'wrt' not in key) or 'action' in key}
-            for data in tqdm.tqdm(self, leave=False, desc='Calculating relative action/obs for normalizer'):
-                for key in relative_data_dict.keys():
-                    if key == 'action':
-                        relative_data_dict[key].append(data[key])
-                    else:
-                        relative_data_dict[key].append(data['obs'][key])
-            relative_data_dict = dict_apply(relative_data_dict, np.stack)
+        else:
+            relative_data_dict = {}
+        inter_gripper_data_dict = {key: list() for key in self.lowdim_keys if 'wrt' in key}
+        print(relative_data_dict.keys())
+        print(inter_gripper_data_dict.keys())
+        
+        for data in tqdm.tqdm(self, leave=False, desc='Calculating inter-gripper relative obs and relative action/obs for normalizer'):
+            for key in relative_data_dict.keys():
+                if key == 'action':
+                    relative_data_dict[key].append(data[key])
+                else:
+                    relative_data_dict[key].append(data['obs'][key])
+            for key in inter_gripper_data_dict.keys():
+                inter_gripper_data_dict[key].append(data['obs'][key])
+        relative_data_dict = dict_apply(relative_data_dict, np.stack)
+        inter_gripper_data_dict = dict_apply(inter_gripper_data_dict, np.stack)
 
             # from diffusion_policy.scripts.check_iphone_data_distribution import plot_data
             # plot_data(relative_data_dict['left_robot_tcp_pose'].reshape(-1, 9), image_name="iphone_rel_tcp_pose_distribution")
@@ -154,8 +157,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
 
         # obs
         for key in list(set(self.lowdim_keys)):
-            if self.relative_action and key in relative_data_dict:
+            if self.relative_action and self.relative_tcp_obs_for_relative_action and key in relative_data_dict:
                 normalizer[key] = get_action_normalizer(relative_data_dict[key])
+            elif 'robot_tcp_pose' in key and 'wrt' in key:
+                normalizer[key] = get_action_normalizer(inter_gripper_data_dict[key])
             elif 'robot_tcp_pose' in key and 'wrt' not in key:
                 normalizer[key] = get_action_normalizer(self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
             else:
@@ -197,6 +202,11 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         for key in self.lowdim_keys:
             if 'wrt' not in key:
                 obs_dict[key] = data[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
+
+        obs_dict.update(get_inter_gripper_actions(obs_dict, self.lowdim_keys))
+        for key in self.lowdim_keys:
+            if 'wrt' in key:
+                obs_dict[key] = obs_dict[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
 
         action = data['action'][:, :self.shape_meta['action']['shape'][0]].astype(np.float32)
         # handle latency by dropping first n_latency_steps action

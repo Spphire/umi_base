@@ -110,7 +110,10 @@ def relative_actions_to_absolute_actions(actions: np.ndarray, base_absolute_acti
 
     return actions
 
-def get_inter_gripper_actions(obs_dict, lowdim_keys: dict, transforms: RealWorldTransforms):
+def get_inter_gripper_actions(obs_dict, lowdim_keys: dict, transforms: RealWorldTransforms = None):
+    # use identity transforms if not provided
+    transforms = transforms or RealWorldTransforms()
+
     extra_obs_dict = dict()
     if 'left_robot_wrt_right_robot_tcp_pose' in lowdim_keys:
         base_absolute_action_in_world = homo_matrix_to_pose_9d_batch(

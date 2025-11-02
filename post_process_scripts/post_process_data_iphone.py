@@ -13,13 +13,14 @@ from diffusion_policy.real_world.post_process_utils import DataPostProcessingMan
 from diffusion_policy.common.image_utils import center_pad_and_resize_image, center_crop_and_resize_image
 from diffusion_policy.common.space_utils import ortho6d_to_rotation_matrix
 from diffusion_policy.common.space_utils import pose_3d_9d_to_homo_matrix_batch, homo_matrix_to_pose_9d_batch
+from diffusion_policy.common.data_models import ActionType
 
 def convert_data_to_zarr(
     input_dir: str,
     output_dir: str,
     temporal_downsample_ratio: int = 3,
     use_absolute_action: bool = True,
-    action_dim: int = 10,
+    action_type: ActionType = ActionType.left_arm_6DOF_gripper_width,
     debug: bool = False,
     overwrite: bool = True,
     use_dino: bool = False,
@@ -36,7 +37,7 @@ def convert_data_to_zarr(
         output_dir (str): 输出目录，用于保存zarr文件
         temporal_downsample_ratio (int): 时序降采样比例
         use_absolute_action (bool): 是否使用绝对动作值
-        action_dim (int): 动作维度 (4或10)
+        action_type (ActionType): 动作类型
         debug (bool): 是否开启调试模式
         overwrite (bool): 是否覆盖已存在的数据
         use_dino (bool): 是否使用DINO
@@ -255,19 +256,35 @@ def convert_data_to_zarr(
         )
 
     # 构建状态数组
-    # TODO: support more action type
-    if action_dim == 4:
-        state_arrays = np.concatenate([
-            left_robot_tcp_pose_arrays[:, :3], 
-            left_robot_gripper_width_arrays
-        ], axis=-1)
-    elif action_dim == 10:
+    if action_type == ActionType.left_arm_6DOF_gripper_width:
         state_arrays = np.concatenate([
             left_robot_tcp_pose_arrays,
             left_robot_gripper_width_arrays
         ], axis=-1)
-    else:
-        raise NotImplementedError(f"Unsupported action_dim: {action_dim}")
+    elif action_type == ActionType.left_arm_3D_translation_gripper_width:
+        state_arrays = np.concatenate([
+            left_robot_tcp_pose_arrays[:, :3], 
+            left_robot_gripper_width_arrays
+        ], axis=-1)
+    elif action_type == ActionType.right_arm_6DOF_gripper_width:
+        state_arrays = np.concatenate([
+            right_robot_tcp_pose_arrays,
+            right_robot_gripper_width_arrays
+        ], axis=-1)
+    elif action_type == ActionType.dual_arm_6DOF_gripper_width:
+        state_arrays = np.concatenate([
+            left_robot_tcp_pose_arrays,
+            right_robot_tcp_pose_arrays,
+            left_robot_gripper_width_arrays,
+            right_robot_gripper_width_arrays
+        ], axis=-1)
+    elif action_type == ActionType.dual_arm_3D_translation_gripper_width:
+        state_arrays = np.concatenate([
+            left_robot_tcp_pose_arrays[:, :3],
+            right_robot_tcp_pose_arrays[:, :3],
+            left_robot_gripper_width_arrays,
+            right_robot_gripper_width_arrays
+        ], axis=-1)
 
     # 构建动作数组
     if use_absolute_action:
@@ -466,7 +483,7 @@ if __name__ == '__main__':
     debug = True  # 设置为True以进行调试
     temporal_downsample_ratio = 3  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
-    action_dim = 10  # 设置动作维度
+    action_type = ActionType.left_arm_6DOF_gripper_width  # 设置动作类型
     overwrite = True  # 是否覆盖已有数据
     use_dino = False  # 是否使用DINO
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
@@ -477,7 +494,7 @@ if __name__ == '__main__':
         output_dir=output_dir,
         temporal_downsample_ratio=temporal_downsample_ratio,
         use_absolute_action=use_absolute_action,
-        action_dim=action_dim,
+        action_type=action_type,
         debug=debug,
         overwrite=overwrite,
         use_dino=use_dino,

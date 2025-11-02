@@ -91,7 +91,7 @@ dataset:
   identifier: arrange_mouse
   use_data_filtering: False
   use_absolute_action: True
-  action_dim: 10
+  action_dim: left_arm_6DOF_gripper_width
   temporal_downsample_ratio: 2
   temporal_upsample_ratio: 0
   use_dino: True

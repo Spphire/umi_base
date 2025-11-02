@@ -1,35 +1,59 @@
 defaults:
   - single_arm_one_iphone_30fps@_here_
+  # - single_arm_one_realsense_30fps@_here_
   - _self_
 
 name: single_right_arm_pick_and_place_s1_image_only
 
-image_shape: [3, 240, 320]
+image_shape: [3, 224, 224]
 
-shape_meta: &shape_meta
-  # acceptable types: rgb, low_dim
+shape_meta: &shape_meta # acceptable types: rgb, low_dim
   obs:
     left_wrist_img:
+      horizon: ${n_obs_steps}
       shape: ${task.image_shape}
       type: rgb
     left_robot_tcp_pose:
+      horizon: ${n_obs_steps}
       shape: [9]
       type: low_dim
     left_robot_gripper_width:
+      horizon: ${n_obs_steps}
       shape: [1]
       type: low_dim
+    left_robot_wrt_right_robot_tcp_pose:
+      horizon: ${n_obs_steps}
+      shape: [9]
+      type: low_dim
+    right_wrist_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+    right_robot_tcp_pose:
+      horizon: ${n_obs_steps}
+      shape: [9]
+      type: low_dim
+    right_robot_gripper_width:
+      horizon: ${n_obs_steps}
+      shape: [1]
+      type: low_dim
+    right_robot_wrt_left_robot_tcp_pose:
+      horizon: ${n_obs_steps}
+      shape: [9]
+      type: low_dim
   action:
-    shape: [10]
+    shape: [20]
+    horizon: ${horizon}
 
 env_runner:
-  _target_: diffusion_policy.env_runner.real_pick_and_place_image_runner.RealPickAndPlaceImageRunner
+  _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
   eval_episodes: 10
   max_duration_time: 60
   use_relative_action: True
   tcp_action_update_interval: 10
-  gripper_action_update_interval: 12
+  gripper_action_update_interval: 10
   latency_step: 3
-  gripper_latency_step: 3
+  gripper_latency_step: 4
   control_fps: 10
   inference_fps: 5
   obs_temporal_downsample_ratio: 3
@@ -37,12 +61,10 @@ env_runner:
   task_name: ${task_name}
   transform_params: ${task.transforms}
   shape_meta: *shape_meta
-  tcp_pos_clip_range: [[0.4, -0.05, 0.45], [0.65, 0.3, 0.7]]
-  tcp_rot_clip_range: [[-2.75, 0.3, -3.0], [-2.0, 0.85, -2.5]]
   tcp_ensemble_buffer_params:
-    ensemble_mode: 'new'
+    ensemble_mode: "new"
   gripper_ensemble_buffer_params:
-    ensemble_mode: 'new'
+    ensemble_mode: "new"
   enable_video_recording: False
   vcamera_server_ip: 192.168.2.187
   vcamera_server_port: 8102
@@ -53,7 +75,9 @@ env_runner:
     device_mapping_server_port: ${task.device_mapping_server.port}
     data_processing_params:
       # TODO: fix this (support left or right)
-      mode: 'single_arm_one_realsense'
+      mode: "single_arm_one_realsense"
+      image_resize_shape: [224, 224]
+      image_resize_mode: 'center_crop'
       use_6d_rotation: True
       debug: False
     max_fps: 30
@@ -78,16 +102,21 @@ dataset:
   n_obs_steps: ${dataset_obs_steps}
   n_latency_steps: ${n_latency_steps}
   seed: 42
-  val_ratio: 0.00
+  val_ratio: 0.05
   max_train_episodes: null
   delta_action: False
   relative_action: True
-  # cloud and data processing params
-  datacloud_endpoint: http://127.0.0.1:8083
-  identifier: pick and place
+  # local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/49bb725486f80deb/replay_buffer.zarr"
+  datacloud_endpoint: http://100.100.101.223:8083
+  identifier: arrange_mouse
   use_data_filtering: False
   use_absolute_action: True
-  action_type: left_arm_6DOF_gripper_width
-  temporal_downsample_ratio: 0
+  action_type: dual_arm_6DOF_gripper_width
+  temporal_downsample_ratio: 2
   temporal_upsample_ratio: 0
-  use_dino: False
+  use_dino: True
+  # query_filter:
+    # metadata.start_time:
+      # "$regex": "2025-10-09"
+    # metadata.task_description:
+      # "$eq": "Fold the square towel twice along the diagonal. (yuting at lab)" 

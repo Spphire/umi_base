@@ -9,6 +9,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 TASK := real_pick_and_place_dino
+# TASK := real_pick_and_place_dino_bimanual
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image

@@ -122,8 +122,15 @@ class SensorMode(Enum):
 
 class TeleopMode(Enum):
     left_arm_6DOF = auto()
-    right_arm_6DOF = auto()
     left_arm_3D_translation = auto()
     left_arm_3D_translation_Y_rotation = auto()
-    dual_arm_3D_translation = auto()
+    right_arm_6DOF = auto()
     dual_arm_6DOF = auto()
+    dual_arm_3D_translation = auto()
+
+class ActionType(Enum):
+    left_arm_6DOF_gripper_width = auto() # (x, y, z, rot6d, gripper_width)
+    left_arm_3D_translation_gripper_width = auto() # (x, y, z, gripper_width)
+    right_arm_6DOF_gripper_width = auto() # (x, y, z, rot6d, gripper_width)
+    dual_arm_6DOF_gripper_width = auto() # (l_x, l_y, l_z, l_rot6d, r_x, r_y, r_z, r_rot6d, l_gripper_width, r_gripper_width)
+    dual_arm_3D_translation_gripper_width = auto() # (l_x, l_y, l_z, r_x, r_y, r_z, l_gripper_width, r_gripper_width)

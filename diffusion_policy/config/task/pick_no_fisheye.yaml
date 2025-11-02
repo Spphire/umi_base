@@ -92,7 +92,7 @@ dataset:
     identifier: pick no fisheye
     use_data_filtering: False
     use_absolute_action: True
-    action_dim: 10
+    action_dim: left_arm_6DOF_gripper_width
     temporal_downsample_ratio: 3
     temporal_upsample_ratio: 0
     use_dino: True
