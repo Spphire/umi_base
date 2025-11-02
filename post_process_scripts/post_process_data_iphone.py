@@ -6,6 +6,8 @@ import numpy as np
 import os.path as osp
 import tarfile
 from tqdm import tqdm
+from typing import Optional
+import json
 
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManageriPhone
 from diffusion_policy.common.image_utils import center_pad_and_resize_image, center_crop_and_resize_image
@@ -68,6 +70,9 @@ def convert_data_to_zarr(
     left_wrist_img_arrays = []
     left_robot_tcp_pose_arrays = []
     left_robot_gripper_width_arrays = []
+    right_wrist_img_arrays = []
+    right_robot_tcp_pose_arrays = []
+    right_robot_gripper_width_arrays = []
     episode_ends_arrays = []
     total_count = 0
 
@@ -98,13 +103,26 @@ def convert_data_to_zarr(
     if not dst_paths:
         logger.warning(f"No .bson files found in subdirectories of {data_dir}")
         return save_data_path
+    
+    record_sessions = {}
+    for dst_path in dst_paths:
+        meta_path = osp.join(dst_path, 'metadata.json')
+        metadata = json.load(open(meta_path, 'r'))
+        uuid = metadata['uuid']
+        session_uuid = metadata['parent_uuid'] if 'parent_uuid' in metadata else uuid
+        if session_uuid not in record_sessions:
+            record_sessions[session_uuid] = {}
+
+        camera_position = metadata['camera_position'] if 'camera_position' in metadata else 'left_wrist'
+
+        record_sessions[session_uuid][camera_position] = dst_path
 
     # Process each path containing .bson files
-    for dst_path in tqdm(dst_paths, dynamic_ncols=True):
+    for session in tqdm(record_sessions.items(), dynamic_ncols=True):
         # 提取观测数据
-        obs_dict = data_processing_manager.extract_msg_to_obs_dict(dst_path)
+        obs_dict = data_processing_manager.extract_msg_to_obs_dict(session[1])
         if obs_dict is None:
-            logger.warning(f"obs_dict is None for {dst_path}")
+            logger.warning(f"obs_dict is None for {session[0]}")
             continue
             
         # 收集数据
@@ -140,7 +158,7 @@ def convert_data_to_zarr(
             ])
             gripper_width_abs_cnt += 1
         if gripper_width_abs_cnt > 0:
-            logger.warning(f"Gripper width data padded {gripper_width_abs_cnt} times for {dst_path}")
+            logger.warning(f"Gripper width data padded {gripper_width_abs_cnt} times for session {session[0]}")
 
         # 处理图像数据
         # 保存第一张图片到.cache/left_wrist_img_0.png
@@ -158,13 +176,60 @@ def convert_data_to_zarr(
         else:
             left_wrist_img_arrays.append(np.array(obs_dict['left_wrist_img']))
 
+        if "right_robot_tcp_pose" in obs_dict:
+        
+            for i in range(len(obs_dict['right_robot_tcp_pose'])):
+                pose_array = obs_dict['right_robot_tcp_pose'][i][np.newaxis, :]
+                pose_homo_matrix = pose_3d_9d_to_homo_matrix_batch(pose_array)
+                transformed_tcp_matrix = tcp_transform @ pose_homo_matrix
+                transformed_9d_pose = homo_matrix_to_pose_9d_batch(transformed_tcp_matrix).squeeze()
+                right_robot_tcp_pose_arrays.append(transformed_9d_pose)
+
+            
+            gripper_width = obs_dict['right_robot_gripper_width']
+            for i in range(1, len(gripper_width) - 2):
+                if abs(gripper_width[i] - gripper_width[i-1]) > 0.15:
+                    gripper_width[i] = (gripper_width[i-1] + gripper_width[i+2]) / 2
+            right_robot_gripper_width_arrays.append(gripper_width)
+
+            
+            gripper_width_abs_cnt = 0
+            while len(right_robot_gripper_width_arrays[-1]) < len(right_robot_tcp_pose_arrays[-1]):
+                right_robot_gripper_width_arrays[-1] = np.concatenate([
+                    right_robot_gripper_width_arrays[-1],
+                    right_robot_gripper_width_arrays[-1][-1][np.newaxis, :]
+                ])
+                gripper_width_abs_cnt += 1
+            if gripper_width_abs_cnt > 0:
+                logger.warning(f"Gripper width data padded {gripper_width_abs_cnt} times for session {session[0]}")
+
+            first_image_path = '.cache/right_wrist_img_0.png'
+            cv2.imwrite(first_image_path, obs_dict['right_wrist_img'][0])
+            logger.info(f"First image saved to {first_image_path}")
+            if use_dino:
+                processed_images = []
+                for img in obs_dict['right_wrist_img']:
+                    processed_img = center_crop_and_resize_image(img)
+                    processed_images.append(processed_img)
+                right_wrist_img_arrays.append(np.array(processed_images))
+            else:
+                right_wrist_img_arrays.append(np.array(obs_dict['right_wrist_img']))
+
+
     # 转换列表为数组
-    left_wrist_img_arrays = np.vstack(left_wrist_img_arrays)
     episode_ends_arrays = np.array(episode_ends_arrays)
     timestamp_arrays = np.vstack(timestamp_arrays)
+    left_wrist_img_arrays = np.vstack(left_wrist_img_arrays)
     left_robot_tcp_pose_arrays = np.vstack(left_robot_tcp_pose_arrays)
     left_robot_gripper_width_arrays = np.vstack(left_robot_gripper_width_arrays)
     left_robot_gripper_width_arrays = (left_robot_gripper_width_arrays + gripper_width_bias) * gripper_width_scale
+
+
+    if right_wrist_img_arrays:
+        right_wrist_img_arrays = np.vstack(right_wrist_img_arrays)
+        right_robot_tcp_pose_arrays = np.vstack(right_robot_tcp_pose_arrays)
+        right_robot_gripper_width_arrays = np.vstack(right_robot_gripper_width_arrays)
+        right_robot_gripper_width_arrays = (right_robot_gripper_width_arrays + gripper_width_bias) * gripper_width_scale
 
     # 时序降采样处理
     if temporal_downsample_ratio > 1:
@@ -173,17 +238,24 @@ def convert_data_to_zarr(
             left_wrist_img_arrays,
             left_robot_tcp_pose_arrays,
             left_robot_gripper_width_arrays,
+            right_wrist_img_arrays,
+            right_robot_tcp_pose_arrays,
+            right_robot_gripper_width_arrays,
             episode_ends_arrays
         ) = downsample_temporal_data(
             temporal_downsample_ratio,
             timestamp_arrays,
+            episode_ends_arrays,
             left_wrist_img_arrays,
             left_robot_tcp_pose_arrays,
             left_robot_gripper_width_arrays,
-            episode_ends_arrays
+            right_wrist_img_arrays,
+            right_robot_tcp_pose_arrays,
+            right_robot_gripper_width_arrays,
         )
 
     # 构建状态数组
+    # TODO: support more action type
     if action_dim == 4:
         state_arrays = np.concatenate([
             left_robot_tcp_pose_arrays[:, :3], 
@@ -212,7 +284,10 @@ def convert_data_to_zarr(
         state_arrays,
         action_arrays,
         episode_ends_arrays,
-        left_wrist_img_arrays
+        left_wrist_img_arrays,
+        right_robot_tcp_pose_arrays,
+        right_robot_gripper_width_arrays,
+        right_wrist_img_arrays
     )
 
     # 打印数据结构信息
@@ -226,10 +301,13 @@ def convert_data_to_zarr(
 def downsample_temporal_data(
     downsample_ratio: int,
     timestamp_arrays: np.ndarray,
+    episode_ends_arrays: np.ndarray,
     left_wrist_img_arrays: np.ndarray,
     left_robot_tcp_pose_arrays: np.ndarray,
     left_robot_gripper_width_arrays: np.ndarray,
-    episode_ends_arrays: np.ndarray
+    right_wrist_img_arrays: Optional[np.ndarray] = None,
+    right_robot_tcp_pose_arrays: Optional[np.ndarray] = None,
+    right_robot_gripper_width_arrays: Optional[np.ndarray] = None,
 ) -> tuple:
     """时序降采样处理函数"""
     keep_indices = []
@@ -259,6 +337,12 @@ def downsample_temporal_data(
     left_wrist_img_arrays = left_wrist_img_arrays[keep_indices]
     left_robot_tcp_pose_arrays = left_robot_tcp_pose_arrays[keep_indices]
     left_robot_gripper_width_arrays = left_robot_gripper_width_arrays[keep_indices]
+    if right_wrist_img_arrays is not None:
+        right_wrist_img_arrays = right_wrist_img_arrays[keep_indices]
+    if right_robot_tcp_pose_arrays is not None:
+        right_robot_tcp_pose_arrays = right_robot_tcp_pose_arrays[keep_indices]
+    if right_robot_gripper_width_arrays is not None:
+        right_robot_gripper_width_arrays = right_robot_gripper_width_arrays[keep_indices]
     
     # 重新计算episode_ends
     new_episode_ends = []
@@ -283,6 +367,9 @@ def downsample_temporal_data(
         left_wrist_img_arrays,
         left_robot_tcp_pose_arrays,
         left_robot_gripper_width_arrays,
+        right_wrist_img_arrays,
+        right_robot_tcp_pose_arrays,
+        right_robot_gripper_width_arrays,
         episode_ends_arrays
     )
 
@@ -310,7 +397,10 @@ def create_zarr_storage(
     state_arrays: np.ndarray,
     action_arrays: np.ndarray,
     episode_ends_arrays: np.ndarray,
-    left_wrist_img_arrays: np.ndarray
+    left_wrist_img_arrays: np.ndarray,
+    right_robot_tcp_pose_arrays: Optional[np.ndarray] = None,
+    right_robot_gripper_width_arrays: Optional[np.ndarray] = None,
+    right_wrist_img_arrays: Optional[np.ndarray] = None
 ) -> tuple:
     """创建zarr存储"""
     zarr_root = zarr.group(save_data_path)
@@ -351,6 +441,20 @@ def create_zarr_storage(
     
     zarr_data.create_dataset('left_wrist_img', data=left_wrist_img_arrays,
                            chunks=wrist_img_chunk_size, dtype='uint8')
+    
+    if right_robot_tcp_pose_arrays is not None and len(right_robot_tcp_pose_arrays) > 0:
+        zarr_data.create_dataset('right_robot_tcp_pose', data=right_robot_tcp_pose_arrays,
+                               chunks=(10000, 9), dtype='float32',
+                               overwrite=True, compressor=compressor)
+        
+    if right_robot_gripper_width_arrays is not None and len(right_robot_gripper_width_arrays) > 0:
+        zarr_data.create_dataset('right_robot_gripper_width', data=right_robot_gripper_width_arrays,
+                               chunks=(10000, 1), dtype='float32',
+                               overwrite=True, compressor=compressor)
+        
+    if right_wrist_img_arrays is not None and len(right_wrist_img_arrays) > 0:
+        zarr_data.create_dataset('right_wrist_img', data=right_wrist_img_arrays,
+                               chunks=wrist_img_chunk_size, dtype='uint8')
     
     return zarr_data, zarr_meta
 
