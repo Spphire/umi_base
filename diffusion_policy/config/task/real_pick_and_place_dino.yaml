@@ -36,7 +36,7 @@ env_runner:
   gripper_latency_step: 4
   control_fps: 10
   inference_fps: 5
-  obs_temporal_downsample_ratio: 3
+  obs_temporal_downsample_ratio: 1
   n_obs_steps: ${n_obs_steps}
   task_name: ${task_name}
   transform_params: ${task.transforms}
@@ -88,15 +88,15 @@ dataset:
   relative_action: True
   # local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/49bb725486f80deb/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
-  identifier: arrange_mouse
+  identifier: debug
   use_data_filtering: False
   use_absolute_action: True
   action_dim: 10
-  temporal_downsample_ratio: 2
+  temporal_downsample_ratio: 1
   temporal_upsample_ratio: 0
   use_dino: True
-  # query_filter:
-    # metadata.start_time:
-      # "$regex": "2025-10-09"
-    # metadata.task_description:
-      # "$eq": "Fold the square towel twice along the diagonal. (yuting at lab)" 
+  use_quantiles: True
+  action_representation: 'only-y-train'
+  query_filter:
+    metadata.user_fingerprint:
+      "$regex": ".*"
