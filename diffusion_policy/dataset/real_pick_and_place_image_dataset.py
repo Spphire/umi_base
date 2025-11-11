@@ -35,8 +35,11 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             max_train_episodes=None,
             delta_action=False,
             relative_action=False,
+            use_quantiles=False,
+            action_representation='relative',
         ):
-        print(dataset_path)
+        logger.info(f'use_quantiles: {use_quantiles}')
+        logger.info(f'using action representation: {action_representation}')
         assert os.path.isdir(dataset_path)
 
         zarr_path = os.path.join(dataset_path)
@@ -107,6 +110,8 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         self.n_latency_steps = n_latency_steps
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.use_quantiles = use_quantiles
+        self.action_representation = action_representation
         self.relative_action = relative_action
         if relative_action:
             logger.info(
@@ -150,7 +155,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         else:
             action_all = self.replay_buffer['action'][:, :self.shape_meta['action']['shape'][0]]
 
-        normalizer['action'] = get_action_normalizer(action_all)
+        normalizer['action'] = get_action_normalizer(action_all, use_quantiles=self.use_quantiles)
 
         # obs
         for key in list(set(self.lowdim_keys)):
@@ -208,12 +213,19 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
                 obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([])
             ], axis=-1)
-            action = absolute_actions_to_relative_actions(action, base_absolute_action=base_absolute_action)
+            action = absolute_actions_to_relative_actions(
+                action, base_absolute_action=base_absolute_action,
+                action_representation=self.action_representation
+            )
 
             if self.relative_tcp_obs_for_relative_action:
                 for key in self.lowdim_keys:
                     if 'robot_tcp_pose' in key and 'wrt' not in key:
-                        obs_dict[key]  = absolute_actions_to_relative_actions(obs_dict[key], base_absolute_action=base_absolute_action)
+                        obs_dict[key]  = absolute_actions_to_relative_actions(
+                            obs_dict[key],
+                            base_absolute_action=base_absolute_action,
+                            action_representation=self.action_representation
+                        )
 
         torch_data = {
             'obs': dict_apply(obs_dict, torch.from_numpy),

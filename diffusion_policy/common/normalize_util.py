@@ -21,6 +21,25 @@ def get_range_normalizer_from_stat(stat, output_max=1, output_min=-1, range_eps=
         input_stats_dict=stat
     )
 
+def get_quantile_normalizer_from_stat(stat, output_max=1, output_min=-1, range_eps=1e-7):
+    # -1, 1 normalization using quantiles
+    # Based on OpenPI: (x - q01) / (q99 - q01 + 1e-6) * 2.0 - 1.0
+    assert 'q01' in stat and 'q99' in stat, "stat must contain 'q01' and 'q99' keys"
+    q01 = stat['q01']
+    q99 = stat['q99']
+    input_range = q99 - q01
+    ignore_dim = input_range < range_eps
+    input_range[ignore_dim] = output_max - output_min
+    scale = (output_max - output_min) / (input_range + 1e-6)
+    offset = output_min - scale * q01
+    offset[ignore_dim] = (output_max + output_min) / 2 - q01[ignore_dim]
+
+    return SingleFieldLinearNormalizer.create_manual(
+        scale=scale,
+        offset=offset,
+        input_stats_dict=stat
+    )
+
 def get_image_range_normalizer():
     scale = np.array([2], dtype=np.float32)
     offset = np.array([-1], dtype=np.float32)
@@ -219,7 +238,9 @@ def array_to_stats(arr: np.ndarray):
         'min': np.min(arr, axis=0),
         'max': np.max(arr, axis=0),
         'mean': np.mean(arr, axis=0),
-        'std': np.std(arr, axis=0)
+        'std': np.std(arr, axis=0),
+        'q01': np.quantile(arr, 0.01, axis=0),
+        'q99': np.quantile(arr, 0.99, axis=0)
     }
     return stat
 
@@ -235,32 +256,38 @@ def concatenate_normalizer(normalizers: list):
         input_stats_dict=input_stats_dict
     )
 
-def get_action_normalizer(actions: np.ndarray, temporally_independent_normalization=False):
+def get_action_normalizer(actions: np.ndarray, temporally_independent_normalization=False, use_quantiles=False):
     assert not temporally_independent_normalization, "Not use temporally independent normalization now"
     assert len(actions.shape) == 2 or len(actions.shape) == 3
     if not temporally_independent_normalization:
         actions = actions.reshape(-1, actions.shape[-1])
 
+    # Choose normalizer function based on use_quantiles flag
+    if use_quantiles:
+        normalizer_fn = get_quantile_normalizer_from_stat
+    else:
+        normalizer_fn = get_range_normalizer_from_stat
+
     D = actions.shape[-1]
     if D == 3 or D == 4 or D == 6 or D == 8: # (x, y, z, gripper_width)
-        normalizers = [get_range_normalizer_from_stat(array_to_stats(actions))]
+        normalizers = [normalizer_fn(array_to_stats(actions))]
     elif D == 9 or D == 10: # (x, y, z, rx1, rx2, rx3, ry1, ry2, ry3)
         normalizers = []
-        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,:3])))
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
         # don't normalize rotation
         normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
         if D == 10:
-            normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,9:])))
+            normalizers.append(normalizer_fn(array_to_stats(actions[...,9:])))
     elif D == 18 or D == 20:
         normalizers = []
-        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,:3])))
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
         # don't normalize rotation
         normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
-        normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,9:12])))
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,9:12])))
         # don't normalize rotation
         normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,12:18])))
         if D == 20:
-            normalizers.append(get_range_normalizer_from_stat(array_to_stats(actions[...,18:])))
+            normalizers.append(normalizer_fn(array_to_stats(actions[...,18:])))
     else:
         raise NotImplementedError
 

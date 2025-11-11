@@ -62,7 +62,13 @@ def interpolate_actions_with_ratio(actions: np.ndarray, N: int):
 
     return interpolated_actions
 
-def absolute_actions_to_relative_actions(actions: np.ndarray, base_absolute_action=None):
+def absolute_actions_to_relative_actions(
+    actions: np.ndarray,
+    base_absolute_action=None,
+    # 'relative', 'only-y-train', 'only-y-inference'
+    action_representation: str = 'relative'
+):
+    assert action_representation in ['relative', 'only-y-train', 'only-y-inference']
     actions = actions.copy()
     T, D = actions.shape
 
@@ -82,12 +88,32 @@ def absolute_actions_to_relative_actions(actions: np.ndarray, base_absolute_acti
     for tcp_dim in tcp_dim_list:
         assert len(tcp_dim) == 3 or len(tcp_dim) == 9, "Only support 3D or 9D tcp pose now"
         base_tcp_pose_mat = pose_3d_9d_to_homo_matrix_batch(base_absolute_action[None, tcp_dim])
-        actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(np.linalg.inv(base_tcp_pose_mat) @ pose_3d_9d_to_homo_matrix_batch(
-            actions[:, tcp_dim]))[:, :len(tcp_dim)]
-
+        if action_representation == 'relative':
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(
+                np.linalg.inv(base_tcp_pose_mat) @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            )[:, :len(tcp_dim)]
+        elif action_representation == 'only-y-train':
+            # hack: only consider the y rotation
+            only_y_rotation = R.from_matrix(base_tcp_pose_mat[0, :3, :3]).as_euler('xzy', degrees=False)
+            only_y_rotation[:2] = 0
+            only_y_rotation = R.from_euler('xzy', only_y_rotation, degrees=False).as_matrix()
+            base_tcp_pose_mat[0, :3, :3] = only_y_rotation
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(
+                np.linalg.inv(base_tcp_pose_mat) @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            )[:, :len(tcp_dim)]
+        elif action_representation == 'only-y-inference':
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
     return actions
 
-def relative_actions_to_absolute_actions(actions: np.ndarray, base_absolute_action: np.ndarray):
+def relative_actions_to_absolute_actions(
+    actions: np.ndarray,
+    base_absolute_action: np.ndarray,
+    # 'relative', 'only-y-train', 'only-y-inference'
+    action_representation: str = 'relative'
+):
+    assert action_representation in ['relative', 'only-y-train', 'only-y-inference']
     actions = actions.copy()
     T, D = actions.shape
 
@@ -105,8 +131,23 @@ def relative_actions_to_absolute_actions(actions: np.ndarray, base_absolute_acti
     for tcp_dim in tcp_dim_list:
         assert len(tcp_dim) == 3 or len(tcp_dim) == 9, "Only support 3D or 9D tcp pose now"
         base_tcp_pose_mat = pose_3d_9d_to_homo_matrix_batch(base_absolute_action[None, tcp_dim])
-        actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(base_tcp_pose_mat @ pose_3d_9d_to_homo_matrix_batch(
-            actions[:, tcp_dim]))[:, :len(tcp_dim)]
+        if action_representation == 'relative':
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(
+                base_tcp_pose_mat @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            )[:, :len(tcp_dim)]
+        elif action_representation == 'only-y-train':
+            # hack: only consider the y rotation
+            only_y_rotation = R.from_matrix(base_tcp_pose_mat[0, :3, :3]).as_euler('xzy', degrees=False)
+            only_y_rotation[:2] = 0
+            only_y_rotation = R.from_euler('xzy', only_y_rotation, degrees=False).as_matrix()
+            base_tcp_pose_mat[0, :3, :3] = only_y_rotation
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(
+                base_tcp_pose_mat @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            )[:, :len(tcp_dim)]
+        elif action_representation == 'only-y-inference':
+            raise NotImplementedError
+        else:
+            raise NotImplementedError
 
     return actions
 
@@ -172,3 +213,4 @@ if __name__ == "__main__":
         print("Interpolated shape:", result.shape)
         print("Interpolated actions:")
         print(result)
+

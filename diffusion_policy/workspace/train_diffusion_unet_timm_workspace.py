@@ -16,6 +16,7 @@ from omegaconf import OmegaConf
 import pathlib
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from datetime import timedelta
 import copy
 import random
 import wandb
@@ -35,6 +36,8 @@ from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from diffusion_policy.model.common.lr_decay import param_groups_lrd
 from accelerate import Accelerator
+from accelerate.utils import InitProcessGroupKwargs
+
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -120,13 +123,14 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
-        accelerator = Accelerator(log_with='wandb')
+        kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=360000))
+        accelerator = Accelerator(log_with='wandb', kwargs_handlers=[kwargs])
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
         wandb_cfg.pop('project')
         accelerator.init_trackers(
             project_name=cfg.logging.project,
             config=OmegaConf.to_container(cfg, resolve=True),
-            init_kwargs={"wandb": wandb_cfg}
+            init_kwargs={"wandb": wandb_cfg},
         )
 
         # resume training
@@ -138,7 +142,14 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
 
         # configure dataset
         dataset: BaseImageDataset
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
+        if accelerator.is_main_process:
+            # build zarr cache only on the main process
+            dataset = hydra.utils.instantiate(cfg.task.dataset)
+        accelerator.wait_for_everyone()
+        # load again after it's built
+        if not accelerator.is_main_process:
+            dataset = hydra.utils.instantiate(cfg.task.dataset)
+            
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
