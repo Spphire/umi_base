@@ -102,9 +102,24 @@ def absolute_actions_to_relative_actions(
                 np.linalg.inv(base_tcp_pose_mat) @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
             )[:, :len(tcp_dim)]
         elif action_representation == 'only-y-inference':
-            raise NotImplementedError
+            action_tcp_pose_mat = pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            global_transform = np.eye(4)[None]
+            global_transform[0, :3, :3] = R.from_euler("x", -90, degrees=True).as_matrix()
+            base_tcp_pose_mat = global_transform @ base_tcp_pose_mat
+            action_tcp_pose_mat = global_transform @ action_tcp_pose_mat
+            # hack: only consider the y rotation
+            only_y_rotation = R.from_matrix(base_tcp_pose_mat[0, :3, :3]).as_euler(
+                "xzy", degrees=False
+            )
+            only_y_rotation[:2] = 0
+            only_y_rotation = R.from_euler(
+                "xzy", only_y_rotation, degrees=False
+            ).as_matrix()
+            base_tcp_pose_mat[0, :3, :3] = only_y_rotation
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(np.linalg.inv(base_tcp_pose_mat) @ action_tcp_pose_mat)[:, :len(tcp_dim)]
         else:
             raise NotImplementedError
+
     return actions
 
 def relative_actions_to_absolute_actions(
@@ -145,7 +160,21 @@ def relative_actions_to_absolute_actions(
                 base_tcp_pose_mat @ pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
             )[:, :len(tcp_dim)]
         elif action_representation == 'only-y-inference':
-            raise NotImplementedError
+            action_tcp_pose_mat = pose_3d_9d_to_homo_matrix_batch(actions[:, tcp_dim])
+            global_transform = np.eye(4)[None]
+            global_transform[0, :3, :3] = R.from_euler("x", -90, degrees=True).as_matrix()
+            base_tcp_pose_mat = global_transform @ base_tcp_pose_mat
+            # action_tcp_pose_mat = global_transform @ action_tcp_pose_mat
+            # hack: only consider the y rotation
+            only_y_rotation = R.from_matrix(base_tcp_pose_mat[0, :3, :3]).as_euler(
+                "xzy", degrees=False
+            )
+            only_y_rotation[:2] = 0
+            only_y_rotation = R.from_euler(
+                "xzy", only_y_rotation, degrees=False
+            ).as_matrix()
+            base_tcp_pose_mat[0, :3, :3] = only_y_rotation
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(np.linalg.inv(global_transform) @ base_tcp_pose_mat @ action_tcp_pose_mat)[:, :len(tcp_dim)]
         else:
             raise NotImplementedError
 

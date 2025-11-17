@@ -6,6 +6,8 @@ import shutil
 import hashlib
 import json
 import requests
+import tarfile
+import lz4.frame
 from diffusion_policy.dataset.real_pick_and_place_image_dataset import RealPickAndPlaceImageDataset
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from loguru import logger
@@ -153,7 +155,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
 
             # Step3: Download the data from cloud and build the zarr dataset
             with tempfile.TemporaryDirectory() as temp_dir:
-                filename = os.path.join(temp_dir, "downloaded_records.tar.gz")
+                filename = os.path.join(temp_dir, "downloaded_records.tar.lz4")
                 try:
                     data_request = {
                         "identifier": self.identifier,
@@ -213,9 +215,16 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
                     logger.error(f"Failed to download data from cloud: {str(e)}")
                     return None
                 
-                # Step4: Extract the downloaded tar.gz file
+                # Step4: Extract the downloaded tar.lz4 file
                 try:
-                    shutil.unpack_archive(filename, os.path.join(temp_dir, "downloaded_records"), 'gztar')
+                    extract_dir = os.path.join(temp_dir, "downloaded_records")
+                    os.makedirs(extract_dir, exist_ok=True)
+                    
+                    # Decompress lz4 and extract tar in one go
+                    with lz4.frame.open(filename, 'rb') as lz4_file:
+                        with tarfile.open(fileobj=lz4_file, mode='r|') as tar:
+                            tar.extractall(path=extract_dir)
+                    logger.info(f"Successfully extracted tar.lz4 file to {extract_dir}")
                 except Exception as e:
                     logger.error(f"Failed to extract downloaded data: {str(e)}")
                     return None
