@@ -10,6 +10,7 @@ import tarfile
 import lz4.frame
 from diffusion_policy.dataset.real_pick_and_place_image_dataset import RealPickAndPlaceImageDataset
 from diffusion_policy.common.replay_buffer import ReplayBuffer
+from diffusion_policy.common.data_models import ActionType
 from loguru import logger
 from post_process_scripts.post_process_data_iphone import convert_data_to_zarr
 from tqdm import tqdm
@@ -41,7 +42,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             query_filter: Union[str, DictConfig, dict]={},
             use_data_filtering=False,
             use_absolute_action=True,
-            action_dim=10,
+            action_type: str = 'left_arm_6DOF_gripper_width',
             temporal_downsample_ratio=0,
             temporal_upsample_ratio=0,
             use_dino=False,
@@ -66,7 +67,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
 
         self.use_data_filtering = use_data_filtering
         self.use_absolute_action = use_absolute_action
-        self.action_dim = action_dim
+        self.action_type = ActionType[action_type]
         self.temporal_downsample_ratio = temporal_downsample_ratio
         self.temporal_upsample_ratio = temporal_upsample_ratio
         self.use_dino = use_dino
@@ -105,7 +106,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             'query_filter': self.query_filter,
             'use_data_filtering': self.use_data_filtering,
             'use_absolute_action': self.use_absolute_action,
-            'action_dim': self.action_dim,
+            'action_type': str(self.action_type),
             'temporal_downsample_ratio': self.temporal_downsample_ratio,
             'temporal_upsample_ratio': self.temporal_upsample_ratio,
             'use_dino': self.use_dino,
@@ -235,7 +236,7 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
                     output_dir=self.cache_dir,
                     temporal_downsample_ratio=self.temporal_downsample_ratio,
                     use_absolute_action=self.use_absolute_action,
-                    action_dim=self.action_dim,
+                    action_type=self.action_type,
                     use_dino=self.use_dino
                 )
 

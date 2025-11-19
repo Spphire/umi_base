@@ -11,6 +11,7 @@ from diffusion_policy.common.image_utils import center_crop_and_resize_image
 from omegaconf import DictConfig
 import bson
 import os
+import json
 
 class DataPostProcessingManager:
     def __init__(self,
@@ -110,7 +111,11 @@ class DataPostProcessingManageriPhone:
         try:
             with open(file_path, 'rb') as f:
                 bson_data = f.read()
-            bson_dict = bson.loads(bson_data)
+            try:
+                bson_dict = bson.loads(bson_data) # bson library
+            except AttributeError as e:
+                bson_dict = bson.decode(bson_data) # pymongo library
+            
             return bson_dict
         except Exception as e:
             print(e)
@@ -148,38 +153,76 @@ class DataPostProcessingManageriPhone:
         frames_array = np.array(frames)
         return frames_array
 
-    def extract_msg_to_obs_dict(self, msg_path: str) -> Dict[str, np.ndarray]:
+    def extract_msg_to_obs_dict(self, session: Dict) -> Dict[str, np.ndarray]:
         obs_dict = dict()
-        t, a, g = self.read_bson(os.path.join(msg_path, "frame_data.bson"))
-        a[:, 3:] = a[:, [6,3,4,5]] # convert quat format from [x, y, z, w] to [w, x, y, z]
-        t = t[:, np.newaxis]
-        g = g[:, np.newaxis]
-        obs_dict['timestamp'] = t
 
-        # Add independent key-value pairs for left robot
-        if self.use_6d_rotation:
-            a_9d = [pose_6d_to_pose_9d(pose_7d_to_pose_6d(pose)) for pose in a]
-            obs_dict['left_robot_tcp_pose'] = a_9d
-        else:
-            obs_dict['left_robot_tcp_pose'] = a
+        timestamps = {}
+        arkit_poses = {}
+        gripper_widths = {}
 
-        obs_dict['left_robot_gripper_width'] = g
+        for record in session.values():
+            metadata_path = os.path.join(record, "metadata.json")
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            camera_position = metadata['camera_position'] if 'camera_position' in metadata else 'left_wrist'
 
-        images_array = self.load_video_frames(os.path.join(msg_path, "recording.mp4"))
+            bson_path = os.path.join(record, "frame_data.bson")
+            t, a, g = self.read_bson(bson_path)
 
-        # TODO: make all sensor post-processing in parallel
-        obs_dict['left_wrist_img'] = []
-        for image in images_array:
-            # rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            obs_dict['left_wrist_img'].append(cv2.resize(image, self.resize_shape))
-            # cv2.imshow('test', rgb_image)
-            # cv2.imshow('tset_resized', obs_dict['left_wrist_img'][0])
-            # # Wait for a key press indefinitely or for a specified amount of time
-            # cv2.waitKey(0)
+            timestamps[camera_position] = t
+            arkit_poses[camera_position] = a
+            gripper_widths[camera_position] = g
 
-            # # Close all OpenCV windows
-            # cv2.destroyAllWindows()
-        if self.debug:
-            visualize_rgb_image(obs_dict['left_wrist_img'])
+        latest_start_time = max([t[0] for t in timestamps.values()])
+        earliest_end_time = min([t[-1] for t in timestamps.values()])
+
+        start_frame_indices = {}
+        end_frame_indices = {}
+        for k, v in timestamps.items():
+            start_frame_indices[k] = np.searchsorted(v, latest_start_time, side='right')
+            end_frame_indices[k] = np.searchsorted(v, earliest_end_time, side='left')
+
+        num_frames = min([end_frame_indices[k] - start_frame_indices[k] for k in timestamps.keys()])
+
+        # Project all data to start_frame - start_frame + num_frames
+        def project_data(data_dict, start_indices, num_frames):
+            projected_data = {}
+            for k, v in data_dict.items():
+                start_idx = start_indices[k]
+                projected_data[k] = v[start_idx:start_idx + num_frames]
+            return projected_data
+        
+        timestamps, arkit_poses, gripper_widths = \
+            project_data(timestamps, start_frame_indices, num_frames), \
+            project_data(arkit_poses, start_frame_indices, num_frames), \
+            project_data(gripper_widths, start_frame_indices, num_frames)
+
+        # convert quat format from [x, y, z, w] to [w, x, y, z]
+        for k in arkit_poses.keys():
+            arkit_poses[k][:, 3:] = arkit_poses[k][:, [6,3,4,5]]
+
+        # extend dims
+        for k in timestamps.keys():
+            timestamps[k] = timestamps[k][:, np.newaxis]
+            gripper_widths[k] = gripper_widths[k][:, np.newaxis]
+
+        obs_dict['timestamp'] = timestamps['left_wrist']
+
+        for k in arkit_poses.keys():
+            key_prefix = "right" if "right" in k else "left"
+            if self.use_6d_rotation:
+                a_9d = [pose_6d_to_pose_9d(pose_7d_to_pose_6d(pose)) for pose in arkit_poses[k]]
+                obs_dict[f'{key_prefix}_robot_tcp_pose'] = a_9d
+            else:
+                obs_dict[f'{key_prefix}_robot_tcp_pose'] = arkit_poses[k]
+
+            obs_dict[f'{key_prefix}_robot_gripper_width'] = gripper_widths[k]
+
+            images_array = self.load_video_frames(os.path.join(session[k], "recording.mp4"))
+            obs_dict[f'{key_prefix}_wrist_img'] = []
+            for image in images_array[start_frame_indices[k]:start_frame_indices[k]+num_frames]:
+                obs_dict[f'{key_prefix}_wrist_img'].append(cv2.resize(image, self.resize_shape))
+            if self.debug:
+                visualize_rgb_image(obs_dict[f'{key_prefix}_wrist_img'])
 
         return obs_dict
