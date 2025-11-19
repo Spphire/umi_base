@@ -19,19 +19,40 @@ class RandomCenterCrop(nn.Module):
         interpolation: InterpolationMode = InterpolationMode.BILINEAR,
         fill: FillType = 0,
         antialias: bool = True,
+        obs_horizon_step: int = 2,
     ) -> None:
         super().__init__()
         if ratio_min <= 0 or ratio_max <= 0:
             raise ValueError("crop ratios must be positive.")
         if ratio_min > ratio_max:
             raise ValueError("ratio_min must be <= ratio_max.")
+        if obs_horizon_step <= 0:
+            raise ValueError("temporal_group_size must be positive.")
         self.ratio_min = ratio_min
         self.ratio_max = ratio_max
         self.interpolation = interpolation
         self.fill = fill
         self.antialias = antialias
+        self.obs_horizon_step = obs_horizon_step
 
     def forward(self, img: Union[Tensor, "PIL.Image.Image"]) -> Union[Tensor, "PIL.Image.Image"]:
+        if isinstance(img, torch.Tensor):
+            if img.ndim < 3:
+                raise ValueError("Tensor image must have at least 3 dims (C, H, W).")
+            total = img.shape[0]
+            horizon = self.obs_horizon_step
+            if total % horizon != 0:
+                raise ValueError(
+                    f"Tensor batch of size {total} must be divisible by temporal_group_size {horizon}."
+                )
+            num_groups = total // horizon
+            ratios = torch.empty(num_groups, device=img.device).uniform_(self.ratio_min, self.ratio_max)
+            ratios = ratios.repeat_interleave(horizon)
+            cropped = [
+                self._apply(frame, ratio.item()) for frame, ratio in zip(img, ratios)
+            ]
+            return torch.stack(cropped, dim=0)
+
         ratio = torch.empty(1).uniform_(self.ratio_min, self.ratio_max).item()
         return self._apply(img, ratio)
 
@@ -70,5 +91,6 @@ class RandomCenterCrop(nn.Module):
         return (
             f"{self.__class__.__name__}(ratio_min={self.ratio_min}, "
             f"ratio_max={self.ratio_max}, interpolation={self.interpolation}, "
-            f"fill={self.fill}, antialias={self.antialias})"
+            f"fill={self.fill}, antialias={self.antialias}, "
+            f"temporal_group_size={self.temporal_group_size})"
         )
