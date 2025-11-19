@@ -92,5 +92,5 @@ class RandomCenterCrop(nn.Module):
             f"{self.__class__.__name__}(ratio_min={self.ratio_min}, "
             f"ratio_max={self.ratio_max}, interpolation={self.interpolation}, "
             f"fill={self.fill}, antialias={self.antialias}, "
-            f"temporal_group_size={self.temporal_group_size})"
+            f"obs_horizon_step={self.obs_horizon_step})"
         )
