@@ -27,7 +27,9 @@ def convert_data_to_zarr(
     gripper_width_bias: float = 0.0,
     gripper_width_scale: float = 1.0,
     tcp_transform: np.ndarray = np.eye(4, dtype=np.float32),
-    image_mask_path: str = ''
+    image_mask_path: str = '',
+    episode_clip_head_seconds: float = 0.0,
+    episode_clip_tail_seconds: float = 0.0
 ) -> str:
     """
     将原始数据转换为zarr格式存储。
@@ -119,12 +121,36 @@ def convert_data_to_zarr(
         record_sessions[session_uuid][camera_position] = dst_path
 
     # Process each path containing .bson files
+    is_dual_arm = action_type in [ActionType.dual_arm_6DOF_gripper_width, ActionType.dual_arm_3D_translation_gripper_width]
+    skipped_sessions = 0
+    
     for session in tqdm(record_sessions.items(), dynamic_ncols=True):
-        # 提取观测数据
-        obs_dict = data_processing_manager.extract_msg_to_obs_dict(session[1])
+        obs_dict = data_processing_manager.extract_msg_to_obs_dict(
+            session[1],
+            clip_head_seconds=episode_clip_head_seconds,
+            clip_tail_seconds=episode_clip_tail_seconds
+        )
         if obs_dict is None:
             logger.warning(f"obs_dict is None for {session[0]}")
             continue
+        
+        # 如果是 dual_arm action_type，检查数据是否完整（必须同时有 left 和 right 数据）
+        if is_dual_arm:
+            has_left = 'left_robot_tcp_pose' in obs_dict and 'left_robot_gripper_width' in obs_dict
+            has_right = 'right_robot_tcp_pose' in obs_dict and 'right_robot_gripper_width' in obs_dict
+            
+            if not (has_left and has_right):
+                skipped_sessions += 1
+                missing_arms = []
+                if not has_left:
+                    missing_arms.append('left')
+                if not has_right:
+                    missing_arms.append('right')
+                logger.warning(
+                    f"Session {session[0]} skipped: dual_arm action_type requires both left and right arm data, "
+                    f"but missing {', '.join(missing_arms)} arm data"
+                )
+                continue
             
         # 收集数据
         timestamp_arrays.append(obs_dict['timestamp'])
@@ -216,6 +242,13 @@ def convert_data_to_zarr(
             else:
                 right_wrist_img_arrays.append(np.array(obs_dict['right_wrist_img']))
 
+    if is_dual_arm and skipped_sessions > 0:
+        logger.warning(
+            f"Dual arm action_type: {skipped_sessions} session(s) skipped due to incomplete data "
+            f"(missing left or right arm data). Only paired data will be used."
+        )
+    elif is_dual_arm:
+        logger.info("Dual arm action_type: All sessions have complete paired data.")
 
     # 转换列表为数组
     episode_ends_arrays = np.array(episode_ends_arrays)
@@ -231,6 +264,13 @@ def convert_data_to_zarr(
         right_robot_tcp_pose_arrays = np.vstack(right_robot_tcp_pose_arrays)
         right_robot_gripper_width_arrays = np.vstack(right_robot_gripper_width_arrays)
         right_robot_gripper_width_arrays = (right_robot_gripper_width_arrays + gripper_width_bias) * gripper_width_scale
+    elif is_dual_arm:
+        raise ValueError(
+            f"{action_type.name} action_type requires both left and right arm data, "
+            "but no paired data was found after filtering. Please check your input data."
+        )
+
+    logger.info(f"episodes: {len(episode_ends_arrays)}")
 
     # 时序降采样处理
     if temporal_downsample_ratio > 1:

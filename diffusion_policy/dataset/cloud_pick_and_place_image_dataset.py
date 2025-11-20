@@ -47,6 +47,8 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             temporal_upsample_ratio=0,
             use_dino=False,
             debug=False,
+            episode_clip_head_seconds: float = 0.0,
+            episode_clip_tail_seconds: float = 0.0,
             **kwargs
         ):
         """
@@ -71,6 +73,8 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
         self.temporal_downsample_ratio = temporal_downsample_ratio
         self.temporal_upsample_ratio = temporal_upsample_ratio
         self.use_dino = use_dino
+        self.episode_clip_head_seconds = episode_clip_head_seconds
+        self.episode_clip_tail_seconds = episode_clip_tail_seconds
 
         self.config_hash = self._generate_config_hash()
         self.cache_dir = '.cache/cloud_pick_and_place_image_dataset/{}'.format(self.config_hash)
@@ -110,6 +114,8 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
             'temporal_downsample_ratio': self.temporal_downsample_ratio,
             'temporal_upsample_ratio': self.temporal_upsample_ratio,
             'use_dino': self.use_dino,
+            'episode_clip_head_seconds': self.episode_clip_head_seconds,
+            'episode_clip_tail_seconds': self.episode_clip_tail_seconds,
         }
 
         config_str = json.dumps(config_dict, sort_keys=True, ensure_ascii=True)
@@ -237,7 +243,9 @@ class CloudPickAndPlaceImageDataset(RealPickAndPlaceImageDataset):
                     temporal_downsample_ratio=self.temporal_downsample_ratio,
                     use_absolute_action=self.use_absolute_action,
                     action_type=self.action_type,
-                    use_dino=self.use_dino
+                    use_dino=self.use_dino,
+                    episode_clip_head_seconds=self.episode_clip_head_seconds,
+                    episode_clip_tail_seconds=self.episode_clip_tail_seconds
                 )
 
                 # Step6: Update metadata with the new cache

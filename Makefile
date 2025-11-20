@@ -8,8 +8,8 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := real_pick_and_place_dino
-# TASK := real_pick_and_place_dino_bimanual
+# TASK := real_pick_and_place_dino
+TASK := real_pick_and_place_dino_bimanual
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image
@@ -115,7 +115,6 @@ train:
 	python train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK} \
-	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 
 train_acc:
 	export HYDRA_FULL_ERROR=1 && \
@@ -131,12 +130,11 @@ train_acc_amp:
 	task=${TASK} \
 	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
 
-train_remote:
+train.data:
 	export HYDRA_FULL_ERROR=1 && \
 	python train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK} \
-	task.dataset.identifier=fold_towel
+	task=${TASK}
 
 train_acc_amp_remote:
 	export HYDRA_FULL_ERROR=1 && \
@@ -144,10 +142,19 @@ train_acc_amp_remote:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	task.dataset.identifier=fold_towel
+	
+eval.launch_record:
+	${PREPARE_ROS} && \
+ 	python camera_recorder.py --output-dir /home/fangyuan/lt_ws/umi_video
 
 eval.launch_camera:
 	${PREPARE_ROS} && \
 	python camera_node_launcher.py \
+	task=${TASK}
+
+eval.launch_fake_camera:
+	${PREPARE_ROS} && \
+	python fake_camera_launcher.py \
 	task=${TASK}
 
 eval.launch_robot:
@@ -162,6 +169,13 @@ eval.replay:
 	--config-name ${WKSPACE} \
 	task=replay_cloud_data
 
+eval.draw_circle:
+	${PREPARE_ROS} && \
+	export HYDRA_FULL_ERROR=1 && \
+	python draw_circle.py \
+	--config-name ${WKSPACE} \
+	task=draw_circle
+
 eval.inference:
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
@@ -169,7 +183,8 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-	+ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/arrange_mouse_ds20250925_wangyi_mixbf.ckpt'
+    +ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/2025.11.11/22.20.46_train_diffusion_unet_timm_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt'
+
 
 test.cloud_dataset:
 	${PREPARE_ROS} && \

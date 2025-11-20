@@ -239,8 +239,8 @@ def array_to_stats(arr: np.ndarray):
         'max': np.max(arr, axis=0),
         'mean': np.mean(arr, axis=0),
         'std': np.std(arr, axis=0),
-        'q01': np.quantile(arr, 0.01, axis=0),
-        'q99': np.quantile(arr, 0.99, axis=0)
+        'q01': np.quantile(arr, 0.01, axis=0).astype(arr.dtype),
+        'q99': np.quantile(arr, 0.99, axis=0).astype(arr.dtype)
     }
     return stat
 

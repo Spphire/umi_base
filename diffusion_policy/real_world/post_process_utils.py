@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 from loguru import logger
-from typing import Dict
+from typing import Dict, Optional
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
@@ -21,7 +21,7 @@ class DataPostProcessingManager:
                  # [todo] support 'center_crop', 'cv2', 'center_pad'
                  image_resize_mode: str = 'cv2',
                  use_6d_rotation: bool = True,
-                 debug: bool = False):
+                 debug: bool = True):
         self.transforms = transforms
         self.mode = SensorMode[mode]
         self.use_6d_rotation = use_6d_rotation
@@ -39,7 +39,10 @@ class DataPostProcessingManager:
     def convert_sensor_msg_to_obs_dict(self, sensor_msg: SensorMessage) -> Dict[str, np.ndarray]:
         obs_dict = dict()
         obs_dict['timestamp'] = np.array([sensor_msg.timestamp])
-
+        # logger.info(f"left_robot_tcp_pose: {sensor_msg.leftRobotTCP}")
+        # logger.info(
+        #     f"left_robot_gripper_width: {sensor_msg.leftRobotGripperState[0][np.newaxis]}"
+        # )
         # Add independent key-value pairs for left robot
         obs_dict['left_robot_tcp_pose'] = sensor_msg.leftRobotTCP
         obs_dict['left_robot_tcp_vel'] = sensor_msg.leftRobotTCPVel
@@ -71,6 +74,9 @@ class DataPostProcessingManager:
                             f'right_robot_gripper_force: {obs_dict["right_robot_gripper_force"]}')
 
         # TODO: make all sensor post-processing in parallel
+        # logger.info(
+        #     f"left_robot_wrist_img shape: {sensor_msg.leftWristCameraRGB.shape}"
+        # )
         obs_dict['left_wrist_img'] = self.resize_img(sensor_msg.leftWristCameraRGB)
 
         if self.debug:
@@ -153,7 +159,12 @@ class DataPostProcessingManageriPhone:
         frames_array = np.array(frames)
         return frames_array
 
-    def extract_msg_to_obs_dict(self, session: Dict) -> Dict[str, np.ndarray]:
+    def extract_msg_to_obs_dict(
+        self,
+        session: Dict,
+        clip_head_seconds: float = 0.0,
+        clip_tail_seconds: float = 0.0
+    ) -> Optional[Dict[str, np.ndarray]]:
         obs_dict = dict()
 
         timestamps = {}
@@ -168,21 +179,36 @@ class DataPostProcessingManageriPhone:
 
             bson_path = os.path.join(record, "frame_data.bson")
             t, a, g = self.read_bson(bson_path)
+            
+            if t is None or len(t) == 0:
+                continue
 
             timestamps[camera_position] = t
             arkit_poses[camera_position] = a
             gripper_widths[camera_position] = g
 
+        if not timestamps:
+            return None
+
         latest_start_time = max([t[0] for t in timestamps.values()])
         earliest_end_time = min([t[-1] for t in timestamps.values()])
+        
+        clipped_start_time = latest_start_time + clip_head_seconds
+        clipped_end_time = earliest_end_time - clip_tail_seconds
+        
+        if clipped_start_time >= clipped_end_time:
+            return None
 
         start_frame_indices = {}
         end_frame_indices = {}
         for k, v in timestamps.items():
-            start_frame_indices[k] = np.searchsorted(v, latest_start_time, side='right')
-            end_frame_indices[k] = np.searchsorted(v, earliest_end_time, side='left')
+            start_frame_indices[k] = np.searchsorted(v, clipped_start_time, side='left')
+            end_frame_indices[k] = np.searchsorted(v, clipped_end_time, side='right')
 
         num_frames = min([end_frame_indices[k] - start_frame_indices[k] for k in timestamps.keys()])
+        
+        if num_frames <= 0:
+            return None
 
         # Project all data to start_frame - start_frame + num_frames
         def project_data(data_dict, start_indices, num_frames):
@@ -206,7 +232,10 @@ class DataPostProcessingManageriPhone:
             timestamps[k] = timestamps[k][:, np.newaxis]
             gripper_widths[k] = gripper_widths[k][:, np.newaxis]
 
-        obs_dict['timestamp'] = timestamps['left_wrist']
+        if 'left_wrist' not in timestamps and 'right_wrist' not in timestamps:
+            return None
+
+        obs_dict['timestamp'] = timestamps['left_wrist'] if 'left_wrist' in timestamps else timestamps['right_wrist']
 
         for k in arkit_poses.keys():
             key_prefix = "right" if "right" in k else "left"
