@@ -108,7 +108,7 @@ dataset:
   relative_action: True
   # local_files_only: "/mnt/homes/junjiefang/umi_base/.cache/49bb725486f80deb/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
-  identifier: dualpen
+  identifier: arrange_mouse
   use_data_filtering: False
   use_absolute_action: True
   action_type: dual_arm_6DOF_gripper_width
@@ -116,10 +116,12 @@ dataset:
   temporal_upsample_ratio: 0
   use_dino: True
   use_quantiles: True
-  episode_clip_head_seconds: 2.0
-  episode_clip_tail_seconds: 2.0
+  episode_clip_head_seconds: 0.0
+  episode_clip_tail_seconds: 0.0
   action_representation: 'only-y-train'
   query_filter:
+    metadata.user_fingerprint:
+      $regex: "lt"
     "$and":
       - metadata.problems:
           "$not":
@@ -136,3 +138,4 @@ dataset:
             "$elemMatch":
               framedrop1_5_in_1s:
                 "$exists": true
+

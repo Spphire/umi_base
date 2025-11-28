@@ -65,10 +65,17 @@ def interpolate_actions_with_ratio(actions: np.ndarray, N: int):
 def absolute_actions_to_relative_actions(
     actions: np.ndarray,
     base_absolute_action=None,
-    # 'relative', 'only-y-train', 'only-y-inference'
     action_representation: str = 'relative'
 ):
+    """
+    actions: (T, D)
+    base_absolute_action: (D,)
+    action_representation: 'relative', 'only-y-train', 'only-y-inference'
+        If you train the model with `only-y-train`, 
+        you will need `only-y-inference` during real-machine inference.
+    """
     assert action_representation in ['relative', 'only-y-train', 'only-y-inference']
+    assert base_absolute_action.shape[0] == actions.shape[-1]
     actions = actions.copy()
     T, D = actions.shape
 
@@ -125,10 +132,13 @@ def absolute_actions_to_relative_actions(
 def relative_actions_to_absolute_actions(
     actions: np.ndarray,
     base_absolute_action: np.ndarray,
-    # 'relative', 'only-y-train', 'only-y-inference'
     action_representation: str = 'relative'
 ):
+    """
+    See: absolute_actions_to_relative_actions
+    """
     assert action_representation in ['relative', 'only-y-train', 'only-y-inference']
+    assert base_absolute_action.shape[0] == actions.shape[-1]
     actions = actions.copy()
     T, D = actions.shape
 

@@ -220,9 +220,13 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         if self.n_latency_steps > 0:
             action = action[self.n_latency_steps:]
         if self.relative_action:
+            # Make the length 10 or 20, not 9 or 18.
+            # Shape in obs_dict[xxx] is (T, D).
             base_absolute_action = np.concatenate([
                 obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
-                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([])
+                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
+                obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
+                obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)
             action = absolute_actions_to_relative_actions(
                 action, base_absolute_action=base_absolute_action,
@@ -232,9 +236,10 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             if self.relative_tcp_obs_for_relative_action:
                 for key in self.lowdim_keys:
                     if 'robot_tcp_pose' in key and 'wrt' not in key:
-                        obs_dict[key]  = absolute_actions_to_relative_actions(
+                        # calculate relative obs from the last obs (as image history)
+                        obs_dict[key] = absolute_actions_to_relative_actions(
                             obs_dict[key],
-                            base_absolute_action=base_absolute_action,
+                            base_absolute_action=obs_dict[key][-1],
                             action_representation=self.action_representation
                         )
 
