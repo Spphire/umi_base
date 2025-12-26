@@ -21,6 +21,24 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
     shape: [20]
     horizon: ${horizon}
 
+dataset_shape_meta: &dataset_shape_meta # acceptable types: rgb, low_dim
+  obs:
+    left_wrist_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+    left_robot_tcp_pose:
+      horizon: ${n_obs_steps}
+      shape: [9]
+      type: low_dim
+    left_robot_gripper_width:
+      horizon: ${n_obs_steps}
+      shape: [1]
+      type: low_dim
+  action:
+    shape: [20]
+    horizon: ${horizon}
+
 env_runner:
   _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
   eval_episodes: 10
@@ -36,7 +54,7 @@ env_runner:
   n_obs_steps: ${n_obs_steps}
   task_name: ${task_name}
   transform_params: ${task.transforms}
-  shape_meta: *shape_meta
+  shape_meta: *dataset_shape_meta
   tcp_ensemble_buffer_params:
     ensemble_mode: "new"
   gripper_ensemble_buffer_params:
@@ -71,7 +89,7 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy.dataset.cloud_pick_and_place_image_dataset.CloudPickAndPlaceImageDataset
-  shape_meta: *shape_meta
+  shape_meta: *dataset_shape_meta
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
   pad_after: ${eval:'${n_action_steps}-1'}
