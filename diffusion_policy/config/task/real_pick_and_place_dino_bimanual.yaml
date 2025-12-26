@@ -48,7 +48,7 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
 env_runner:
   _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
   eval_episodes: 10
-  max_duration_time: 60
+  max_duration_time: 120
   use_relative_action: True
   tcp_action_update_interval: 10
   gripper_action_update_interval: 10
@@ -56,7 +56,7 @@ env_runner:
   gripper_latency_step: 4
   control_fps: 10
   inference_fps: 5
-  obs_temporal_downsample_ratio: 3
+  obs_temporal_downsample_ratio: 1
   n_obs_steps: ${n_obs_steps}
   task_name: ${task_name}
   transform_params: ${task.transforms}
@@ -120,8 +120,6 @@ dataset:
   episode_clip_tail_seconds: 0.0
   action_representation: 'only-y-train'
   query_filter:
-    metadata.user_fingerprint:
-      $regex: "lt"
     "$and":
       - metadata.problems:
           "$not":

@@ -18,7 +18,7 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       shape: [1]
       type: low_dim
   action:
-    shape: [20]
+    shape: [10]
     horizon: ${horizon}
 
 dataset_shape_meta: &dataset_shape_meta # acceptable types: rgb, low_dim
@@ -36,7 +36,7 @@ dataset_shape_meta: &dataset_shape_meta # acceptable types: rgb, low_dim
       shape: [1]
       type: low_dim
   action:
-    shape: [20]
+    shape: [10]
     horizon: ${horizon}
 
 env_runner:
