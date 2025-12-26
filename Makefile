@@ -9,7 +9,8 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 # TASK := real_pick_and_place_dino
-TASK := real_pick_and_place_dino_bimanual
+TASK := real_pick_and_place_single_frame_dino
+# TASK := real_pick_and_place_dino_bimanual
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
 # TASK := real_pick_and_place_image
@@ -21,7 +22,8 @@ TASK := real_pick_and_place_dino_bimanual
 
 # workspace config , have to be consistent with the task
 # WKSPACE := train_diffusion_unet_real_image_workspace
-WKSPACE := train_diffusion_unet_timm_workspace
+# WKSPACE := train_diffusion_unet_timm_workspace
+WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
@@ -120,15 +122,12 @@ train_acc:
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu.yaml train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK} \
-	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
-
+	task=${TASK}
 train_acc_amp:
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK} \
-	+task.dataset.local_files_only=data/arrange_mouse_ds20250925_wangyi.zarr
+	task=${TASK}
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \
