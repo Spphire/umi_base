@@ -8,8 +8,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-# TASK := real_pick_and_place_dino
-TASK := real_pick_and_place_single_frame_dino
+TASK := real_pick_and_place_dino
 # TASK := real_pick_and_place_dino_bimanual
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
@@ -123,11 +122,14 @@ train_acc:
 	accelerate launch --config_file accelerate/4gpu.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK}
+
 train_acc_amp:
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK}
+	task=${TASK} \
+	+task.dataset.local_files_only=/home/wendi/Desktop/openpi/data/pourmsg_100/replay_buffer.zarr \
+	task.name=single_frame_pourmsg_100
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \
