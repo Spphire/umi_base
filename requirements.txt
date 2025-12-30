@@ -52,6 +52,7 @@ py_cli_interaction
 omegaconf
 numba
 termcolor
+lz4
 # install this by yourself
 # torch==2.7.1
 # torchvision==0.22.1
