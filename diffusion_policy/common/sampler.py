@@ -8,7 +8,9 @@ from diffusion_policy.common.replay_buffer import ReplayBuffer
 def create_indices(
     episode_ends:np.ndarray, sequence_length:int, 
     episode_mask: np.ndarray,
+    dagger_mask: np.ndarray,
     pad_before: int=0, pad_after: int=0,
+    dagger_sampling_ratio: int=1,
     debug:bool=True) -> np.ndarray:
     episode_mask.shape == episode_ends.shape        
     pad_before = min(max(pad_before, 0), sequence_length-1)
@@ -25,8 +27,15 @@ def create_indices(
         end_idx = episode_ends[i]
         episode_length = end_idx - start_idx
         
-        min_start = -pad_before
-        max_start = episode_length - sequence_length + pad_after
+        if dagger_mask[i]:
+            # do not use padding for dagger episodes
+            min_start = 0
+            max_start = episode_length - sequence_length + 0
+            repeat_times = dagger_sampling_ratio
+        else:
+            min_start = -pad_before
+            max_start = episode_length - sequence_length + pad_after
+            repeat_times = 1
         
         # range stops one idx before end
         for idx in range(min_start, max_start+1):
@@ -40,9 +49,10 @@ def create_indices(
                 assert(start_offset >= 0)
                 assert(end_offset >= 0)
                 assert (sample_end_idx - sample_start_idx) == (buffer_end_idx - buffer_start_idx)
-            indices.append([
-                buffer_start_idx, buffer_end_idx, 
-                sample_start_idx, sample_end_idx])
+            for _ in range(repeat_times):
+                indices.append([
+                    buffer_start_idx, buffer_end_idx, 
+                    sample_start_idx, sample_end_idx])
     indices = np.array(indices)
     return indices
 
@@ -97,10 +107,13 @@ class SequenceSampler:
         keys=None,
         key_first_k=dict(),
         episode_mask: Optional[np.ndarray]=None,
+        dagger_sampling_ratio: int=1,
         ):
         """
         key_first_k: dict str: int
             Only take first k data from these keys (to improve perf)
+        dagger_sampling_ratio: int
+            Repeat dagger episode indices this many times for importance sampling
         """
 
         super().__init__()
@@ -111,13 +124,16 @@ class SequenceSampler:
         episode_ends = replay_buffer.episode_ends[:]
         if episode_mask is None:
             episode_mask = np.ones(episode_ends.shape, dtype=bool)
+        dagger_mask = replay_buffer.dagger_mask[:]
 
         if np.any(episode_mask):
             indices = create_indices(episode_ends, 
                 sequence_length=sequence_length, 
                 pad_before=pad_before, 
                 pad_after=pad_after,
-                episode_mask=episode_mask
+                episode_mask=episode_mask,
+                dagger_mask=dagger_mask,
+                dagger_sampling_ratio=dagger_sampling_ratio
                 )
         else:
             indices = np.zeros((0,4), dtype=np.int64)

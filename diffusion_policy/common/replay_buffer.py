@@ -371,6 +371,12 @@ class ReplayBuffer:
     def episode_ends(self):
         return self.meta['episode_ends']
     
+    @property
+    def dagger_mask(self):
+        if 'dagger_mask' in self.meta:
+            return self.meta['dagger_mask']
+        return np.zeros((len(self.episode_ends),), dtype=bool)
+    
     def get_episode_idxs(self):
         import numba
         numba.jit(nopython=True)

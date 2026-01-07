@@ -32,6 +32,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             relative_action=False,
             use_quantiles=False,
             action_representation='relative',
+            dagger_sampling_ratio=1,
         ):
         logger.info(f'use_quantiles: {use_quantiles}')
         logger.info(f'using action representation: {action_representation}')
@@ -92,7 +93,8 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             pad_before=pad_before, 
             pad_after=pad_after,
             episode_mask=train_mask,
-            key_first_k=key_first_k)
+            key_first_k=key_first_k,
+            dagger_sampling_ratio=dagger_sampling_ratio)
         
         self.replay_buffer = replay_buffer
         self.sampler = sampler
@@ -108,6 +110,8 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
         self.use_quantiles = use_quantiles
         self.action_representation = action_representation
         self.relative_action = relative_action
+        self.key_first_k = key_first_k
+        self.dagger_sampling_ratio = dagger_sampling_ratio
         if relative_action:
             logger.info(
                 "Relative action is enabled. All actions will be relative to the current frame.")
@@ -121,7 +125,9 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             sequence_length=self.horizon+self.n_latency_steps,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=self.val_mask
+            episode_mask=self.val_mask,
+            key_first_k=self.key_first_k,
+            dagger_sampling_ratio=self.dagger_sampling_ratio
             )
         val_set.val_mask = ~self.val_mask
         return val_set

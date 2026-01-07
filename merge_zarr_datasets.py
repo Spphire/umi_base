@@ -53,15 +53,21 @@ def merge_zarr_datasets(data_path_list, output_path):
             merged_data[key] = np.concatenate(arrays, axis=0)
             logger.info(f"Merged '{key}': shape {merged_data[key].shape}")
 
-    # Merge episode_ends with offset adjustment
+    # Merge episode_ends with offset adjustment and create dagger mask
     episode_ends_list = []
+    dagger_mask_list = []
     offset = 0
-    for ds in zarr_datasets:
+    for i, ds in enumerate(zarr_datasets):
         eps_ends = np.array(ds['meta']['episode_ends'])
         episode_ends_list.append(eps_ends + offset)
         offset = episode_ends_list[-1][-1]
+        # First dataset episodes are not dagger, others are dagger
+        is_dagger = (i > 0)
+        dagger_mask_list.append(np.full(len(eps_ends), is_dagger, dtype=bool))
     merged_episode_ends = np.concatenate(episode_ends_list, axis=0)
+    merged_dagger_mask = np.concatenate(dagger_mask_list, axis=0)
     logger.info(f"Merged episode_ends: {len(merged_episode_ends)} episodes, total frames: {merged_episode_ends[-1]}")
+    logger.info(f"Dagger episodes: {merged_dagger_mask.sum()} / {len(merged_dagger_mask)}")
 
     # Create output zarr file
     zarr_root = zarr.group(output_zarr_path)
@@ -89,9 +95,11 @@ def merge_zarr_datasets(data_path_list, output_path):
             zarr_data.create_dataset(key, data=data, chunks=chunk_size, dtype=data.dtype,
                                      overwrite=True, compressor=compressor)
 
-    # Save episode_ends
+    # Save episode_ends and dagger
     zarr_meta.create_dataset('episode_ends', data=merged_episode_ends, chunks=(10000,),
                              dtype='int64', overwrite=True, compressor=compressor)
+    zarr_meta.create_dataset('dagger_mask', data=merged_dagger_mask, chunks=(10000,),
+                             dtype='bool', overwrite=True, compressor=compressor)
 
     logger.info('Merged zarr data structure:')
     logger.info(zarr_data.tree())
@@ -102,9 +110,13 @@ def merge_zarr_datasets(data_path_list, output_path):
 
 
 if __name__ == '__main__':
+    # data_path_list = [
+    #     "/home/wendi/Desktop/openpi/data/blocksv2_100",
+    #     "/home/wendi/Desktop/openpi/data/blocksv2_dagger_v2_50",
+    # ]
     data_path_list = [
-        "/home/wendi/Desktop/openpi/data/blocksv2_100",
-        "/home/wendi/Desktop/openpi/data/blocksv2_dagger_50"
+        "/home/wendi/Desktop/openpi/data/pourmsg_100",
+        "/home/wendi/Desktop/openpi/data/pourmsg_dagger_50",
     ]
     # Generate output path by combining input folder names
     folder_names = [osp.basename(p) for p in data_path_list]
