@@ -174,6 +174,24 @@ class InferenceSession:
         self.lock = threading.Lock()
         self.initialized = False
         self.n_obs_steps = None
+        # Reference counting for thread-safe cleanup
+        self._ref_count = 0
+        self._ref_lock = threading.Lock()
+    
+    def acquire(self):
+        """Increment reference count to prevent cleanup while in use."""
+        with self._ref_lock:
+            self._ref_count += 1
+    
+    def release(self):
+        """Decrement reference count."""
+        with self._ref_lock:
+            self._ref_count -= 1
+    
+    def is_in_use(self) -> bool:
+        """Check if session is currently being used."""
+        with self._ref_lock:
+            return self._ref_count > 0
         
     def _load_config(self) -> DictConfig:
         """Load and merge configurations"""
@@ -239,7 +257,7 @@ class InferenceSession:
             import traceback
             logger.error(f"Failed to initialize session {self.session_id}: {e}")
             logger.error(f"Full traceback:\n{traceback.format_exc()}")
-            self.cleanup()
+            self._cleanup_internal()  # Use internal cleanup since we're already holding the lock
             raise
     
     def _warmup(self):
@@ -348,15 +366,35 @@ class InferenceSession:
                 logger.error(f"Full traceback:\n{traceback.format_exc()}")
                 raise
     
-    def cleanup(self):
-        """Clean up resources"""
+    def _cleanup_internal(self):
+        """Internal cleanup without lock acquisition. Must be called with self.lock held."""
         logger.info(f"Cleaning up session {self.session_id}")
         if self.policy is not None:
             del self.policy
+            self.policy = None
         if self.workspace is not None:
             del self.workspace
+            self.workspace = None
         torch.cuda.empty_cache()
         self.initialized = False
+    
+    def cleanup(self, wait_timeout: float = 5.0):
+        """
+        Clean up resources. Thread-safe: waits for ongoing operations to complete.
+        
+        Args:
+            wait_timeout: Maximum time to wait for ongoing operations (seconds)
+        """
+        # Wait for ongoing operations to complete
+        start_time = time.time()
+        while self.is_in_use():
+            if time.time() - start_time > wait_timeout:
+                logger.warning(f"Session {self.session_id} cleanup timeout, forcing cleanup")
+                break
+            time.sleep(0.01)
+        
+        with self.lock:
+            self._cleanup_internal()
     
     def reload_checkpoint(self, new_checkpoint_path: str) -> bool:
         """
@@ -660,6 +698,7 @@ async def health_check():
 
 @app.post("/backend/inference", response_model=InferenceResponse)
 async def backend_inference(request: InferenceRequest):
+    session = None
     try:
         logger.info(f"Received inference request for device {request.device_id}, request_id: {request.request_id}")
 
@@ -670,6 +709,9 @@ async def backend_inference(request: InferenceRequest):
             request.checkpoint_path
         )
         
+        # Acquire reference to prevent cleanup during inference
+        session.acquire()
+        
         # Perform inference
         result = session.predict_action(request.observations, request.request_id)
         
@@ -678,6 +720,9 @@ async def backend_inference(request: InferenceRequest):
     except Exception as e:
         logger.error(f"Backend inference failed: {e}")
         return InferenceResponse(success=False, error=str(e))
+    finally:
+        if session is not None:
+            session.release()
 
 
 class CheckpointUpdateResponse(BaseModel):
