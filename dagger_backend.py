@@ -166,7 +166,8 @@ class InferenceSession:
         self.session_id = session_id
         self.workspace_config = workspace_config
         self.task_config = task_config
-        self.checkpoint_path = checkpoint_path
+        self.initial_checkpoint_path = checkpoint_path  # Immutable, used for session identification
+        self.checkpoint_path = checkpoint_path  # Mutable, can be updated via hot-reload
         self.last_access = time.time()
         self.workspace: Optional[BaseWorkspace] = None
         self.policy: Optional[BaseImagePolicy] = None
@@ -291,6 +292,7 @@ class InferenceSession:
                 self._initialize_session()
 
             self.last_access = time.time()
+            logger.info(f"[Inference] request_id={request_id}, checkpoint={self.checkpoint_path}")
 
             try:
                 # Convert observations to torch tensors
@@ -639,6 +641,9 @@ class SessionManager:
         """
         Update checkpoint for all matching sessions.
         
+        Session ID is based on initial_checkpoint_path and remains unchanged
+        after checkpoint hot-reload, allowing session reuse.
+        
         Args:
             workspace_config: Target workspace config
             task_config: Target task config
@@ -650,23 +655,13 @@ class SessionManager:
         results = {}
         
         with self.lock:
+            print(self.sessions)
             for session_id, session in list(self.sessions.items()):
                 if (session.workspace_config == workspace_config and 
                     session.task_config == task_config):
                     success = session.reload_checkpoint(new_checkpoint_path)
                     results[session_id] = success
-                    
-                    if success:
-                        # Update session's checkpoint_path in the OrderedDict key
-                        # Generate new session ID since checkpoint path changed
-                        new_session_id = self._generate_session_id(
-                            workspace_config, task_config, new_checkpoint_path
-                        )
-                        if new_session_id != session_id:
-                            self.sessions.pop(session_id)
-                            session.session_id = new_session_id
-                            self.sessions[new_session_id] = session
-                            logger.info(f"Session ID updated: {session_id} -> {new_session_id}")
+                    # Session ID remains unchanged since it's based on initial_checkpoint_path
         
         return results
     
@@ -678,6 +673,7 @@ class SessionManager:
                 info[session_id] = {
                     'workspace_config': session.workspace_config,
                     'task_config': session.task_config,
+                    'initial_checkpoint_path': session.initial_checkpoint_path,
                     'checkpoint_path': session.checkpoint_path,
                     'initialized': session.initialized,
                     'last_access': session.last_access,
