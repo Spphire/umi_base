@@ -735,7 +735,7 @@ class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
                             self.adaptive_sampler_state = dataset.adaptive_sampler.state_dict()
 
                             if cfg.checkpoint.save_last_ckpt:
-                                self.save_checkpoint()
+                                self.save_checkpoint(use_thread=False)
                             if cfg.checkpoint.save_last_snapshot:
                                 self.save_snapshot()
 
@@ -748,7 +748,7 @@ class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
                             
                             topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
                             if topk_ckpt_path is not None:
-                                self.save_checkpoint(path=topk_ckpt_path)
+                                self.save_checkpoint(path=topk_ckpt_path, use_thread=False)
 
                             self.model = model_ddp
                     
