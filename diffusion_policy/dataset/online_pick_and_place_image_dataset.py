@@ -226,7 +226,7 @@ class OnlinePickAndPlaceImageDataset(BaseImageDataset):
                           arrays for each key with shape (T, ...)
         """
         for episode_data in episodes_data:
-            self.online_replay_buffer.add_episode(episode_data)
+            self.online_replay_buffer.add_episode(episode_data, is_dagger=True)
             self._online_episodes_count += 1
         
         # Rebuild online sampler

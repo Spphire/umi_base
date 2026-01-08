@@ -377,6 +377,39 @@ class ReplayBuffer:
             return self.meta['dagger_mask']
         return np.zeros((len(self.episode_ends),), dtype=bool)
     
+    def _append_dagger_mask(self, is_dagger: bool):
+        """
+        Append a dagger mask entry for a newly added episode.
+        
+        Args:
+            is_dagger: Whether the new episode is from dagger collection
+        """
+        is_zarr = (self.backend == 'zarr')
+        n_episodes = len(self.episode_ends)
+        
+        if 'dagger_mask' in self.meta:
+            # Existing dagger_mask, append to it
+            old_mask = self.meta['dagger_mask']
+            if is_zarr:
+                old_mask.resize(n_episodes)
+                old_mask[-1] = is_dagger
+            else:
+                # numpy backend
+                new_mask = np.zeros(n_episodes, dtype=bool)
+                new_mask[:-1] = old_mask
+                new_mask[-1] = is_dagger
+                self.meta['dagger_mask'] = new_mask
+        else:
+            # Create new dagger_mask
+            new_mask = np.zeros(n_episodes, dtype=bool)
+            new_mask[-1] = is_dagger
+            if is_zarr:
+                self.meta.array('dagger_mask', data=new_mask, 
+                    shape=new_mask.shape, chunks=new_mask.shape,
+                    dtype=bool, overwrite=True)
+            else:
+                self.meta['dagger_mask'] = new_mask
+    
     def get_episode_idxs(self):
         import numba
         numba.jit(nopython=True)
@@ -449,7 +482,18 @@ class ReplayBuffer:
     def add_episode(self, 
             data: Dict[str, np.ndarray], 
             chunks: Optional[Dict[str,tuple]]=dict(),
-            compressors: Union[str, numcodecs.abc.Codec, dict]=dict()):
+            compressors: Union[str, numcodecs.abc.Codec, dict]=dict(),
+            is_dagger: bool=False):
+        """
+        Add an episode to the replay buffer.
+        
+        Args:
+            data: Dict of arrays with shape (T, ...) for each key
+            chunks: Optional chunk sizes for zarr backend
+            compressors: Optional compressors for zarr backend
+            is_dagger: Whether this episode is from dagger (online) collection.
+                       If True, the episode will be marked in dagger_mask.
+        """
         assert(len(data) > 0)
         is_zarr = (self.backend == 'zarr')
 
@@ -499,6 +543,9 @@ class ReplayBuffer:
         else:
             episode_ends.resize(episode_ends.shape[0] + 1, refcheck=False)
         episode_ends[-1] = new_len
+        
+        # Update dagger_mask
+        self._append_dagger_mask(is_dagger)
 
         # rechunk
         if is_zarr:
