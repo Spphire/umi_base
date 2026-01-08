@@ -138,7 +138,6 @@ def relative_actions_to_absolute_actions(
     See: absolute_actions_to_relative_actions
     """
     assert action_representation in ['relative', 'only-y-train', 'only-y-inference']
-    assert base_absolute_action.shape[0] == actions.shape[-1]
     actions = actions.copy()
     T, D = actions.shape
 
