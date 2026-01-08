@@ -1,0 +1,208 @@
+defaults:
+  - _self_
+  - task: real_pick_and_place_dino
+
+name: train_diffusion_unet_timm_online_dagger_single_frame
+_target_: diffusion_policy.workspace.train_diffusion_unet_timm_online_dagger_workspace.TrainDiffusionUnetTimmOnlineDaggerWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "default"
+
+horizon: 16
+n_obs_steps: 1
+n_action_steps: 8 # check eval.py, this may be overridden
+n_latency_steps: 0 # for dataset
+dataset_obs_steps: ${n_obs_steps}
+past_action_visible: False
+keypoint_visible_rate: 1.0
+obs_as_global_cond: True
+
+policy:
+  _target_: diffusion_policy.policy.diffusion_unet_timm_policy.DiffusionUnetTimmPolicy
+
+  shape_meta: ${shape_meta}
+
+  noise_scheduler:
+    _target_: diffusers.DDIMScheduler
+    num_train_timesteps: 50
+    beta_start: 0.0001
+    beta_end: 0.02
+    # beta_schedule is important
+    # this is the best we found
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: True
+    set_alpha_to_one: True
+    steps_offset: 0
+    prediction_type: epsilon # or sample
+
+  obs_encoder:
+    _target_: diffusion_policy.model.vision.timm_obs_encoder.TimmObsEncoder
+    shape_meta: ${shape_meta}
+    model_name: 'vit_base_patch16_clip_224.openai'
+    # model_name: 'vit_base_patch14_dinov2.lvd142m'
+    # model_name: 'convnext_base.clip_laion2b_augreg_ft_in12k'
+    pretrained: True
+    frozen: False
+    use_lora: False
+    lora_rank: 8
+    drop_path_rate: 0.0
+
+    global_pool: ''
+    # 'avg' or 'max' or 'soft_attention' or 'spatial_embedding' or 'transformer' or 'attention_pool_2d'
+    # vit: 'cls_token' or 'map'
+    feature_aggregation: 'cls_token'
+    # feature_aggregation: null
+    position_encording: 'sinusoidal' # 'learnable' or 'sinusoidal'. it only works for transformer
+
+    # it only works for resnet. 32 (7x7) or 16 (14x14)
+    downsample_ratio: 32
+
+    transforms:
+      - type: RandomCrop
+        ratio: 0.95
+      - _target_: torchvision.transforms.ColorJitter
+        brightness: 0.3
+        contrast: 0.4
+        saturation: 0.5
+        hue: 0.08
+
+    use_group_norm: True
+    share_rgb_model: False
+    imagenet_norm: True
+    three_augment: False
+    fused_model_name: ''
+
+  num_inference_steps: 16
+  obs_as_global_cond: True
+  diffusion_step_embed_dim: 128
+  down_dims: [256,512,1024]
+  kernel_size: 5
+  n_groups: 8
+  cond_predict_scale: True
+  input_pertub: 0.1 # reference: https://github.com/forever208/DDPM-IP
+  # train multiple diffusion steps per obs encoder forward pass
+  # doing this too much will cause instability!
+  train_diffusion_n_samples: 1
+
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+dataloader:
+  batch_size: 32
+  num_workers: 4
+  shuffle: True
+  pin_memory: True
+  persistent_workers: True
+
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.95, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+  encoder_weight_decay: 1.0e-6
+
+training:
+  # device: "cuda:0,1,2,3,4,5" not used
+  seed: 42
+  debug: False
+  resume: True
+  lr_scheduler: constant_with_warmup
+  lr_warmup_steps: 0
+  num_training_steps: 100000    # Total training steps (step-based, no epochs)
+  gradient_accumulate_every: 1
+  layer_decay: 1.0
+  # EMA destroys performance when used with BatchNorm
+  # replace BatchNorm with GroupNorm.
+  use_ema: True
+  freeze_encoder: False
+  # Step-based intervals
+  log_every: 1                 # Log metrics every N steps
+  checkpoint_every: 1        # Save checkpoint every N steps
+  sample_every: 1             # Sample every N steps
+  tqdm_interval_sec: 1.0
+  encoder_lr_coefficient: 0.1
+
+# Online training specific configuration
+online_training:
+  # Initial checkpoint (required for loading normalizer)
+  initial_checkpoint: null     # Path to initial checkpoint, must be set before training
+  
+  # Data fetching settings
+  datacloud_endpoint: "http://127.0.0.1:8083"
+  identifier: "pick and place"
+  query_filter: {}
+  fetch_interval: 1          # Fetch new data every N training steps
+  
+  # Data processing settings
+  use_absolute_action: True
+  action_type: "left_arm_6DOF_gripper_width"
+  temporal_downsample_ratio: 0
+  use_dino: False
+  episode_clip_head_seconds: 0.0
+  episode_clip_tail_seconds: 0.0
+  
+  # Checkpoint sync settings
+  sync_interval: 25           # Sync checkpoint to inference server every N steps
+  inference_server_url: "http://localhost:8080"
+  sync_timeout: 120
+  sync_retries: 3
+  
+  # Adaptive sampling settings (SOP-style)
+  adaptive_sampling:
+    window_size: 200           # Sliding window for loss estimation
+    boost_factor: 1.5          # α > 1 to prioritize online data
+    min_online_ratio: 0.2      # Minimum online sampling weight
+    max_online_ratio: 0.8      # Maximum online sampling weight
+    initial_online_weight: 0.5 # Initial online weight
+
+# Task dataset override for online training
+task:
+  dataset:
+    _target_: diffusion_policy.dataset.online_pick_and_place_image_dataset.OnlinePickAndPlaceImageDataset
+    offline_dataset_path: "data/offline_dataset/replay_buffer.zarr"
+    # Adaptive sampling parameters
+    adaptive_window_size: ${online_training.adaptive_sampling.window_size}
+    adaptive_boost_factor: ${online_training.adaptive_sampling.boost_factor}
+    adaptive_min_online_ratio: ${online_training.adaptive_sampling.min_online_ratio}
+    adaptive_max_online_ratio: ${online_training.adaptive_sampling.max_online_ratio}
+    initial_online_weight: ${online_training.adaptive_sampling.initial_online_weight}
+
+logging:
+  project: diffusion_policy_online_dagger
+  resume: False
+  mode: online
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["${name}", "${task_name}", "${exp_name}", "online_dagger"]
+  id: null
+  group: null
+
+checkpoint:
+  topk:
+    monitor_key: train_loss
+    mode: min
+    k: 5
+    format_str: 'step={global_step:06d}-train_loss={train_loss:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+  only_save_recent: True
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

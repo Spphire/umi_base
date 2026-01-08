@@ -4,8 +4,11 @@ import threading
 import torch
 import dill
 import hydra
+import os
+import tempfile
+import shutil
 from omegaconf import OmegaConf, DictConfig
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import pathlib
@@ -354,6 +357,171 @@ class InferenceSession:
             del self.workspace
         torch.cuda.empty_cache()
         self.initialized = False
+    
+    def reload_checkpoint(self, new_checkpoint_path: str) -> bool:
+        """
+        Hot-reload checkpoint without full re-initialization.
+        Thread-safe: acquires lock before reloading.
+        
+        Args:
+            new_checkpoint_path: Path to the new checkpoint file
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        with self.lock:
+            try:
+                logger.info(f"Reloading checkpoint for session {self.session_id}")
+                logger.info(f"  Old checkpoint: {self.checkpoint_path}")
+                logger.info(f"  New checkpoint: {new_checkpoint_path}")
+                
+                if not Path(new_checkpoint_path).exists():
+                    logger.error(f"New checkpoint not found: {new_checkpoint_path}")
+                    return False
+                
+                # Load new checkpoint payload
+                payload = torch.load(open(new_checkpoint_path, 'rb'), pickle_module=dill)
+                
+                # Reload state dict into existing workspace/policy
+                if self.workspace is not None:
+                    self.workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+                    
+                    # Re-extract policy
+                    cfg = self.workspace.cfg
+                    if 'diffusion' in cfg.name:
+                        self.policy = self.workspace.model
+                        if cfg.training.use_ema:
+                            self.policy = self.workspace.ema_model
+                        self.policy.eval().to(self.device)
+                
+                # Update checkpoint path
+                old_checkpoint_path = self.checkpoint_path
+                self.checkpoint_path = new_checkpoint_path
+                self.last_access = time.time()
+                
+                # Warmup with new weights
+                self._warmup()
+                
+                logger.info(f"Session {self.session_id} checkpoint reloaded successfully")
+                return True
+                
+            except Exception as e:
+                import traceback
+                logger.error(f"Failed to reload checkpoint for session {self.session_id}: {e}")
+                logger.error(f"Full traceback:\n{traceback.format_exc()}")
+                return False
+
+
+class CheckpointUpdateManager:
+    """
+    Manages checkpoint updates from training server.
+    Provides thread-safe checkpoint reception and session updates.
+    """
+    
+    def __init__(self, checkpoint_dir: str = ".cache/checkpoints"):
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._update_in_progress = False
+        self._current_checkpoint: Optional[str] = None
+        self._update_history = []
+    
+    def receive_checkpoint(
+        self,
+        checkpoint_file: bytes,
+        workspace_config: str,
+        task_config: str,
+        sha256: str,
+        file_size: int,
+        metadata: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Receive and validate a checkpoint file.
+        
+        Args:
+            checkpoint_file: Checkpoint file bytes
+            workspace_config: Workspace configuration name
+            task_config: Task configuration name  
+            sha256: Expected SHA256 hash
+            file_size: Expected file size
+            metadata: Additional metadata (global_step, epoch, etc.)
+            
+        Returns:
+            Path to saved checkpoint or None if failed
+        """
+        with self._lock:
+            try:
+                self._update_in_progress = True
+                
+                # Validate file size
+                if len(checkpoint_file) != file_size:
+                    logger.error(f"Checkpoint size mismatch: {len(checkpoint_file)} != {file_size}")
+                    return None
+                
+                # Validate SHA256
+                computed_sha256 = hashlib.sha256(checkpoint_file).hexdigest()
+                if computed_sha256 != sha256:
+                    logger.error(f"Checkpoint SHA256 mismatch: {computed_sha256} != {sha256}")
+                    return None
+                
+                # Generate checkpoint filename
+                global_step = metadata.get('global_step', 0)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                checkpoint_name = f"{workspace_config}_{task_config}_step{global_step}_{timestamp}.ckpt"
+                checkpoint_path = self.checkpoint_dir / checkpoint_name
+                
+                # Write checkpoint file
+                with open(checkpoint_path, 'wb') as f:
+                    f.write(checkpoint_file)
+                
+                logger.info(f"Checkpoint saved to: {checkpoint_path}")
+                
+                # Update state
+                self._current_checkpoint = str(checkpoint_path)
+                self._update_history.append({
+                    'path': str(checkpoint_path),
+                    'timestamp': timestamp,
+                    'metadata': metadata,
+                })
+                
+                # Keep only last 5 checkpoints
+                self._cleanup_old_checkpoints()
+                
+                return str(checkpoint_path)
+                
+            except Exception as e:
+                logger.error(f"Failed to receive checkpoint: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return None
+            finally:
+                self._update_in_progress = False
+    
+    def _cleanup_old_checkpoints(self, keep_n: int = 5):
+        """Remove old checkpoints, keeping only the most recent N."""
+        try:
+            if len(self._update_history) > keep_n:
+                old_entries = self._update_history[:-keep_n]
+                self._update_history = self._update_history[-keep_n:]
+                
+                for entry in old_entries:
+                    old_path = Path(entry['path'])
+                    if old_path.exists():
+                        old_path.unlink()
+                        logger.info(f"Removed old checkpoint: {old_path}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup old checkpoints: {e}")
+    
+    @property
+    def current_checkpoint(self) -> Optional[str]:
+        with self._lock:
+            return self._current_checkpoint
+    
+    @property
+    def is_updating(self) -> bool:
+        with self._lock:
+            return self._update_in_progress
+
 
 class SessionManager:
     def __init__(self, max_sessions: int = 2, session_timeout: int = 60):
@@ -423,9 +591,65 @@ class SessionManager:
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
                 time.sleep(10)
+    
+    def update_all_sessions_checkpoint(
+        self,
+        workspace_config: str,
+        task_config: str,
+        new_checkpoint_path: str
+    ) -> Dict[str, bool]:
+        """
+        Update checkpoint for all matching sessions.
+        
+        Args:
+            workspace_config: Target workspace config
+            task_config: Target task config
+            new_checkpoint_path: Path to new checkpoint
+            
+        Returns:
+            Dict mapping session_id to update success status
+        """
+        results = {}
+        
+        with self.lock:
+            for session_id, session in list(self.sessions.items()):
+                if (session.workspace_config == workspace_config and 
+                    session.task_config == task_config):
+                    success = session.reload_checkpoint(new_checkpoint_path)
+                    results[session_id] = success
+                    
+                    if success:
+                        # Update session's checkpoint_path in the OrderedDict key
+                        # Generate new session ID since checkpoint path changed
+                        new_session_id = self._generate_session_id(
+                            workspace_config, task_config, new_checkpoint_path
+                        )
+                        if new_session_id != session_id:
+                            self.sessions.pop(session_id)
+                            session.session_id = new_session_id
+                            self.sessions[new_session_id] = session
+                            logger.info(f"Session ID updated: {session_id} -> {new_session_id}")
+        
+        return results
+    
+    def get_sessions_info(self) -> Dict[str, Dict]:
+        """Get information about all active sessions."""
+        with self.lock:
+            info = {}
+            for session_id, session in self.sessions.items():
+                info[session_id] = {
+                    'workspace_config': session.workspace_config,
+                    'task_config': session.task_config,
+                    'checkpoint_path': session.checkpoint_path,
+                    'initialized': session.initialized,
+                    'last_access': session.last_access,
+                }
+            return info
 
-# Global session manager
+
+# Global managers
 session_manager = SessionManager(max_sessions=2, session_timeout=60)
+checkpoint_update_manager = CheckpointUpdateManager()
 
 # FastAPI app
 app = FastAPI(title="UMI Backend Inference Service", version="1.0.0")
@@ -454,6 +678,98 @@ async def backend_inference(request: InferenceRequest):
     except Exception as e:
         logger.error(f"Backend inference failed: {e}")
         return InferenceResponse(success=False, error=str(e))
+
+
+class CheckpointUpdateResponse(BaseModel):
+    success: bool
+    checkpoint_path: Optional[str] = None
+    updated_sessions: Optional[Dict[str, bool]] = None
+    error: Optional[str] = None
+
+
+@app.post("/backend/update_checkpoint", response_model=CheckpointUpdateResponse)
+async def update_checkpoint(
+    checkpoint_file: UploadFile = File(...),
+    workspace_config: str = Form(...),
+    task_config: str = Form(...),
+    sha256: str = Form(...),
+    file_size: str = Form(...),
+    global_step: str = Form("0"),
+    epoch: str = Form("0"),
+):
+    """
+    Receive a checkpoint file from the training server and update all matching sessions.
+    
+    This endpoint:
+    1. Validates and saves the checkpoint file
+    2. Updates all active sessions with matching workspace/task config
+    3. Returns update status for each affected session
+    """
+    try:
+        logger.info(f"Received checkpoint update request")
+        logger.info(f"  workspace_config: {workspace_config}")
+        logger.info(f"  task_config: {task_config}")
+        logger.info(f"  file_size: {file_size}")
+        logger.info(f"  global_step: {global_step}")
+        
+        # Read checkpoint file
+        checkpoint_bytes = await checkpoint_file.read()
+        
+        # Receive and validate checkpoint
+        metadata = {
+            'global_step': int(global_step),
+            'epoch': int(epoch),
+        }
+        
+        checkpoint_path = checkpoint_update_manager.receive_checkpoint(
+            checkpoint_file=checkpoint_bytes,
+            workspace_config=workspace_config,
+            task_config=task_config,
+            sha256=sha256,
+            file_size=int(file_size),
+            metadata=metadata,
+        )
+        
+        if checkpoint_path is None:
+            return CheckpointUpdateResponse(
+                success=False,
+                error="Failed to receive or validate checkpoint"
+            )
+        
+        # Update all matching sessions
+        updated_sessions = session_manager.update_all_sessions_checkpoint(
+            workspace_config=workspace_config,
+            task_config=task_config,
+            new_checkpoint_path=checkpoint_path,
+        )
+        
+        logger.info(f"Checkpoint update complete. Updated sessions: {updated_sessions}")
+        
+        return CheckpointUpdateResponse(
+            success=True,
+            checkpoint_path=checkpoint_path,
+            updated_sessions=updated_sessions,
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Checkpoint update failed: {e}")
+        logger.error(traceback.format_exc())
+        return CheckpointUpdateResponse(
+            success=False,
+            error=str(e)
+        )
+
+
+@app.get("/backend/sessions")
+async def get_sessions():
+    """Get information about all active inference sessions."""
+    return {
+        "sessions": session_manager.get_sessions_info(),
+        "current_checkpoint": checkpoint_update_manager.current_checkpoint,
+        "update_in_progress": checkpoint_update_manager.is_updating,
+    }
+
 
 if __name__ == "__main__":
     # import debugpy
