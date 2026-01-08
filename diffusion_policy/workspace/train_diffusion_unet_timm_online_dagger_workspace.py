@@ -760,8 +760,8 @@ class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
                             if latest_ckpt_path.is_file():
                                 success = checkpoint_sync.push_checkpoint(
                                     checkpoint_path=str(latest_ckpt_path),
-                                    workspace_config=cfg.name,
-                                    task_config=cfg.task_name,
+                                    workspace_config=cfg.online_training.base_workspace_config,
+                                    task_config=cfg.online_training.base_task_config,
                                     metadata={
                                         'global_step': self.global_step,
                                         'online_weight': sampling_stats['online_weight'],

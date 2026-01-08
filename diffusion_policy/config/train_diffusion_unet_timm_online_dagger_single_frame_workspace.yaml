@@ -150,6 +150,8 @@ online_training:
   episode_clip_tail_seconds: 0.0
   
   # Checkpoint sync settings
+  base_workspace_config: "train_diffusion_unet_timm_single_frame_workspace"
+  base_task_config: "real_pick_and_place_dino"
   sync_interval: 100           # Sync checkpoint to inference server every N steps
   inference_server_url: "http://localhost:8080"
   sync_timeout: 120
