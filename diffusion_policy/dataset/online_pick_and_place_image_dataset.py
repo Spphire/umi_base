@@ -78,6 +78,18 @@ class AdaptiveSampler:
             'online_loss_count': len(self.online_losses),
             'offline_loss_count': len(self.offline_losses),
         }
+    
+    def state_dict(self) -> Dict:
+        return {
+            'online_losses': list(self.online_losses),
+            'offline_losses': list(self.offline_losses),
+            '_online_weight': self._online_weight,
+        }
+    
+    def load_state_dict(self, state_dict: Dict):
+        self.online_losses = deque(state_dict['online_losses'], maxlen=self.window_size)
+        self.offline_losses = deque(state_dict['offline_losses'], maxlen=self.window_size)
+        self._online_weight = state_dict['_online_weight']
 
 
 class OnlinePickAndPlaceImageDataset(BaseImageDataset):
@@ -105,7 +117,6 @@ class OnlinePickAndPlaceImageDataset(BaseImageDataset):
         max_train_episodes: Optional[int] = None,
         delta_action: bool = False,
         relative_action: bool = False,
-        use_quantiles: bool = False,
         action_representation: str = 'relative',
         # Adaptive sampling parameters
         adaptive_window_size: int = 200,
@@ -114,10 +125,11 @@ class OnlinePickAndPlaceImageDataset(BaseImageDataset):
         adaptive_max_online_ratio: float = 0.8,
         # Online buffer settings
         initial_online_weight: float = 0.5,
+        # unused parameters
+        **unused_kwargs,
     ):
         logger.info(f'Initializing OnlinePickAndPlaceImageDataset')
         logger.info(f'  offline_dataset_path: {offline_dataset_path}')
-        logger.info(f'  use_quantiles: {use_quantiles}')
         logger.info(f'  action_representation: {action_representation}')
         
         assert os.path.isdir(offline_dataset_path), f"Offline dataset path not found: {offline_dataset_path}"
@@ -193,7 +205,6 @@ class OnlinePickAndPlaceImageDataset(BaseImageDataset):
         self.n_latency_steps = n_latency_steps
         self.pad_before = pad_before
         self.pad_after = pad_after
-        self.use_quantiles = use_quantiles
         self.action_representation = action_representation
         self.relative_action = relative_action
         self.delta_action = delta_action

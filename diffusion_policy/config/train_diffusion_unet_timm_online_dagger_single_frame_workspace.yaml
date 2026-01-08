@@ -1,6 +1,6 @@
 defaults:
-  - _self_
   - task: real_pick_and_place_dino
+  - _self_
 
 name: train_diffusion_unet_timm_online_dagger_single_frame
 _target_: diffusion_policy.workspace.train_diffusion_unet_timm_online_dagger_workspace.TrainDiffusionUnetTimmOnlineDaggerWorkspace
@@ -113,7 +113,7 @@ training:
   # device: "cuda:0,1,2,3,4,5" not used
   seed: 42
   debug: False
-  resume: True
+  resume: False
   lr_scheduler: constant_with_warmup
   lr_warmup_steps: 0
   num_training_steps: 100000    # Total training steps (step-based, no epochs)
@@ -133,7 +133,7 @@ training:
 # Online training specific configuration
 online_training:
   # Initial checkpoint (required for loading normalizer)
-  initial_checkpoint: null     # Path to initial checkpoint, must be set before training
+  initial_checkpoint_path: null     # Path to initial checkpoint, must be set before training
   
   # Data fetching settings
   datacloud_endpoint: "http://127.0.0.1:8083"
@@ -144,13 +144,13 @@ online_training:
   # Data processing settings
   use_absolute_action: True
   action_type: "left_arm_6DOF_gripper_width"
-  temporal_downsample_ratio: 0
-  use_dino: False
+  temporal_downsample_ratio: 1
+  use_dino: True
   episode_clip_head_seconds: 0.0
   episode_clip_tail_seconds: 0.0
   
   # Checkpoint sync settings
-  sync_interval: 25           # Sync checkpoint to inference server every N steps
+  sync_interval: 100           # Sync checkpoint to inference server every N steps
   inference_server_url: "http://localhost:8080"
   sync_timeout: 120
   sync_retries: 3
@@ -188,7 +188,7 @@ checkpoint:
   topk:
     monitor_key: train_loss
     mode: min
-    k: 5
+    k: 1
     format_str: 'step={global_step:06d}-train_loss={train_loss:.3f}.ckpt'
   save_last_ckpt: True
   save_last_snapshot: False

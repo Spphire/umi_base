@@ -364,7 +364,7 @@ def aggregate_losses_and_update_weight(
     }
 
 
-class TrainOnlineDaggerWorkspace(BaseWorkspace):
+class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
     """
     Online DAgger training workspace implementing SOP-style training loop.
     
@@ -376,7 +376,7 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
     - wandb logging of sampling weights and losses
     - Multi-GPU synchronized training
     """
-    include_keys = ['global_step']
+    include_keys = ['global_step', 'adaptive_sampler_state']
 
     def __init__(self, cfg: OmegaConf, output_dir=None):
         super().__init__(cfg, output_dir=output_dir)
@@ -448,6 +448,7 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                 optimizer_cfg, params=self.model.parameters())
 
         self.global_step = 0
+        self.adaptive_sampler_state = None
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
@@ -464,25 +465,23 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
 
         # Online DAgger requires an initial checkpoint to load normalizer from
         # The normalizer should come from the original trained policy, not recomputed from data
-        initial_ckpt_path = cfg.online_training.initial_checkpoint
+        initial_ckpt_path = cfg.online_training.initial_checkpoint_path
         assert initial_ckpt_path is not None, "Online DAgger requires initial_checkpoint to load normalizer"
         assert os.path.isfile(initial_ckpt_path), f"Initial checkpoint not found: {initial_ckpt_path}"
         
         accelerator.print(f"Loading initial checkpoint from {initial_ckpt_path}")
-        self.load_checkpoint(path=initial_ckpt_path)
-        
+        # do not load optimizer and pickle payloads 
+        if cfg.training.resume:
+            self.load_checkpoint(path=initial_ckpt_path)
+            self.global_step += 1
+        else:
+            self.load_checkpoint(path=initial_ckpt_path, exclude_keys=['optimizer'], include_keys=[])
+
         # Get normalizer from the loaded model
         normalizer = self.model.normalizer
         assert normalizer is not None, "Normalizer not found in initial checkpoint"
         accelerator.print("Normalizer loaded from initial checkpoint")
         
-        # Override with resume checkpoint if exists (for continuing interrupted training)
-        if cfg.training.resume:
-            lastest_ckpt_path = self.get_checkpoint_path()
-            if lastest_ckpt_path.is_file():
-                accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
-                self.load_checkpoint(path=lastest_ckpt_path)
-
         dataset: OnlinePickAndPlaceImageDataset
         if accelerator.is_main_process:
             dataset = hydra.utils.instantiate(cfg.task.dataset)
@@ -491,6 +490,11 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
             dataset = hydra.utils.instantiate(cfg.task.dataset)
             
         assert isinstance(dataset, OnlinePickAndPlaceImageDataset)
+        
+        # Restore adaptive sampler state if resuming
+        if self.adaptive_sampler_state is not None:
+            dataset.adaptive_sampler.load_state_dict(self.adaptive_sampler_state)
+            accelerator.print(f"Restored adaptive sampler state: online_weight={dataset.adaptive_sampler.online_weight:.4f}")
 
         if accelerator.is_main_process:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -656,37 +660,6 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                         accelerator.log(step_log, step=self.global_step)
                         json_logger.log(step_log)
 
-                    # === Checkpoint sync to inference server ===
-                    if accelerator.is_main_process:
-                        if self.global_step > 0 and self.global_step % online_cfg.sync_interval == 0:
-                            model_ddp = self.model
-                            self.model = accelerator.unwrap_model(self.model)
-                            
-                            sync_ckpt_path = os.path.join(
-                                self.output_dir, 
-                                'checkpoints', 
-                                f'sync_step_{self.global_step}.ckpt'
-                            )
-                            self.save_checkpoint(path=sync_ckpt_path, use_thread=False)
-                            
-                            sampling_stats = dataset.get_sampling_stats()
-                            success = checkpoint_sync.push_checkpoint(
-                                checkpoint_path=sync_ckpt_path,
-                                workspace_config=cfg.name,
-                                task_config=cfg.task_name,
-                                metadata={
-                                    'global_step': self.global_step,
-                                    'online_weight': sampling_stats['online_weight'],
-                                }
-                            )
-                            
-                            if success:
-                                logger.info(f"Checkpoint synced to inference server at step {self.global_step}")
-                            else:
-                                logger.warning(f"Failed to sync checkpoint at step {self.global_step}")
-                            
-                            self.model = model_ddp
-
                     # === Sampling ===
                     if self.global_step > 0 and self.global_step % cfg.training.sample_every == 0:
                         policy = accelerator.unwrap_model(self.model)
@@ -753,10 +726,13 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                     # === Save checkpoint ===
                     if self.global_step > 0 and self.global_step % cfg.training.checkpoint_every == 0:
                         accelerator.wait_for_everyone()
-                        
                         if accelerator.is_main_process:
+                            logger.info(f"Saving checkpoint at step {self.global_step}")
                             model_ddp = self.model
                             self.model = accelerator.unwrap_model(self.model)
+                            
+                            # Save adaptive sampler state for resume
+                            self.adaptive_sampler_state = dataset.adaptive_sampler.state_dict()
 
                             if cfg.checkpoint.save_last_ckpt:
                                 self.save_checkpoint()
@@ -775,7 +751,28 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                                 self.save_checkpoint(path=topk_ckpt_path)
 
                             self.model = model_ddp
-
+                    
+                    # === Checkpoint sync to inference server ===
+                    if self.global_step > 0 and self.global_step % online_cfg.sync_interval == 0:
+                        if accelerator.is_main_process:
+                            logger.info(f"Syncing checkpoint to inference server at step {self.global_step}")
+                            latest_ckpt_path = self.get_checkpoint_path()
+                            if latest_ckpt_path.is_file():
+                                success = checkpoint_sync.push_checkpoint(
+                                    checkpoint_path=str(latest_ckpt_path),
+                                    workspace_config=cfg.name,
+                                    task_config=cfg.task_name,
+                                    metadata={
+                                        'global_step': self.global_step,
+                                        'online_weight': sampling_stats['online_weight'],
+                                    }
+                                )
+                                
+                                if success:
+                                    logger.info(f"Checkpoint synced to inference server at step {self.global_step}")
+                                else:
+                                    logger.warning(f"Failed to sync checkpoint at step {self.global_step}")
+                        
                     self.global_step += 1
                     pbar.update(1)
 
