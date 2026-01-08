@@ -687,7 +687,7 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                             
                             self.model = model_ddp
 
-                    # === Evaluation ===
+                    # === Sampling ===
                     if self.global_step > 0 and self.global_step % cfg.training.sample_every == 0:
                         policy = accelerator.unwrap_model(self.model)
                         if cfg.training.use_ema:
@@ -695,31 +695,58 @@ class TrainOnlineDaggerWorkspace(BaseWorkspace):
                         policy.eval()
 
                         with torch.no_grad():
-                            eval_batch_indices = dataset.sample_batch_indices(cfg.dataloader.batch_size)
-                            eval_batch_data = []
-                            for is_online, idx in eval_batch_indices:
-                                item = dataset.get_item_by_source(is_online, idx)
-                                eval_batch_data.append(item)
+                            sampling_log = {}
+                            sampling_batch_size = cfg.dataloader.batch_size
                             
-                            eval_batch = {
-                                'obs': dict_apply(
-                                    {k: torch.stack([d['obs'][k] for d in eval_batch_data]) for k in eval_batch_data[0]['obs'].keys()},
-                                    lambda x: x.to(device)
-                                ),
-                                'action': torch.stack([d['action'] for d in eval_batch_data]).to(device)
-                            }
+                            # Sample from offline data
+                            if dataset.offline_sampler is not None and len(dataset.offline_sampler) > 0:
+                                offline_indices = dataset.sample_offline_indices(sampling_batch_size)
+                                offline_batch_data = [dataset.get_item_by_source(False, idx) for idx in offline_indices]
+                                
+                                offline_batch = {
+                                    'obs': dict_apply(
+                                        {k: torch.stack([d['obs'][k] for d in offline_batch_data]) for k in offline_batch_data[0]['obs'].keys()},
+                                        lambda x: x.to(device)
+                                    ),
+                                    'action': torch.stack([d['action'] for d in offline_batch_data]).to(device)
+                                }
+                                
+                                offline_result = policy.predict_action(offline_batch['obs'])
+                                offline_pred = offline_result['action_pred']
+                                offline_gt = offline_batch['action']
+                                
+                                all_offline_preds, all_offline_gt = accelerator.gather_for_metrics((offline_pred, offline_gt))
+                                
+                                if accelerator.is_main_process:
+                                    offline_mse = torch.nn.functional.mse_loss(all_offline_preds, all_offline_gt)
+                                    sampling_log['train_action_mse_error_offline'] = offline_mse.item()
                             
-                            result = policy.predict_action(eval_batch['obs'])
-                            pred_action = result['action_pred']
-                            gt_action = eval_batch['action']
+                            # Sample from online data (if available)
+                            if dataset.online_sampler is not None and len(dataset.online_sampler) > 0:
+                                online_indices = dataset.sample_online_indices(sampling_batch_size)
+                                online_batch_data = [dataset.get_item_by_source(True, idx) for idx in online_indices]
+                                
+                                online_batch = {
+                                    'obs': dict_apply(
+                                        {k: torch.stack([d['obs'][k] for d in online_batch_data]) for k in online_batch_data[0]['obs'].keys()},
+                                        lambda x: x.to(device)
+                                    ),
+                                    'action': torch.stack([d['action'] for d in online_batch_data]).to(device)
+                                }
+                                
+                                online_result = policy.predict_action(online_batch['obs'])
+                                online_pred = online_result['action_pred']
+                                online_gt = online_batch['action']
+                                
+                                all_online_preds, all_online_gt = accelerator.gather_for_metrics((online_pred, online_gt))
+                                
+                                if accelerator.is_main_process:
+                                    online_mse = torch.nn.functional.mse_loss(all_online_preds, all_online_gt)
+                                    sampling_log['train_action_mse_error_online'] = online_mse.item()
                             
-                            all_preds, all_gt = accelerator.gather_for_metrics((pred_action, gt_action))
-                            
-                            if accelerator.is_main_process:
-                                mse = torch.nn.functional.mse_loss(all_preds, all_gt)
-                                eval_log = {'train_action_mse_error': mse.item()}
-                                accelerator.log(eval_log, step=self.global_step)
-                                json_logger.log(eval_log)
+                            if accelerator.is_main_process and sampling_log:
+                                accelerator.log(sampling_log, step=self.global_step)
+                                json_logger.log(sampling_log)
 
                         policy.train()
 

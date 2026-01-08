@@ -323,6 +323,49 @@ class OnlinePickAndPlaceImageDataset(BaseImageDataset):
         np.random.shuffle(batch)
         return batch
     
+    def sample_offline_indices(self, batch_size: int, replace: bool = False) -> List[int]:
+        """
+        Sample indices from offline buffer only.
+        
+        Args:
+            batch_size: Number of samples to draw
+            replace: If False, sample without replacement
+        
+        Returns list of indices into offline sampler.
+        """
+        offline_len = len(self.offline_sampler)
+        if offline_len == 0:
+            return []
+        
+        if not replace and batch_size <= offline_len:
+            indices = np.random.choice(offline_len, size=batch_size, replace=False)
+        else:
+            indices = np.random.randint(0, offline_len, size=batch_size)
+        return [int(idx) for idx in indices]
+    
+    def sample_online_indices(self, batch_size: int, replace: bool = False) -> List[int]:
+        """
+        Sample indices from online buffer only.
+        
+        Args:
+            batch_size: Number of samples to draw
+            replace: If False, sample without replacement
+        
+        Returns list of indices into online sampler.
+        """
+        if self.online_sampler is None:
+            return []
+        
+        online_len = len(self.online_sampler)
+        if online_len == 0:
+            return []
+        
+        if not replace and batch_size <= online_len:
+            indices = np.random.choice(online_len, size=batch_size, replace=False)
+        else:
+            indices = np.random.randint(0, online_len, size=batch_size)
+        return [int(idx) for idx in indices]
+    
     def get_item_by_source(self, is_online: bool, idx: int) -> Dict[str, torch.Tensor]:
         """Get item from specific buffer (online or offline)."""
         if is_online and self.online_sampler is not None:
