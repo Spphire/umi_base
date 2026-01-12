@@ -125,7 +125,7 @@ training:
   freeze_encoder: False
   # Step-based intervals
   log_every: 1                 # Log metrics every N steps
-  checkpoint_every: 1        # Save checkpoint every N steps
+  checkpoint_every: 100        # Save checkpoint every N steps
   sample_every: 1             # Sample every N steps
   tqdm_interval_sec: 1.0
   encoder_lr_coefficient: 0.1
