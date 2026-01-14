@@ -181,12 +181,13 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
-    def compute_loss(self, batch):
+    def compute_loss(self, batch, return_per_sample_loss=False):
         # normalize input
         assert "valid_mask" not in batch
         nobs = self.normalizer.normalize(batch["obs"])
         nactions = self.normalizer["action"].normalize(batch["action"])
 
+        original_batch_size = nactions.shape[0]
         assert self.obs_as_global_cond
         global_cond = self.obs_encoder(nobs)
 
@@ -242,10 +243,19 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
 
         loss = F.mse_loss(pred, target, reduction="none")
         loss = loss.type(loss.dtype)
-        loss = reduce(loss, "b ... -> b (...)", "mean")
-        loss = loss.mean()
+        # per-sample loss: shape [batch_size] (or [batch_size * n_samples] if repeated)
+        per_sample_loss = reduce(loss, "b ... -> b (...)", "mean").mean(dim=-1)
 
-        return loss
+        if self.train_diffusion_n_samples != 1:
+            # average across repeated samples for each original batch item
+            per_sample_loss = per_sample_loss.view(
+                original_batch_size, self.train_diffusion_n_samples
+            ).mean(dim=-1)
 
-    def forward(self, batch):
-        return self.compute_loss(batch)
+        if return_per_sample_loss:
+            return per_sample_loss
+
+        return per_sample_loss.mean()
+
+    def forward(self, batch, return_per_sample_loss=False):
+        return self.compute_loss(batch, return_per_sample_loss=return_per_sample_loss)

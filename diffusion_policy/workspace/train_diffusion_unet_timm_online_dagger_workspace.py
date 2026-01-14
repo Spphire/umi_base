@@ -302,7 +302,8 @@ def sample_non_overlapping_batch_indices(
 
 
 def aggregate_losses_and_update_weight(
-    batch_loss: float,
+    online_loss_sum: float,
+    offline_loss_sum: float,
     n_online: int,
     n_offline: int,
     dataset: 'OnlinePickAndPlaceImageDataset',
@@ -312,7 +313,8 @@ def aggregate_losses_and_update_weight(
     Aggregate online/offline losses from all GPUs and update sampling weight.
     
     Each GPU reports:
-    - Its batch loss
+    - Sum of per-sample losses for online samples
+    - Sum of per-sample losses for offline samples
     - Number of online samples in its batch
     - Number of offline samples in its batch
     
@@ -322,11 +324,6 @@ def aggregate_losses_and_update_weight(
     Returns dict with aggregated stats.
     """
     device = accelerator.device
-    
-    # Pack local stats: [online_loss_sum, online_count, offline_loss_sum, offline_count]
-    # Loss is weighted by sample count for proper averaging
-    online_loss_sum = batch_loss * n_online if n_online > 0 else 0.0
-    offline_loss_sum = batch_loss * n_offline if n_offline > 0 else 0.0
     
     local_stats = torch.tensor(
         [online_loss_sum, float(n_online), offline_loss_sum, float(n_offline)],
@@ -612,7 +609,8 @@ class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
                         'action': torch.stack([d['action'] for d in batch_data]).to(device)
                     }
 
-                    raw_loss = self.model(batch)
+                    per_sample_loss = self.model(batch, return_per_sample_loss=True)
+                    raw_loss = per_sample_loss.mean()
                     loss = raw_loss / cfg.training.gradient_accumulate_every
                     accelerator.backward(loss)
 
@@ -628,13 +626,19 @@ class TrainDiffusionUnetTimmOnlineDaggerWorkspace(BaseWorkspace):
                     pbar.set_postfix(loss=raw_loss_cpu, refresh=False)
 
                     # === Aggregate losses from all GPUs and update sampling weight ===
-                    n_online = sum(batch_is_online)
+                    batch_is_online_tensor = torch.tensor(batch_is_online, device=device)
+                    n_online = batch_is_online_tensor.sum().item()
                     n_offline = len(batch_is_online) - n_online
                     
+                    # Calculate actual online/offline loss sums from per-sample losses
+                    online_loss_sum = per_sample_loss[batch_is_online_tensor].sum().item() if n_online > 0 else 0.0
+                    offline_loss_sum = per_sample_loss[~batch_is_online_tensor].sum().item() if n_offline > 0 else 0.0
+                    
                     agg_stats = aggregate_losses_and_update_weight(
-                        batch_loss=raw_loss_cpu,
-                        n_online=n_online,
-                        n_offline=n_offline,
+                        online_loss_sum=online_loss_sum,
+                        offline_loss_sum=offline_loss_sum,
+                        n_online=int(n_online),
+                        n_offline=int(n_offline),
                         dataset=dataset,
                         accelerator=accelerator,
                     )
