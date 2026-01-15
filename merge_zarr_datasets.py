@@ -114,9 +114,25 @@ if __name__ == '__main__':
     #     "/home/wendi/Desktop/openpi/data/blocksv2_100",
     #     "/home/wendi/Desktop/openpi/data/blocksv2_dagger_v2_50",
     # ]
+    # data_path_list = [
+    #     "/home/wendi/Desktop/openpi/data/pourmsg_100",
+    #     "/home/wendi/Desktop/openpi/data/pourmsg_dagger_50",
+    # ]
+    # data_path_list = [
+    #     "/home/wendi/Desktop/openpi/data/towel_100",
+    #     "/home/wendi/Desktop/openpi/data/towel_dagger_50",
+    # ]
+    # data_path_list = [
+    #     "/home/wendi/Desktop/openpi/data/towel_100",
+    #     "/home/wendi/Desktop/openpi/data/towel_dagger_v2_50",
+    # ]
+    # data_path_list = [
+    #     "/home/wendi/Desktop/openpi/data/towelv2_100",
+    #     "/home/wendi/Desktop/openpi/data/towelv2_dagger_v3_25",
+    # ]
     data_path_list = [
-        "/home/wendi/Desktop/openpi/data/pourmsg_100",
-        "/home/wendi/Desktop/openpi/data/pourmsg_dagger_50",
+        "/home/wendi/Desktop/openpi/data/towelv2_100",
+        "/home/wendi/Desktop/openpi/data/towelv2_dagger_v3_25_clip",
     ]
     # Generate output path by combining input folder names
     folder_names = [osp.basename(p) for p in data_path_list]
