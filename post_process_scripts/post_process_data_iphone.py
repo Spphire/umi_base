@@ -269,6 +269,10 @@ def convert_data_to_zarr(
             f"{action_type.name} action_type requires both left and right arm data, "
             "but no paired data was found after filtering. Please check your input data."
         )
+    else:
+        right_wrist_img_arrays = None
+        right_robot_tcp_pose_arrays = None
+        right_robot_gripper_width_arrays = None
 
     logger.info(f"episodes: {len(episode_ends_arrays)}")
 
