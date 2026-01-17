@@ -132,7 +132,7 @@ if __name__ == '__main__':
     # ]
     data_path_list = [
         "/home/wendi/Desktop/openpi/data/towelv2_100",
-        "/home/wendi/Desktop/openpi/data/towelv2_dagger_v3_25_clip",
+        "/home/wendi/Desktop/openpi/data/towelv2_dagger_offline_25_clip",
     ]
     # Generate output path by combining input folder names
     folder_names = [osp.basename(p) for p in data_path_list]
