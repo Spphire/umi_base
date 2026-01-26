@@ -8,7 +8,9 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-TASK := real_pick_and_place_dino
+#TASK := real_pick_and_place_dino_head
+TASK := real_pick_and_place_dino_bimanual_head
+# TASK := real_pick_and_place_dino
 # TASK := real_pick_and_place_dino_bimanual
 # TASK := real_pick_and_place_image_iphone
 # TASK := pick_no_fisheye
@@ -26,13 +28,12 @@ WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
-SAVE_BASE_DIR := /home/fangyuan/Documents/umi_base
-SAVE_BASE_DIR := /root/umi_base_devel/data
+SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
 SAVE_FILE_DIR := ${TASK}
 # SAVE_FILE_DIR := test
 # SAVE_FILE_NAME := trial1.pkl
 
-PROJECT_BASE_DIR = /home/fangyuan/Documents/umi_base
+PROJECT_BASE_DIR = /mnt/data/shenyibo/workspace/umi_base
 PROJECT_NAME = umi_base_devel
 
 # docker.build:
@@ -127,9 +128,9 @@ train_acc_amp:
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK} \
-	+task.dataset.local_files_only=/home/wendi/Desktop/openpi/data/pourmsg_100/replay_buffer.zarr \
-	task.name=single_frame_pourmsg_100
+	task=${TASK}
+# 	+task.dataset.local_files_only=/home/wendi/Desktop/openpi/data/pourmsg_100/replay_buffer.zarr \
+#	task.name=single_frame_pourmsg_100
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \
@@ -199,3 +200,11 @@ train.dataset:
 	${PREPARE_ROS} && \
 	export HYDRA_FULL_ERROR=1 && \
 	python scripts/generate_offline_dataset_from_datacloud.py
+
+post_process.vr:
+	python -m post_process_scripts.post_process_data_vr
+
+diffusion_policy.dataset.head:
+	python -m diffusion_policy.dataset.real_pick_and_place_image_head_dataset
+
+#python -m diffusion_policy.dataset.real_pick_and_place_image_dataset

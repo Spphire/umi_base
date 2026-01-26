@@ -134,3 +134,6 @@ class ActionType(Enum):
     right_arm_6DOF_gripper_width = auto() # (x, y, z, rot6d, gripper_width)
     dual_arm_6DOF_gripper_width = auto() # (l_x, l_y, l_z, l_rot6d, r_x, r_y, r_z, r_rot6d, l_gripper_width, r_gripper_width)
     dual_arm_3D_translation_gripper_width = auto() # (l_x, l_y, l_z, r_x, r_y, r_z, l_gripper_width, r_gripper_width)
+
+    head_6DOF_left_arm_6DOF_gripper_width = auto()
+    head_6DOF_dual_arm_6DOF_gripper_width = auto() # (head_x, head_y, head_z, head_rot6d, l_x, l_y, l_z, l_rot6d, r_x, r_y, r_z, r_rot6d, l_gripper_width, r_gripper_width)

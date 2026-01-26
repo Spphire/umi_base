@@ -288,6 +288,28 @@ def get_action_normalizer(actions: np.ndarray, temporally_independent_normalizat
         normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,12:18])))
         if D == 20:
             normalizers.append(normalizer_fn(array_to_stats(actions[...,18:])))
+    elif D == 19: # (x_l, y_l, z_l, rotation_l(, gripper_width_l), head_x, head_y, head_z, head_rotation)
+        normalizers = []
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,9:10])))
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,10:13])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,13:19])))
+    elif D == 27 or D == 29:
+        normalizers = []
+        # left
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
+        # right
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,9:12])))
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,12:18])))
+        # head
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,-9:-6])))
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,-6:])))
+        if D == 29:
+            normalizers.append(normalizer_fn(array_to_stats(actions[...,18:20])))
     else:
         raise NotImplementedError
 

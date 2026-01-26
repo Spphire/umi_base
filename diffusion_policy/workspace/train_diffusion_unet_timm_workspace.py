@@ -345,11 +345,13 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                                 if (cfg.training.max_val_steps is not None) \
                                     and batch_idx >= (cfg.training.max_val_steps-1):
                                     break
-
-                        loss = loss / num
-                        all_loss = accelerator.gather_for_metrics(loss)
-                        if accelerator.is_main_process:
-                            step_log['val_loss'] = all_loss.mean().item()
+                        if loss is not None:
+                            loss = loss / num
+                            all_loss = accelerator.gather_for_metrics(loss)
+                            if accelerator.is_main_process:
+                                step_log['val_loss'] = all_loss.mean().item()
+                        else:
+                            print(f"Warning: validation loss is None, maybe because val dataset is empty: num={num}")
 
                 # run diffusion sampling on a training batch
                 if (self.epoch % cfg.training.sample_every) == 0:

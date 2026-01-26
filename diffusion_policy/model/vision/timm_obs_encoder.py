@@ -357,7 +357,7 @@ class TimmObsEncoder(ModuleAttrMixin):
             B, T = img.shape[:2]
             assert B == batch_size
             # it's B * T during training
-            assert img.shape[2:] == self.key_shape_map[key]
+            assert img.shape[2:] == self.key_shape_map[key], f"{key} shape mismatch: {img.shape[2:]} vs {self.key_shape_map[key]}"
             img = img.reshape(B*T, *img.shape[2:])
             if self.training:
                 img = self.key_transform_map[key](img)

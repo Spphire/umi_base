@@ -16,7 +16,7 @@ from loguru import logger
 import tqdm
 from diffusion_policy.common.normalize_util import get_action_normalizer
 
-class RealPickAndPlaceImageDataset(BaseImageDataset):
+class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
     def __init__(self,
             shape_meta: dict,
             dataset_path: str,
@@ -207,6 +207,16 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
             # convert uint8 image to float32
             obs_dict[key] = np.moveaxis(data[key][T_slice],-1,1
                 ).astype(np.float32) / 255.
+            
+            # # 动态数据增强：有概率用 right_eye_img 替换 left_eye_img
+            # if key == 'left_eye_img' and 'right_eye_img' in data:
+            #     if np.random.rand() < 0.5:  # 50% 概率
+            #         obs_dict[key] = np.moveaxis(data['right_eye_img'][T_slice], -1, 1).astype(np.float32) / 255.
+
+            # # 如果 key 包含 'eye_img'，有一定概率将图像全黑
+            # if 'eye_img' in key and np.random.rand() < 0.3:  # 30% 的概率
+            #     obs_dict[key] = np.zeros_like(obs_dict[key])
+
             # T,C,H,W
             # save ram
             if key not in self.rgb_keys:
@@ -233,6 +243,7 @@ class RealPickAndPlaceImageDataset(BaseImageDataset):
                 obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
                 obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
                 obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
+                #obs_dict['left_eye_tcp_pose'][-1] if 'left_eye_tcp_pose' in obs_dict else np.array([]),
             ], axis=-1)
             action = absolute_actions_to_relative_actions(
                 action, base_absolute_action=base_absolute_action,
@@ -263,10 +274,8 @@ def test():
     OmegaConf.register_new_resolver("eval", eval, replace=True)
 
     with initialize('../config'):
-        #cfg = hydra.compose('train_diffusion_unet_real_image_workspace',
-        #                    overrides=['task=real_whiteboard_image'])
-        cfg = hydra.compose('train_diffusion_transformer_umi_bimanual_workspace',
-                            overrides=['task=real_pick_and_place_dino_bimanual'])
+        cfg = hydra.compose('train_diffusion_transformer_umi_head_workspace',)
+                            #overrides=['task=real_whiteboard_image'])
         OmegaConf.resolve(cfg)
         dataset = hydra.utils.instantiate(cfg.task.dataset)
 

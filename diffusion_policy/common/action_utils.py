@@ -87,7 +87,12 @@ def absolute_actions_to_relative_actions(
         tcp_dim_list = [np.arange(9)]
     elif D == 18 or D == 20:  # (x_l, y_l, z_l, rotation_l, x_r, y_r, z_r, rotation_r(, gripper_width_l, gripper_width_r))
         tcp_dim_list = [np.arange(9), np.arange(9, 18)]
+    elif D == 19:  # (x_l, y_l, z_l, rotation_l(, gripper_width_l), head_x, head_y, head_z, head_rotation)
+        tcp_dim_list = [np.arange(9), np.arange(10, 19)]
+    elif D == 27 or D == 29:  # (x_l, y_l, z_l, rotation_l, x_r, y_r, z_r, rotation_r(, gripper_width_l, gripper_width_r), head_x, head_y, head_z, head_rotation)
+        tcp_dim_list = [np.arange(9), np.arange(9, 18), np.arange(D-9, D)]
     else:
+        print(f"Unsupported action dimension: {D}")
         raise NotImplementedError
 
     if base_absolute_action is None:
@@ -149,6 +154,10 @@ def relative_actions_to_absolute_actions(
         tcp_dim_list = [np.arange(9)]
     elif D == 18 or D == 20:  # (x_l, y_l, z_l, rotation_l, x_r, y_r, z_r, rotation_r(, gripper_width_l, gripper_width_r))
         tcp_dim_list = [np.arange(9), np.arange(9, 18)]
+    elif D == 19:  # (x_l, y_l, z_l, rotation_l(, gripper_width_l), head_x, head_y, head_z, head_rotation)
+        tcp_dim_list = [np.arange(9), np.arange(10, 19)]
+    elif D == 27 or D == 29:  # (x_l, y_l, z_l, rotation_l, x_r, y_r, z_r, rotation_r(, gripper_width_l, gripper_width_r) , head_x, head_y, head_z, head_rotation)
+        tcp_dim_list = [np.arange(9), np.arange(9, 18), np.arange(D-9, D)]
     else:
         raise NotImplementedError
 
