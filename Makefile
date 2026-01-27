@@ -28,56 +28,13 @@ WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
-SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
+SAVE_BASE_DIR := /mnt/workspace/shenyibo/umi_base/data
 SAVE_FILE_DIR := ${TASK}
 # SAVE_FILE_DIR := test
 # SAVE_FILE_NAME := trial1.pkl
 
-PROJECT_BASE_DIR = /mnt/data/shenyibo/workspace/umi_base
+PROJECT_BASE_DIR = /mnt/workspace/shenyibo/umi_base
 PROJECT_NAME = umi_base_devel
-
-# docker.build:
-# 	docker build -t ${IMAGE_NAME}:latest -f docker/Dockerfile .
-
-# # docker.run:
-# # 	@if [ -z "$$(docker ps -q -f name=teleop)" ]; then \
-# # 		docker run -d \
-# # 			--runtime=nvidia \
-# # 			--gpus all \
-# # 			--network host \
-# # 			--privileged \
-# # 			-v ${PROJECT_BASE_DIR}:/root/${PROJECT_NAME}\
-# # 			-v ${SAVE_BASE_DIR}:/root/record_data \
-# # 			-w /root/${PROJECT_NAME} \
-# # 			--name teleop \
-# # 			--shm-size 32G \
-# # 			${IMAGE_NAME}:latest \real_world_env
-# # 			tail -f /dev/null; \
-# # 	fi && \
-# # 	docker exec -it teleop bash
-
-# docker.run:
-# 	docker run -d \
-# 		--runtime=nvidia \
-# 		--gpus all \
-# 		--network host \
-# 		--privileged \
-# 		-v ${PROJECT_BASE_DIR}:/root/${PROJECT_NAME}\
-# 		-v ${SAVE_BASE_DIR}:/root/record_data \
-# 		-w /root/${PROJECT_NAME} \
-# 		--name teleop_fyzhou \
-# 		--shm-size 32G \
-# 		${IMAGE_NAME}:latest \
-# 		tail -f /dev/null; \
-# 	docker exec -it teleop_fyzhou bash
-
-# docker.remove:
-# 	docker rm teleop_fyzhou
-
-# docker.clean:
-# 	docker image rm ${IMAGE_NAME}:latest
-
-# docker.all: docker.build docker.run
 
 teleop.launch_camera:
 	${PREPARE_VENV} && \
@@ -125,12 +82,14 @@ train_acc:
 	task=${TASK}
 
 train_acc_amp:
+	export HF_HUB_OFFLINE=1 && \
+	export HF_HOME=/mnt/workspace/shenyibo/.cache/huggingface && \
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK}
-# 	+task.dataset.local_files_only=/home/wendi/Desktop/openpi/data/pourmsg_100/replay_buffer.zarr \
-#	task.name=single_frame_pourmsg_100
+ 	#task.dataset.local_files_only=/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr \
+	#task.name=single_frame_packsnackq3_100
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \

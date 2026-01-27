@@ -685,8 +685,8 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '.cache/targz'
-    output_dir = '.cache/packsnackq3_1-24'
+    input_dir = '/mnt/workspace/shenyibo/data/umi_base/targz'
+    output_dir = '/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24'
     debug = False  # 设置为True以进行调试
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作

@@ -208,14 +208,14 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             obs_dict[key] = np.moveaxis(data[key][T_slice],-1,1
                 ).astype(np.float32) / 255.
             
-            # # 动态数据增强：有概率用 right_eye_img 替换 left_eye_img
-            # if key == 'left_eye_img' and 'right_eye_img' in data:
-            #     if np.random.rand() < 0.5:  # 50% 概率
-            #         obs_dict[key] = np.moveaxis(data['right_eye_img'][T_slice], -1, 1).astype(np.float32) / 255.
+            # 动态数据增强：有概率用 right_eye_img 替换 left_eye_img
+            if key == 'left_eye_img' and 'right_eye_img' in data:
+                if np.random.rand() < 0.5:  # 50% 概率
+                    obs_dict[key] = np.moveaxis(data['right_eye_img'][T_slice], -1, 1).astype(np.float32) / 255.
 
-            # # 如果 key 包含 'eye_img'，有一定概率将图像全黑
-            # if 'eye_img' in key and np.random.rand() < 0.3:  # 30% 的概率
-            #     obs_dict[key] = np.zeros_like(obs_dict[key])
+            # 如果 key 包含 'eye_img'，有一定概率将图像全黑
+            if 'eye_img' in key and np.random.rand() < 0.3:  # 30% 的概率
+                obs_dict[key] = np.zeros_like(obs_dict[key])
 
             # T,C,H,W
             # save ram
