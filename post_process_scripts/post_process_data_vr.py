@@ -685,14 +685,14 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/workspace/shenyibo/data/umi_base/targz'
-    output_dir = '/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24'
+    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_shop_bagging_0202'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0202'
     debug = False  # 设置为True以进行调试
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
     action_type = ActionType.head_6DOF_dual_arm_6DOF_gripper_width  # 设置动作类型
     overwrite = True  # 是否覆盖已有数据
-    use_dino = True  # 是否使用DINO
+    use_dino = False  # 是否使用DINO
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
     gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
 

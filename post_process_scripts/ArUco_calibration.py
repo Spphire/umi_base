@@ -230,7 +230,7 @@ def run_aruco_world_pnp_verbose(data, ArUco_ids=[0,1]):
     for id in ArUco_ids:
         result["OK"]["frame_idx"][id] = []
         result["OK"]["ArUco_poses"][id] = []
-
+    print(data.keys())
     N = min(len(data["leftCameraFrames"]), len(data["rightCameraFrames"]))
 
     K_l = build_camera_matrix_from_list(data["leftCameraIntrinsics"])

@@ -119,7 +119,8 @@ dataset:
   max_train_episodes: null
   delta_action: False
   relative_action: True
-  local_files_only: "/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr"
+  #local_files_only: "/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr"
+  local_files_only: "/mnt/data/shenyibo/workspace/umi_base/.cache/packsnackq3_1-24/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
   identifier: packsnackq3_1-24
   use_data_filtering: False

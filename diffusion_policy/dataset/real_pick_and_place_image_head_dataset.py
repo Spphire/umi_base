@@ -15,6 +15,7 @@ from diffusion_policy.common.action_utils import absolute_actions_to_relative_ac
 from loguru import logger
 import tqdm
 from diffusion_policy.common.normalize_util import get_action_normalizer
+from diffusion_policy.dataset.image_augmentation import apply_image_augmentation, batch_resize_thwc
 
 class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
     def __init__(self,
@@ -202,20 +203,22 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
 
         obs_dict = dict()
         for key in self.rgb_keys:
+            img = data[key][T_slice]  # H W C, uint8, 0-255
+            if key == 'left_eye_img' and 'right_eye_img' in data:
+                if np.random.rand() < 0.5:  # 50% 概率
+                    img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
+                if np.random.rand() < 0.2:
+                    img = np.zeros_like(img)  # 20% 的概率全黑
+                img = apply_image_augmentation(img)
+                img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
+            else:
+                img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
+
             # move channel last to channel first
             # T,H,W,C
             # convert uint8 image to float32
-            obs_dict[key] = np.moveaxis(data[key][T_slice],-1,1
+            obs_dict[key] = np.moveaxis(img,-1,1
                 ).astype(np.float32) / 255.
-            
-            # 动态数据增强：有概率用 right_eye_img 替换 left_eye_img
-            if key == 'left_eye_img' and 'right_eye_img' in data:
-                if np.random.rand() < 0.5:  # 50% 概率
-                    obs_dict[key] = np.moveaxis(data['right_eye_img'][T_slice], -1, 1).astype(np.float32) / 255.
-
-            # 如果 key 包含 'eye_img'，有一定概率将图像全黑
-            if 'eye_img' in key and np.random.rand() < 0.3:  # 30% 的概率
-                obs_dict[key] = np.zeros_like(obs_dict[key])
 
             # T,C,H,W
             # save ram
@@ -229,7 +232,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         for key in self.lowdim_keys:
             if 'wrt' in key:
                 obs_dict[key] = obs_dict[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
-
+        
         action = data['action'][:, :self.shape_meta['action']['shape'][0]].astype(np.float32)
         # handle latency by dropping first n_latency_steps action
         # observations are already taken care of by T_slice

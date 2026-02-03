@@ -382,7 +382,7 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         self.save_checkpoint()
                     if cfg.checkpoint.save_last_snapshot:
                         self.save_snapshot()
-                    if (self.epoch % 100) == 100-1:
+                    if ((self.epoch // cfg.training.checkpoint_every) % cfg.training.checkpoint_every) == cfg.training.checkpoint_every-1:
                         self.save_checkpoint(path=pathlib.Path(self.output_dir).joinpath('checkpoints', f'{self.epoch}.ckpt'))
 
                     # sanitize metric names

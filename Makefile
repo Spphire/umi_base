@@ -8,19 +8,9 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
+# TASK := real_pick_and_place_dino_bimanual_head
 #TASK := real_pick_and_place_dino_head
-TASK := real_pick_and_place_dino_bimanual_head
-# TASK := real_pick_and_place_dino
-# TASK := real_pick_and_place_dino_bimanual
-# TASK := real_pick_and_place_image_iphone
-# TASK := pick_no_fisheye
-# TASK := real_pick_and_place_image
-# TASK := real_pick_and_place_gr00t
-# TASK := real_pick_and_place_pi0
-# TASK := single_arm_iphone_teleop
-# TASK := single_arm_one_realsense_30fps
-# TASK := bimanual_one_realsense_rgb_left_30fps
-
+TASK := q3_shop_bagging_0202
 # workspace config , have to be consistent with the task
 # WKSPACE := train_diffusion_unet_real_image_workspace
 # WKSPACE := train_diffusion_unet_timm_workspace
@@ -28,12 +18,12 @@ WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
-SAVE_BASE_DIR := /mnt/workspace/shenyibo/umi_base/data
+SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
 SAVE_FILE_DIR := ${TASK}
 # SAVE_FILE_DIR := test
 # SAVE_FILE_NAME := trial1.pkl
 
-PROJECT_BASE_DIR = /mnt/workspace/shenyibo/umi_base
+PROJECT_BASE_DIR = /mnt/data/shenyibo/workspace/umi_base
 PROJECT_NAME = umi_base_devel
 
 teleop.launch_camera:
@@ -82,14 +72,24 @@ train_acc:
 	task=${TASK}
 
 train_acc_amp:
-	export HF_HUB_OFFLINE=1 && \
-	export HF_HOME=/mnt/workspace/shenyibo/.cache/huggingface && \
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/4gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK}
  	#task.dataset.local_files_only=/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr \
 	#task.name=single_frame_packsnackq3_100
+
+train_acc8:
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/8gpu.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK}
+
+train_acc8_amp:
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK}
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \
