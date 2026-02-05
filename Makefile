@@ -128,7 +128,7 @@ eval.replay:
 	export HYDRA_FULL_ERROR=1 && \
 	python replay.py \
 	--config-name ${WKSPACE} \
-	task=replay_cloud_data
+	task=q3_shop_bagging_0202_replay
 
 eval.draw_circle:
 	${PREPARE_ROS} && \
@@ -144,7 +144,7 @@ eval.inference:
 	--config-name ${WKSPACE} \
 	task=${TASK} \
 	+task.env_runner.output_dir='data/outputs/$(shell date +%Y.%m.%d)/$(shell date +%H.%M.%S)_${TASK}_inference_video' \
-    +ckpt_path='/home/fangyuan/Documents/GitHub/julyfun/umi_base/data/outputs/2025.11.11/22.20.46_train_diffusion_unet_timm_single_right_arm_pick_and_place_s1_image_only/checkpoints/latest.ckpt'
+    +ckpt_path='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.03/10.09.10_train_diffusion_unet_timm_q3_shop_bagging_0202_100/checkpoints/1190.ckpt'
 
 
 test.cloud_dataset:

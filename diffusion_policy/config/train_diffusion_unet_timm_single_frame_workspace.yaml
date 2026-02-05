@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: packsnackq3_1-24
+  - task: q3_shop_bagging_0202
 
 name: train_diffusion_unet_timm
 _target_: diffusion_policy.workspace.train_diffusion_unet_timm_workspace.TrainDiffusionUnetTimmWorkspace
@@ -40,7 +40,7 @@ policy:
     _target_: diffusion_policy.model.vision.timm_obs_encoder.TimmObsEncoder
     shape_meta: ${shape_meta}
     model_name: 'vit_base_patch16_clip_224.openai'
-    # model_name: 'vit_base_patch14_dinov2.lvd142m'
+    #model_name: 'vit_base_patch14_dinov2.lvd142m'
     # model_name: 'convnext_base.clip_laion2b_augreg_ft_in12k'
     pretrained: True
     frozen: False

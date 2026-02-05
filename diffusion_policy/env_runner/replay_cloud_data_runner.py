@@ -150,11 +150,12 @@ class ReplayCloudDataRunner:
 
         # 加载数据集
 
-        from diffusion_policy.dataset.cloud_pick_and_place_image_dataset import CloudPickAndPlaceImageDataset
-        self.dataset = CloudPickAndPlaceImageDataset(
-            identifier="arrange_mouse",
+        from diffusion_policy.dataset.cloud_pick_and_place_image_head_dataset import CloudPickAndPlaceImageHeadDataset
+        self.dataset = CloudPickAndPlaceImageHeadDataset(
+            local_files_only="/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0202/replay_buffer.zarr",
             debug=True
         )
+        self.dataset.zarr_path = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0202/'
 
         # 读取TCP姿态数据
         self.zarr_data = zarr.open(self.dataset.zarr_path + 'replay_buffer.zarr', mode='r')

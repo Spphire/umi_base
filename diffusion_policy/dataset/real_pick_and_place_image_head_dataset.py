@@ -51,6 +51,8 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         
         zarr_path = os.path.join(dataset_path)
         zarr_load_keys = rgb_keys + lowdim_keys + ['action']
+        if 'left_eye_img' in zarr_load_keys:
+            zarr_load_keys.append('right_eye_img')
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
         
@@ -207,6 +209,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             if key == 'left_eye_img' and 'right_eye_img' in data:
                 if np.random.rand() < 0.5:  # 50% 概率
                     img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
+            if key == 'left_eye_img':
                 if np.random.rand() < 0.2:
                     img = np.zeros_like(img)  # 20% 的概率全黑
                 img = apply_image_augmentation(img)
