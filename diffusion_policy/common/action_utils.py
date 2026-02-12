@@ -192,7 +192,7 @@ def relative_actions_to_absolute_actions(
                 "xzy", only_y_rotation, degrees=False
             ).as_matrix()
             base_tcp_pose_mat[0, :3, :3] = only_y_rotation
-            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(np.linalg.inv(global_transform) @ base_tcp_pose_mat @ action_tcp_pose_mat)[:, :len(tcp_dim)]
+            actions[:, tcp_dim] = homo_matrix_to_pose_9d_batch(np.linalg.inv(base_tcp_pose_mat) @ action_tcp_pose_mat)[:, :len(tcp_dim)]
         else:
             raise NotImplementedError
 

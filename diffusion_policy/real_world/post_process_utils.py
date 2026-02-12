@@ -322,7 +322,8 @@ class DataPostProcessingManagerVR:
         self,
         session: Dict,
         clip_head_seconds: float = 0.0,
-        clip_tail_seconds: float = 0.0
+        clip_tail_seconds: float = 0.0,
+        use_aruco_calibration: bool = True
     ) -> Optional[Dict[str, np.ndarray]]:
         obs_dict = dict()
 
@@ -343,7 +344,8 @@ class DataPostProcessingManagerVR:
             # 处理头部数据
             if camera_position in ['', 'head']:
                 head_data = get_full_data(record)
-                aruco_result = run_aruco_world_pnp_verbose(head_data)
+                if use_aruco_calibration:
+                    aruco_result = run_aruco_world_pnp_verbose(head_data)
                 continue
 
             # 处理手臂数据
@@ -491,25 +493,31 @@ class DataPostProcessingManagerVR:
             return unity2ar
         
         unity2leftar, unity2rightar = None, None
-        try:
-            chosen_aruco_id = 0
-            chosen_arkit_label = 'left_wrist'
-            unity2leftar = get_unity2ar(chosen_aruco_id, chosen_arkit_label)
-        except Exception as e:
-            print(e)
-            print("failed to calculate unity2leftar transforms based on aruco calibration")
-            return None
-        
-        if 'right_wrist' in timestamps.keys():
+        if use_aruco_calibration:
             try:
-                chosen_aruco_id = 1
-                chosen_arkit_label = 'right_wrist' 
-                unity2rightar = get_unity2ar(chosen_aruco_id, chosen_arkit_label)
+                chosen_aruco_id = 0
+                chosen_arkit_label = 'left_wrist'
+                unity2leftar = get_unity2ar(chosen_aruco_id, chosen_arkit_label)
             except Exception as e:
                 print(e)
-                print("failed to calculate unity2rightar transforms based on aruco calibration")
+                print("failed to calculate unity2leftar transforms based on aruco calibration")
                 return None
-        print("finished calculating unity2ar transforms based on aruco calibration")
+            
+            if 'right_wrist' in timestamps.keys():
+                try:
+                    chosen_aruco_id = 1
+                    chosen_arkit_label = 'right_wrist' 
+                    unity2rightar = get_unity2ar(chosen_aruco_id, chosen_arkit_label)
+                except Exception as e:
+                    print(e)
+                    print("failed to calculate unity2rightar transforms based on aruco calibration")
+                    return None
+            print("finished calculating unity2ar transforms based on aruco calibration")
+        else:
+            # 不使用ArUco校准时，使用单位矩阵（即不进行坐标转换）
+            unity2leftar = np.eye(4)
+            unity2rightar = np.eye(4)
+            print("ArUco calibration disabled, using identity transform")
 
 
 
