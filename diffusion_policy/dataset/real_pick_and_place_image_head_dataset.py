@@ -53,6 +53,10 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         zarr_load_keys = rgb_keys + lowdim_keys + ['action']
         if 'left_eye_img' in zarr_load_keys:
             zarr_load_keys.append('right_eye_img')
+        if 'left_robot_gripper_width' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
+            zarr_load_keys.append('left_robot_gripper_width')
+        if 'right_robot_gripper_width' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
+            zarr_load_keys.append('right_robot_gripper_width')
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
         
@@ -144,8 +148,6 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         else:
             relative_data_dict = {}
         inter_gripper_data_dict = {key: list() for key in self.lowdim_keys if 'wrt' in key}
-        print(relative_data_dict.keys())
-        print(inter_gripper_data_dict.keys())
         
         for data in tqdm.tqdm(self, leave=False, desc='Calculating inter-gripper relative obs and relative action/obs for normalizer'):
             for key in relative_data_dict.keys():
@@ -247,9 +249,12 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             base_absolute_action = np.concatenate([
                 obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
                 obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
-                obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
-                obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
-                #obs_dict['left_eye_tcp_pose'][-1] if 'left_eye_tcp_pose' in obs_dict else np.array([]),
+
+                data['left_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'left_robot_gripper_width' in data else np.array([]),
+                data['right_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'right_robot_gripper_width' in data else np.array([]),
+
+                #obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
+                #obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)
             action = absolute_actions_to_relative_actions(
                 action, base_absolute_action=base_absolute_action,

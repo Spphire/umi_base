@@ -7,7 +7,7 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_shop_bagging_0202_100
+name: q3_block_100_nogripperinput
 
 image_shape: [3, 224, 224]
 
@@ -21,41 +21,14 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       horizon: ${n_obs_steps}
       shape: [9]
       type: low_dim
-    left_robot_gripper_width:
-      horizon: ${n_obs_steps}
-      shape: [1]
-      type: low_dim
-    # left_robot_wrt_right_robot_tcp_pose:
-    #   horizon: ${n_obs_steps}
-    #   shape: [9]
-    #   type: low_dim
-    right_wrist_img:
-      horizon: ${n_obs_steps}
-      shape: ${task.image_shape}
-      type: rgb
-    right_robot_tcp_pose:
-      horizon: ${n_obs_steps}
-      shape: [9]
-      type: low_dim
-    right_robot_gripper_width:
-      horizon: ${n_obs_steps}
-      shape: [1]
-      type: low_dim
-    # right_robot_wrt_left_robot_tcp_pose:
-    #   horizon: ${n_obs_steps}
-    #   shape: [9]
-    #   type: low_dim
 
     left_eye_img:
       horizon: ${n_obs_steps}
       shape: ${task.image_shape}
       type: rgb
-    # left_eye_tcp_pose:
-    #   horizon: ${n_obs_steps}
-    #   shape: [9]
-    #   type: low_dim
+
   action:
-    shape: [20]
+    shape: [10]
     horizon: ${horizon}
 
 env_runner:
@@ -120,12 +93,12 @@ dataset:
   delta_action: False
   relative_action: True
   #local_files_only: "/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr"
-  local_files_only: "/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0202/replay_buffer.zarr"
+  local_files_only: "/mnt/data/shenyibo/workspace/umi_base/.cache/blockq3_1-28/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
-  identifier: q3_shop_bagging_0202_100
+  identifier: q3_block_100_nogripperinput
   use_data_filtering: False
   use_absolute_action: True
-  action_type: head_6DOF_dual_arm_6DOF_gripper_width
+  action_type: head_6DOF_left_arm_6DOF_gripper_width
   temporal_downsample_ratio: 1
   temporal_upsample_ratio: 0
   use_dino: True

@@ -8,9 +8,12 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #  && export ROS_DOMAIN_ID=192.168.2.223
 
 # teleop config
-# TASK := real_pick_and_place_dino_bimanual_head
-#TASK := real_pick_and_place_dino_head
-TASK := q3_shop_bagging_0202
+
+#TASK := q3_shop_bagging_0202
+#TASK := q3_shop_bagging_0207_250
+#TASK := q3_shop_bagging_0207_150_nogripperinput
+TASK := q3_block_100_nogripperinput
+
 # workspace config , have to be consistent with the task
 # WKSPACE := train_diffusion_unet_real_image_workspace
 # WKSPACE := train_diffusion_unet_timm_workspace

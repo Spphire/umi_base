@@ -28,8 +28,8 @@ def convert_data_to_zarr(
     gripper_width_scale: float = 1.0,
     tcp_transform: np.ndarray = np.eye(4, dtype=np.float32),
     image_mask_path: str = '',
-    episode_clip_head_seconds: float = 0.5,
-    episode_clip_tail_seconds: float = 0.5
+    episode_clip_head_seconds: float = 0.0,
+    episode_clip_tail_seconds: float = 0.0
 ) -> str:
     """
     将VR原始数据转换为zarr格式存储。
@@ -685,12 +685,38 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_shop_bagging_0202'
-    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0202'
+    # input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_shop_bagging_0207_100_150/150'
+    # output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_shop_bagging_0207_150'
+    # debug = False  # 设置为True以进行调试
+    # temporal_downsample_ratio = 1  # 设置时序降采样比例
+    # use_absolute_action = True  # 使用绝对动作
+    # action_type = ActionType.head_6DOF_dual_arm_6DOF_gripper_width  # 设置动作类型
+    # overwrite = True  # 是否覆盖已有数据
+    # use_dino = False  # 是否使用DINO
+    # gripper_width_bias = 0.0  # 设置夹爪宽度偏差
+    # gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
+
+    # zarr_path = convert_data_to_zarr(
+    #     input_dir=input_dir,
+    #     output_dir=output_dir,
+    #     temporal_downsample_ratio=temporal_downsample_ratio,
+    #     use_absolute_action=use_absolute_action,
+    #     action_type=action_type,
+    #     debug=debug,
+    #     overwrite=overwrite,
+    #     use_dino=use_dino,
+    #     gripper_width_bias=gripper_width_bias,
+    #     gripper_width_scale=gripper_width_scale
+    # )
+
+    # print(f"Data saved to {zarr_path}")
+
+    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_blockq3_1-28'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/blockq3_1-28'
     debug = False  # 设置为True以进行调试
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
-    action_type = ActionType.head_6DOF_dual_arm_6DOF_gripper_width  # 设置动作类型
+    action_type = ActionType.head_6DOF_left_arm_6DOF_gripper_width  # 设置动作类型
     overwrite = True  # 是否覆盖已有数据
     use_dino = False  # 是否使用DINO
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
@@ -706,7 +732,9 @@ if __name__ == '__main__':
         overwrite=overwrite,
         use_dino=use_dino,
         gripper_width_bias=gripper_width_bias,
-        gripper_width_scale=gripper_width_scale
+        gripper_width_scale=gripper_width_scale,
+        episode_clip_head_seconds=0.3,
+        episode_clip_tail_seconds=0.3,
     )
 
     print(f"Data saved to {zarr_path}")
