@@ -16,6 +16,7 @@ __pycache__/
 *$py.class
 tmp*
 output_images
+GroundingDINO
 
 # C extensions
 *.so

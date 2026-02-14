@@ -63,13 +63,14 @@ class HandArmSegmentor:
         self.sam_predictor = SamPredictor(sam)
         
         # 检测文本提示（英文，用于检测人手和手臂）
-        self.text_prompt = "hand . arm . human hand . human arm"
-        self.box_threshold = 0.25
-        self.text_threshold = 0.25
+        # 更精确的提示，避免误检测桌子等物体
+        self.text_prompt = "human hand . human arm . person hand . person arm"
+        self.box_threshold = 0.35  # 提高阈值减少误检
+        self.text_threshold = 0.30
         
         logger.info("HandArmSegmentor initialized successfully")
     
-    def segment_hand_arm(self, image: np.ndarray) -> np.ndarray:
+    def segment_hand_arm(self, image: np.ndarray, debug: bool = False) -> np.ndarray:
         """
         对单张图像进行手和手臂的分割
         
@@ -79,25 +80,61 @@ class HandArmSegmentor:
         返回:
             mask: 二值mask，shape为(H, W)，手和手臂区域为True，其他为False
         """
-        # 转换为PIL Image以供GroundingDINO使用
+        # 转换为RGB并创建PIL Image
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image_pil = Image.fromarray(image_rgb)
         
-        # 使用GroundingDINO检测手和手臂
-        image_source, image_tensor = load_image(image_pil)
+        # 保存临时文件供load_image使用
+        import tempfile
+        import os as os_temp
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            image_pil.save(tmp_path)
         
-        boxes, logits, phrases = predict(
-            model=self.grounding_model,
-            image=image_tensor,
-            caption=self.text_prompt,
-            box_threshold=self.box_threshold,
-            text_threshold=self.text_threshold,
-            device=self.device
-        )
+        try:
+            # 使用GroundingDINO检测手和手臂
+            image_source, image_tensor = load_image(tmp_path)
+            
+            boxes, logits, phrases = predict(
+                model=self.grounding_model,
+                image=image_tensor,
+                caption=self.text_prompt,
+                box_threshold=self.box_threshold,
+                text_threshold=self.text_threshold,
+                device=self.device
+            )
+        finally:
+            # 删除临时文件
+            if os_temp.path.exists(tmp_path):
+                os_temp.unlink(tmp_path)
+        
+        # 调试：打印检测结果
+        if debug and len(boxes) > 0:
+            logger.info(f"Detected {len(boxes)} boxes with logits: {logits.max(dim=-1)[0].cpu().numpy()}")
+            logger.info(f"Detected phrases: {phrases}")
         
         # 如果没有检测到手或手臂，返回空mask
         if len(boxes) == 0:
             return np.zeros(image.shape[:2], dtype=bool)
+        
+        # 过滤掉不相关的检测（根据 phrase 内容）
+        valid_indices = []
+        for idx, phrase in enumerate(phrases):
+            phrase_lower = phrase.lower()
+            # 只保留明确包含 hand 或 arm 的检测
+            if 'hand' in phrase_lower or 'arm' in phrase_lower:
+                # 排除可能的误检（如 armchair 等）
+                if 'chair' not in phrase_lower and 'table' not in phrase_lower:
+                    valid_indices.append(idx)
+        
+        if len(valid_indices) == 0:
+            return np.zeros(image.shape[:2], dtype=bool)
+        
+        # 只使用有效的检测框
+        boxes = boxes[valid_indices]
+        
+        if debug:
+            logger.info(f"After filtering: {len(boxes)} valid boxes")
         
         # 使用SAM进行精确分割
         self.sam_predictor.set_image(image_rgb)
@@ -123,23 +160,32 @@ class HandArmSegmentor:
         # 合并所有检测到的masks
         combined_mask = masks.cpu().numpy().any(axis=0).squeeze()
         
+        # 调试：保存可视化结果
+        if debug:
+            debug_img = image_rgb.copy()
+            debug_img[combined_mask] = [255, 0, 0]  # 红色标记mask区域
+            cv2.imwrite('.cache/debug_mask_visualization.png', cv2.cvtColor(debug_img, cv2.COLOR_RGB2BGR))
+            logger.info("Debug visualization saved to .cache/debug_mask_visualization.png")
+        
         return combined_mask
     
-    def mask_hand_arm_in_image(self, image: np.ndarray, mask_value: int = 0) -> np.ndarray:
+    def mask_hand_arm_in_image(self, image: np.ndarray, mask_value: int = 0, debug: bool = False) -> np.ndarray:
         """
         在图像中mask掉手和手臂区域
         
         参数:
             image: 输入图像，numpy数组，shape为(H, W, 3)
             mask_value: 用于填充mask区域的值，0为黑色，255为白色
+            debug: 是否开启调试模式
             
         返回:
             masked_image: 处理后的图像
         """
-        mask = self.segment_hand_arm(image)
+        mask = self.segment_hand_arm(image, debug=debug)
         masked_image = image.copy()
         masked_image[mask] = mask_value
         return masked_image
+
 
 
 def convert_data_to_zarr(
@@ -244,6 +290,8 @@ def convert_data_to_zarr(
     left_robot_gripper_width_arrays = []
     left_eye_tcp_pose_arrays = []
     left_eye_img_arrays = []
+    right_eye_tcp_pose_arrays = []
+    right_eye_img_arrays = []
     episode_ends_arrays = []
     total_count = 0
     
@@ -319,17 +367,17 @@ def convert_data_to_zarr(
                                       total=len(record_sessions),
                                       desc="Processing sessions",
                                       dynamic_ncols=True):
-        try:
-            obs_dict = data_processing_manager.extract_msg_to_obs_dict(
-                session[1],
-                clip_head_seconds=episode_clip_head_seconds,
-                clip_tail_seconds=episode_clip_tail_seconds,
-                use_aruco_calibration=False
-            )
-        except Exception as e:
-            logger.error(f"Failed to extract obs_dict for session {session[0]}: {e}")
-            skipped_sessions += 1
-            continue
+        # try:
+        obs_dict = data_processing_manager.extract_msg_to_obs_dict(
+            session[1],
+            clip_head_seconds=episode_clip_head_seconds,
+            clip_tail_seconds=episode_clip_tail_seconds,
+            use_aruco_calibration=False
+        )
+        # except Exception as e:
+        #     logger.error(f"Failed to extract obs_dict for session {session[0]}: {e}")
+        #     skipped_sessions += 1
+        #     continue
             
         if obs_dict is None:
             logger.warning(f"obs_dict is None for {session[0]}")
@@ -401,15 +449,16 @@ def convert_data_to_zarr(
         
         # 处理头部TCP pose（无坐标转换）
         left_eye_tcp_pose_arrays.append(obs_dict['left_eye_tcp_pose'])
+        right_eye_tcp_pose_arrays.append(obs_dict['right_eye_tcp_pose'])
         
         # 处理头部图像（应用手臂遮罩）
         if 'left_eye_img' in obs_dict:
             # 保存第一张原始图片
             if not os.path.exists('.cache'):
                 os.makedirs('.cache')
-            first_image_path = '.cache/left_eye_img_0_raw.png'
-            cv2.imwrite(first_image_path, obs_dict['left_eye_img'][0])
-            logger.info(f"First left eye image (raw) saved to {first_image_path}")
+            first_image_path = '.cache/left_eye_img_-1_raw.png'
+            cv2.imwrite(first_image_path, obs_dict['left_eye_img'][-1])
+            logger.info(f"Last left eye image (raw) saved to {first_image_path}")
             
             processed_images = []
             
@@ -420,13 +469,17 @@ def convert_data_to_zarr(
                                                 desc=f"Masking session {session_idx+1}",
                                                 leave=False)):
                     try:
-                        masked_img = hand_segmentor.mask_hand_arm_in_image(img, mask_value=hand_mask_value)
+                        # rgb->bgr
+                        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                        debug_mode = (idx == len(obs_dict['left_eye_img'])-1)
+                        masked_img = hand_segmentor.mask_hand_arm_in_image(img, mask_value=hand_mask_value, debug=debug_mode)
+                        #masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
                         
                         # 保存第一张masked图片以便检查
-                        if idx == 0:
-                            first_masked_path = '.cache/left_eye_img_0_masked.png'
+                        if idx == len(obs_dict['left_eye_img'])-1:
+                            first_masked_path = '.cache/left_eye_img_-1_masked.png'
                             cv2.imwrite(first_masked_path, masked_img)
-                            logger.info(f"First left eye image (masked) saved to {first_masked_path}")
+                            logger.info(f"Last left eye image (masked) saved to {first_masked_path}")
                         
                         if use_dino:
                             masked_img = center_crop_and_resize_image(masked_img, crop=False)
@@ -446,6 +499,55 @@ def convert_data_to_zarr(
                     processed_images.append(img)
             
             left_eye_img_arrays.append(np.array(processed_images))
+
+        if 'right_eye_img' in obs_dict:
+            # 保存第一张原始图片
+            if not os.path.exists('.cache'):
+                os.makedirs('.cache')
+            first_image_path = '.cache/right_eye_img_-1_raw.png'
+            cv2.imwrite(first_image_path, obs_dict['right_eye_img'][-1])
+            logger.info(f"Last right eye image (raw) saved to {first_image_path}")
+            
+            processed_images = []
+            
+            # 应用手臂遮罩
+            if use_hand_masking and hand_segmentor is not None:
+                logger.info(f"Applying hand/arm masking to {len(obs_dict['right_eye_img'])} frames...")
+                for idx, img in enumerate(tqdm(obs_dict['right_eye_img'], 
+                                                desc=f"Masking session {session_idx+1}",
+                                                leave=False)):
+                    try:
+                        # rgb->bgr
+                        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                        debug_mode = (idx == len(obs_dict['right_eye_img'])-1)
+                        masked_img = hand_segmentor.mask_hand_arm_in_image(img, mask_value=hand_mask_value, debug=debug_mode)
+                        #masked_img = cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB)
+                        
+                        # 保存第一张masked图片以便检查
+                        if idx == len(obs_dict['right_eye_img'])-1:
+                            first_masked_path = '.cache/right_eye_img_-1_masked.png'
+                            cv2.imwrite(first_masked_path, masked_img)
+                            logger.info(f"Last right eye image (masked) saved to {first_masked_path}")
+                        
+                        if use_dino:
+                            masked_img = center_crop_and_resize_image(masked_img, crop=False)
+                        processed_images.append(masked_img)
+                    except Exception as e:
+                        logger.error(f"Failed to mask frame {idx} in session {session[0]}: {e}")
+                        # 如果遮罩失败，使用原图
+                        img_to_use = img
+                        if use_dino:
+                            img_to_use = center_crop_and_resize_image(img, crop=False)
+                        processed_images.append(img_to_use)
+            else:
+                # 不使用遮罩
+                for img in obs_dict['right_eye_img']:
+                    if use_dino:
+                        img = center_crop_and_resize_image(img, crop=False)
+                    processed_images.append(img)
+            
+            right_eye_img_arrays.append(np.array(processed_images))
+
     
     if skipped_sessions > 0:
         logger.warning(
@@ -467,6 +569,11 @@ def convert_data_to_zarr(
         left_eye_tcp_pose_arrays = np.vstack(left_eye_tcp_pose_arrays)
     if left_eye_img_arrays:
         left_eye_img_arrays = np.vstack(left_eye_img_arrays)
+
+    if right_eye_tcp_pose_arrays:
+        right_eye_tcp_pose_arrays = np.vstack(right_eye_tcp_pose_arrays)
+    if right_eye_img_arrays:
+        right_eye_img_arrays = np.vstack(right_eye_img_arrays)
     
     logger.info(f"Total episodes: {len(episode_ends_arrays)}")
     logger.info(f"Total frames: {len(timestamp_arrays)}")
@@ -495,7 +602,9 @@ def convert_data_to_zarr(
         episode_ends_arrays,
         left_wrist_img_arrays,
         left_eye_tcp_pose_arrays,
-        left_eye_img_arrays
+        left_eye_img_arrays,
+        right_eye_tcp_pose_arrays,
+        right_eye_img_arrays
     )
     
     # 打印数据结构信息
@@ -534,7 +643,9 @@ def create_zarr_storage(
     episode_ends_arrays: np.ndarray,
     left_wrist_img_arrays: Optional[np.ndarray] = None,
     left_eye_tcp_pose_arrays: Optional[np.ndarray] = None,
-    left_eye_img_arrays: Optional[np.ndarray] = None
+    left_eye_img_arrays: Optional[np.ndarray] = None,
+    right_eye_tcp_pose_arrays: Optional[np.ndarray] = None,
+    right_eye_img_arrays: Optional[np.ndarray] = None,
 ) -> tuple:
     """创建zarr存储"""
     zarr_root = zarr.group(save_data_path)
@@ -590,14 +701,23 @@ def create_zarr_storage(
     if left_eye_img_arrays is not None and len(left_eye_img_arrays) > 0:
         zarr_data.create_dataset('left_eye_img', data=left_eye_img_arrays,
                                chunks=wrist_img_chunk_size, dtype='uint8')
+        
+    if right_eye_tcp_pose_arrays is not None and len(right_eye_tcp_pose_arrays) > 0:
+        zarr_data.create_dataset('right_eye_tcp_pose', data=right_eye_tcp_pose_arrays,
+                               chunks=(10000, 9), dtype='float32',
+                               overwrite=True, compressor=compressor)
+
+    if right_eye_img_arrays is not None and len(right_eye_img_arrays) > 0:
+        zarr_data.create_dataset('right_eye_img', data=right_eye_img_arrays,
+                               chunks=wrist_img_chunk_size, dtype='uint8')
     
     return zarr_data, zarr_meta
 
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_blockq3_1-28'
-    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/blockq3_1-28_masked'
+    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_mouse_dh'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh'
     debug = False  # 设置为True以进行调试（只处理前5个文件）
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
@@ -608,13 +728,13 @@ if __name__ == '__main__':
     gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
     
     # 手臂遮罩相关参数
-    use_hand_masking = True  # 是否使用手臂遮罩
+    use_hand_masking = False  # 是否使用手臂遮罩
     hand_mask_value = 0  # 遮罩值，0为黑色，255为白色
     
     # GroundedSAM模型路径（需要根据实际情况修改）
     grounding_dino_config = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
-    grounding_dino_checkpoint = "weights/groundingdino_swint_ogc.pth"
-    sam_checkpoint = "weights/sam_vit_h_4b8939.pth"
+    grounding_dino_checkpoint = "GroundingDINO/weights/groundingdino_swint_ogc.pth"
+    sam_checkpoint = "GroundingDINO/weights/sam_vit_h_4b8939.pth"
     sam_model_type = "vit_h"
     
     zarr_path = convert_data_to_zarr(

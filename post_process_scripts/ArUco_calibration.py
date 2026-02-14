@@ -30,6 +30,11 @@ def build_camera_matrix_from_list(intrin):
 # Unity (LH) -> OpenCV (RH)
 # ============================================================
 
+def unity2zup_right_frame_batch(pos_quat):
+    assert pos_quat.ndim == 2, "Expected shape (n, 7) for pos_quat"
+    assert pos_quat.shape[1] == 7, "Expected shape (n, 7) for pos_quat"
+    return np.array([unity2zup_right_frame(pq) for pq in pos_quat])
+
 def unity2zup_right_frame(pos_quat):
     pos_quat = np.array(pos_quat) * np.array([1, -1, 1, 1, -1, 1, -1])
     rot_mat = t3d.quaternions.quat2mat(pos_quat[3:])

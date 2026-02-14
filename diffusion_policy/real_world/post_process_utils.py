@@ -14,7 +14,7 @@ import os
 import json
 
 from post_process_scripts.head_data_process_util import get_full_data
-from post_process_scripts.ArUco_calibration import run_aruco_world_pnp_verbose, poses_to_T, T_to_pose
+from post_process_scripts.ArUco_calibration import run_aruco_world_pnp_verbose, poses_to_T, T_to_pose, unity2zup_right_frame_batch
 from scipy.spatial.transform import Rotation as R
 
 class DataPostProcessingManager:
@@ -296,7 +296,7 @@ class DataPostProcessingManagerVR:
     def read_bson(self, file_path):
         data = self.load_bson_file(file_path)
         if data is None:
-            return
+            return None, None, None
 
         timestamps, arkit_poses, gripper_widths = self.get_numpy_arrays(data)
         return timestamps, arkit_poses, gripper_widths
@@ -600,8 +600,21 @@ class DataPostProcessingManagerVR:
             [0,  0,  0, 1],
         ]) # spetial for unity
 
-        left_eye_poses = T_to_pose(unity2leftar @ aruco_result["cam_l_poses"][unity_match_idx] @ Rx_180)
-        right_eye_poses = T_to_pose(unity2leftar @ aruco_result["cam_r_poses"][unity_match_idx] @ Rx_180)
+        if use_aruco_calibration and aruco_result is not None:
+            left_eye_poses = T_to_pose(unity2leftar @ aruco_result["cam_l_poses"][unity_match_idx] @ Rx_180)
+            right_eye_poses = T_to_pose(unity2leftar @ aruco_result["cam_r_poses"][unity_match_idx] @ Rx_180)
+        else:
+            # 不使用ArUco校准时，直接使用Unity相机姿态（ARKit坐标系）
+            left_cam_poses = np.array(head_data.get('leftCameraPoses', []))
+            right_cam_poses = np.array(head_data.get('rightCameraPoses', []))
+            
+            if len(left_cam_poses) == 0 or len(right_cam_poses) == 0:
+                logger.warning("Camera poses not found in head_data")
+                return None
+            print(left_cam_poses.shape)
+            # 转换为变换矩阵并应用旋转
+            left_eye_poses = T_to_pose(unity2zup_right_frame_batch(left_cam_poses[unity_match_idx]))
+            right_eye_poses = T_to_pose(unity2zup_right_frame_batch(right_cam_poses[unity_match_idx]))
 
         if self.use_6d_rotation:
             a_9d = [pose_6d_to_pose_9d(pose_7d_to_pose_6d(pose)) for pose in left_eye_poses]

@@ -12,7 +12,8 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 #TASK := q3_shop_bagging_0202
 #TASK := q3_shop_bagging_0207_250
 #TASK := q3_shop_bagging_0207_150_nogripperinput
-TASK := q3_block_100_nogripperinput
+#TASK := q3_block_100_nogripperinput
+TASK := q3_mouse
 
 # workspace config , have to be consistent with the task
 # WKSPACE := train_diffusion_unet_real_image_workspace

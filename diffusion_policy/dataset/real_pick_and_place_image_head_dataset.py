@@ -34,10 +34,14 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             use_quantiles=False,
             action_representation='relative',
             dagger_sampling_ratio=1,
+            random_mask_head_image=True,
         ):
         logger.info(f'use_quantiles: {use_quantiles}')
         logger.info(f'using action representation: {action_representation}')
         assert os.path.isdir(dataset_path)
+
+        self.random_mask_head_image = random_mask_head_image
+        logger.info(f"Randomly masking head image is {'enabled' if self.random_mask_head_image else 'disabled'}.")
 
         rgb_keys = list()
         lowdim_keys = list()
@@ -208,13 +212,15 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         obs_dict = dict()
         for key in self.rgb_keys:
             img = data[key][T_slice]  # H W C, uint8, 0-255
-            if key == 'left_eye_img' and 'right_eye_img' in data:
-                if np.random.rand() < 0.5:  # 50% 概率
-                    img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
+            print("================")
+            print("no head view augmentation !!")
+            # if key == 'left_eye_img' and 'right_eye_img' in data:
+            #     if np.random.rand() < 0.5:  # 50% 概率
+            #         img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
             if key == 'left_eye_img':
-                if np.random.rand() < 0.2:
-                    img = np.zeros_like(img)  # 20% 的概率全黑
-                img = apply_image_augmentation(img)
+                # if np.random.rand() < 0.2 and self.random_mask_head_image:  # 20% 的概率
+                #     img = np.zeros_like(img)  # 20% 的概率全黑
+                # img = apply_image_augmentation(img)
                 img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
             else:
                 img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
