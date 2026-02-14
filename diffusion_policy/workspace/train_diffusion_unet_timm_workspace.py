@@ -368,6 +368,25 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         if accelerator.is_main_process:
                             mse = torch.nn.functional.mse_loss(all_preds, all_gt)
                             step_log['train_action_mse_error'] = mse.item()
+                            
+                            # Check if left_eye_img (head view) exists, and compute MSE with masked head image
+                            if 'left_eye_img' in obs_dict:
+                                # Create a masked version of obs_dict with left_eye_img set to 0 (black)
+                                obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
+                                obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
+                                
+                                # Predict action with masked observation
+                                result_masked = policy.predict_action(obs_dict_masked)
+                                pred_action_masked = result_masked['action_pred']
+                                
+                                all_preds_masked, _ = accelerator.gather_for_metrics((pred_action_masked, gt_action))
+                                
+                                # Log the MSE difference
+                                mse_no_head = torch.nn.functional.mse_loss(all_preds_masked, all_gt)
+                                step_log['train_action_mse_error_no_head'] = mse_no_head.item()
+                                
+                                # Log the difference for direct comparison
+                                step_log['train_action_mse_head_importance'] = (mse_no_head - mse).item()
 
                 accelerator.wait_for_everyone()
                 
