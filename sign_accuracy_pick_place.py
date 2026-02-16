@@ -102,14 +102,6 @@ def preprocess_image(img, target_size=224, is_wrist=True):
     img_resized = cv2.resize(img_square, (target_size, target_size), interpolation=cv2.INTER_LINEAR)
     return img_resized.astype(np.float32) / 255.0
 
-
-def absolute_to_relative_action(actions: np.ndarray) -> np.ndarray:
-    relative_actions = np.zeros_like(actions)
-    relative_actions[0] = actions[0]
-    relative_actions[1:] = actions[1:] - actions[:-1]
-    return relative_actions
-
-
 def select_gripper_width_key(episode_data: dict, expected_keys: Optional[set] = None) -> str:
     candidates = [k for k in episode_data.keys() if "gripper_width" in k.lower()]
     if expected_keys:
@@ -339,6 +331,7 @@ def compute_sign_accuracy(
     gt_actions: np.ndarray,
     idx: int,
     zero_eps: float = 1e-6,
+    relative: bool = False,
 ) -> Tuple[float, int, int]:
     if pred_chunk is None or len(pred_chunk) == 0:
         return float("nan"), 0, 0
@@ -346,6 +339,8 @@ def compute_sign_accuracy(
     chunk_end = min(idx + len(pred_chunk) - 1, len(gt_actions) - 1)
     pred_x = pred_chunk[: chunk_end - idx + 1, 0]
     gt_x = gt_actions[idx:chunk_end + 1, 0]
+    if relative:
+        gt_x -= gt_actions[idx - 1, 0]
 
     valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
     if valid.sum() == 0:
@@ -377,9 +372,9 @@ def plot_debug_episode(
     pred_x = pred_actions[:, 0]
     gt_x = gt_actions[:, 0]
 
-    if plot_relative:
-        pred_x = np.concatenate([[0.0], pred_x[1:] - pred_x[:-1]])
-        gt_x = np.concatenate([[0.0], gt_x[1:] - gt_x[:-1]])
+    # if plot_relative:
+    #     pred_x = np.concatenate([[0.0], pred_x[1:] - pred_x[:-1]])
+        #gt_x = np.concatenate([[0.0], gt_x[1:] - gt_x[:-1]])
 
     valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
     same = (np.sign(pred_x) == np.sign(gt_x)) & valid
@@ -440,7 +435,7 @@ def main():
     parser.add_argument("--smooth-window", type=int, default=5, help="Smoothing window for gripper width")
     parser.add_argument("--zero-eps", type=float, default=1e-6, help="Ignore near-zero actions")
     parser.add_argument("--output-csv", default=None, help="Optional output CSV path")
-    parser.add_argument("--debug-episode", type=int, default=None, help="If set, only run this episode and save debug plot")
+    parser.add_argument("--debug-episode", type=int, default=93, help="If set, only run this episode and save debug plot")
     parser.add_argument("--debug-dir", default="./debug_sign_accuracy", help="Output directory for debug plots")
     args = parser.parse_args()
 
@@ -500,7 +495,15 @@ def main():
                 action_representation=action_representation,
                 relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
             )
-            pred_chunk = pred_actions[idx:idx + getattr(policy, "n_action_steps", 8)]
+            pred_chunk = pred_chunk = predict_actions_chunk_at_index(
+                policy,
+                episode_data,
+                device,
+                n_obs_steps=args.n_obs_steps,
+                action_representation=action_representation,
+                relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
+                idx=idx,
+            )
         else:
             pred_chunk = predict_actions_chunk_at_index(
                 policy,
@@ -512,17 +515,12 @@ def main():
                 idx=idx,
             )
 
-        gt_actions_eval = gt_actions
-        plot_relative = False
-        if action_representation != "relative":
-            gt_actions_eval = absolute_to_relative_action(gt_actions)
-            plot_relative = True
-
         acc, correct, valid = compute_sign_accuracy(
             pred_chunk,
-            gt_actions_eval,
+            gt_actions,
             idx,
             zero_eps=args.zero_eps,
+            relative=action_representation == "relative"
         )
 
         total_correct += correct
@@ -542,10 +540,10 @@ def main():
                 gripper_width,
                 window,
                 pred_actions,
-                gt_actions_eval,
+                gt_actions,
                 args.zero_eps,
                 max(1, int(chunk_len)) if chunk_len > 0 else getattr(policy, "n_action_steps", 8),
-                plot_relative,
+                action_representation == "relative",
                 args.debug_dir,
             )
             break
