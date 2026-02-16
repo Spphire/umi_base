@@ -298,6 +298,7 @@ def compute_sign_accuracy(
     pred_actions: np.ndarray,
     gt_actions: np.ndarray,
     window: Tuple[int, int],
+    chunk_len: int,
     zero_eps: float = 1e-6,
 ) -> Tuple[float, int, int]:
     start, end = window
@@ -305,16 +306,18 @@ def compute_sign_accuracy(
     start = min(start, end)
 
     idx = end
-    pred_x = pred_actions[idx, 0]
-    gt_x = gt_actions[idx, 0]
+    chunk_end = min(idx + max(1, int(chunk_len)) - 1, len(pred_actions) - 1, len(gt_actions) - 1)
 
-    valid = (abs(gt_x) > zero_eps) and (abs(pred_x) > zero_eps)
-    if not valid:
+    pred_x = pred_actions[idx:chunk_end + 1, 0]
+    gt_x = gt_actions[idx:chunk_end + 1, 0]
+
+    valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
+    if valid.sum() == 0:
         return float("nan"), 0, 0
 
-    correct = np.sign(pred_x) == np.sign(gt_x)
-    acc = 1.0 if correct else 0.0
-    return acc, int(correct), 1
+    correct = np.sign(pred_x[valid]) == np.sign(gt_x[valid])
+    acc = float(correct.mean())
+    return acc, int(correct.sum()), int(valid.sum())
 
 
 def plot_debug_episode(
@@ -324,6 +327,7 @@ def plot_debug_episode(
     pred_actions: np.ndarray,
     gt_actions: np.ndarray,
     zero_eps: float,
+    chunk_len: int,
     output_dir: str,
 ):
     w = np.asarray(gripper_width).squeeze()
@@ -331,6 +335,7 @@ def plot_debug_episode(
     end = min(end, len(pred_actions) - 1, len(gt_actions) - 1)
     start = min(start, end)
     idx = end
+    chunk_end = min(idx + max(1, int(chunk_len)) - 1, len(pred_actions) - 1, len(gt_actions) - 1)
 
     pred_x = pred_actions[:, 0]
     gt_x = gt_actions[:, 0]
@@ -347,6 +352,7 @@ def plot_debug_episode(
     ax1.plot(w, color="black", linewidth=2, label="gripper_width")
     ax1.axvspan(start, end, color="orange", alpha=0.2, label="closing_window")
     ax1.axvline(idx, color="blue", linestyle=":", linewidth=2, label="test_frame")
+    ax1.axvspan(idx, chunk_end, color="cyan", alpha=0.15, label="test_chunk")
     ax1.set_title(f"Episode {episode_idx} - Gripper Width with Closing Window")
     ax1.set_xlabel("Timestep")
     ax1.set_ylabel("Width")
@@ -359,6 +365,7 @@ def plot_debug_episode(
     ax2.plot(t, pred_x, color="red", linewidth=2, linestyle="--", label="Pred X")
     ax2.axvspan(start, end, color="orange", alpha=0.2, label="closing_window")
     ax2.axvline(idx, color="blue", linestyle=":", linewidth=2, label="test_frame")
+    ax2.axvspan(idx, chunk_end, color="cyan", alpha=0.15, label="test_chunk")
 
     if len(same) == len(t):
         good_idx = np.where(same)[0]
@@ -392,7 +399,7 @@ def main():
     parser.add_argument("--smooth-window", type=int, default=5, help="Smoothing window for gripper width")
     parser.add_argument("--zero-eps", type=float, default=1e-6, help="Ignore near-zero actions")
     parser.add_argument("--output-csv", default=None, help="Optional output CSV path")
-    parser.add_argument("--debug-episode", type=int, default=0, help="If set, only run this episode and save debug plot")
+    parser.add_argument("--debug-episode", type=int, default=None, help="If set, only run this episode and save debug plot")
     parser.add_argument("--debug-dir", default="./debug_sign_accuracy", help="Output directory for debug plots")
     args = parser.parse_args()
 
@@ -458,15 +465,18 @@ def main():
             pred_actions,
             gt_actions,
             window,
+            chunk_len=n_action_steps,
             zero_eps=args.zero_eps,
         )
 
         total_correct += correct
         total_valid += valid
 
+        idx = min(window[1], len(pred_actions) - 1, len(gt_actions) - 1)
+        chunk_end = min(idx + max(1, int(n_action_steps)) - 1, len(pred_actions) - 1, len(gt_actions) - 1)
         print(
-            f"Episode {ep_idx}: window={window}, valid={valid}, "
-            f"correct={correct}, acc={acc if not np.isnan(acc) else 'nan'}"
+            f"Episode {ep_idx}: window={window}, test_chunk=({idx},{chunk_end}), "
+            f"valid={valid}, correct={correct}, acc={acc if not np.isnan(acc) else 'nan'}"
         )
         episode_results.append((ep_idx, window[0], window[1], acc, correct, valid))
 
@@ -478,6 +488,7 @@ def main():
                 pred_actions,
                 gt_actions,
                 args.zero_eps,
+                n_action_steps,
                 args.debug_dir,
             )
             break
