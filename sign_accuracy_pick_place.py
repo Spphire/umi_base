@@ -495,7 +495,7 @@ def main():
                 action_representation=action_representation,
                 relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
             )
-            pred_chunk = pred_actions[idx:idx + n_action_steps]
+            pred_chunk = pred_actions[idx:idx + getattr(policy, "n_action_steps", 8)]
         else:
             pred_chunk = predict_actions_chunk_at_index(
                 policy,
@@ -524,7 +524,8 @@ def main():
         total_correct += correct
         total_valid += valid
 
-        chunk_end = min(idx + max(1, int(n_action_steps)) - 1, len(gt_actions) - 1)
+        chunk_len = len(pred_chunk) if pred_chunk is not None else 0
+        chunk_end = min(idx + max(1, int(chunk_len)) - 1, len(gt_actions) - 1)
         print(
             f"Episode {ep_idx}: window={window}, test_chunk=({idx},{chunk_end}), "
             f"valid={valid}, correct={correct}, acc={acc if not np.isnan(acc) else 'nan'}"
@@ -539,7 +540,7 @@ def main():
                 pred_actions,
                 gt_actions,
                 args.zero_eps,
-                n_action_steps,
+                max(1, int(chunk_len)) if chunk_len > 0 else getattr(policy, "n_action_steps", 8),
                 args.debug_dir,
             )
             break
