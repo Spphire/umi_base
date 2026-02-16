@@ -294,21 +294,57 @@ def predict_actions_for_episode(
     return np.array(pred_actions)
 
 
+def predict_actions_chunk_at_index(
+    policy,
+    episode_data: dict,
+    device: torch.device,
+    n_obs_steps: int,
+    action_representation: str,
+    relative_tcp_obs_for_relative_action: bool,
+    idx: int,
+) -> np.ndarray:
+    img_keys = [k for k in episode_data.keys() if "img" in k.lower()]
+    expected_keys = None
+    if hasattr(policy, "normalizer") and hasattr(policy.normalizer, "params_dict"):
+        expected_keys = set(policy.normalizer.params_dict.keys())
+        img_keys = [k for k in img_keys if k in expected_keys]
+
+    lowdim_keys = []
+    if expected_keys is not None:
+        lowdim_keys = [k for k in expected_keys if ("img" not in k) and (k != "action")]
+
+    n_action_steps = getattr(policy, "n_action_steps", 8)
+    obs = build_obs_window(
+        episode_data,
+        idx,
+        n_obs_steps,
+        img_keys,
+        lowdim_keys,
+        action_representation,
+        relative_tcp_obs_for_relative_action,
+    )
+    if obs is None:
+        return np.empty((0,))
+
+    obs = dict_apply(obs, lambda x: x.unsqueeze(0).to(device))
+    with torch.no_grad():
+        result = policy.predict_action(obs)
+    pred_full = result["action_pred"][0].detach().cpu().numpy()
+    pred_seq = pred_full[:n_action_steps]
+    return pred_seq
+
+
 def compute_sign_accuracy(
-    pred_actions: np.ndarray,
+    pred_chunk: np.ndarray,
     gt_actions: np.ndarray,
-    window: Tuple[int, int],
-    chunk_len: int,
+    idx: int,
     zero_eps: float = 1e-6,
 ) -> Tuple[float, int, int]:
-    start, end = window
-    end = min(end, len(pred_actions) - 1, len(gt_actions) - 1)
-    start = min(start, end)
+    if pred_chunk is None or len(pred_chunk) == 0:
+        return float("nan"), 0, 0
 
-    idx = end
-    chunk_end = min(idx + max(1, int(chunk_len)) - 1, len(pred_actions) - 1, len(gt_actions) - 1)
-
-    pred_x = pred_actions[idx:chunk_end + 1, 0]
+    chunk_end = min(idx + len(pred_chunk) - 1, len(gt_actions) - 1)
+    pred_x = pred_chunk[: chunk_end - idx + 1, 0]
     gt_x = gt_actions[idx:chunk_end + 1, 0]
 
     valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
@@ -446,34 +482,49 @@ def main():
             episode_results.append((ep_idx, None, None, float("nan"), 0, 0))
             continue
 
-        pred_actions = predict_actions_for_episode(
-            policy,
-            episode_data,
-            device,
-            n_obs_steps=args.n_obs_steps,
-            action_representation=action_representation,
-            relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
-        )
-
         gt_actions = np.asarray(episode_data["action"])
 
+        idx = min(window[1], len(gt_actions) - 1)
+
+        if args.debug_episode is not None:
+            pred_actions = predict_actions_for_episode(
+                policy,
+                episode_data,
+                device,
+                n_obs_steps=args.n_obs_steps,
+                action_representation=action_representation,
+                relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
+            )
+            pred_chunk = pred_actions[idx:idx + n_action_steps]
+        else:
+            pred_chunk = predict_actions_chunk_at_index(
+                policy,
+                episode_data,
+                device,
+                n_obs_steps=args.n_obs_steps,
+                action_representation=action_representation,
+                relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
+                idx=idx,
+            )
+
         if action_representation == "absolute":
-            pred_actions = absolute_to_relative_action(pred_actions)
             gt_actions = absolute_to_relative_action(gt_actions)
+            if pred_chunk is not None and len(pred_chunk) > 0:
+                pred_chunk = absolute_to_relative_action(pred_chunk)
+            if args.debug_episode is not None:
+                pred_actions = absolute_to_relative_action(pred_actions)
 
         acc, correct, valid = compute_sign_accuracy(
-            pred_actions,
+            pred_chunk,
             gt_actions,
-            window,
-            chunk_len=n_action_steps,
+            idx,
             zero_eps=args.zero_eps,
         )
 
         total_correct += correct
         total_valid += valid
 
-        idx = min(window[1], len(pred_actions) - 1, len(gt_actions) - 1)
-        chunk_end = min(idx + max(1, int(n_action_steps)) - 1, len(pred_actions) - 1, len(gt_actions) - 1)
+        chunk_end = min(idx + max(1, int(n_action_steps)) - 1, len(gt_actions) - 1)
         print(
             f"Episode {ep_idx}: window={window}, test_chunk=({idx},{chunk_end}), "
             f"valid={valid}, correct={correct}, acc={acc if not np.isnan(acc) else 'nan'}"
