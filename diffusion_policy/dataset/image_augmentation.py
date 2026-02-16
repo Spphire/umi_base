@@ -45,7 +45,7 @@ def adjust_brightness_contrast_gamma(
     img = np.power(img, gamma)
     img = np.clip(img, 0.0, 1.0)
 
-    return (img * 255.0).astype(np.uint8)
+    return (img * 255.0).astype(np.float32)
 
 
 
@@ -54,8 +54,8 @@ def channel_gain(img, gain_range=(0.95, 1.05)):
     gains = np.random.uniform(gain_range[0], gain_range[1], size=3)
     for c in range(3):
         img[:, :, c] *= gains[c]
-    img = np.clip(img, 0, 255)
-    return img.astype(np.uint8)
+    img = np.clip(img, 0, 255.0)
+    return img.astype(np.float32)
 
 
 def slight_gaussian_blur(img, kernel_choices=(3, 5)):
@@ -84,21 +84,21 @@ def slight_translation(img, max_shift_ratio=0.05):
         borderMode=cv2.BORDER_REFLECT_101
     )
 
-def _augment_single_frame(img):
-    if random.random() < 0.8:
-        img = slight_rotate(img)
+def _augment_single_frame(img, apply_transform=True):
     if random.random() < 0.3:
+        img = jpeg_compression(img)
+    if random.random() < 0.8 and apply_transform:  # 80% 的概率应用变换
+        img = slight_rotate(img)
+    if random.random() < 0.3 and apply_transform:
         img = slight_translation(img)
     img = adjust_brightness_contrast_gamma(img)
     if random.random() < 0.5:
         img = channel_gain(img)
     if random.random() < 0.3:
         img = slight_gaussian_blur(img)
-    if random.random() < 0.3:
-        img = jpeg_compression(img)
     return img
 
-def apply_image_augmentation(img):
+def apply_image_augmentation(img, apply_transform=True):
     """
     img: HWC uint8 或 THWC uint8
     返回同维度 uint8
@@ -106,9 +106,9 @@ def apply_image_augmentation(img):
 
     # 如果是多帧，逐帧增强
     if img.ndim == 4:  # T H W C
-        return np.stack([_augment_single_frame(f) for f in img], axis=0)
+        return np.stack([_augment_single_frame(f, apply_transform) for f in img], axis=0)
     else:  # 单帧 H W C
-        return _augment_single_frame(img)
+        return _augment_single_frame(img, apply_transform)
     
 def batch_resize_thwc(
     imgs,
