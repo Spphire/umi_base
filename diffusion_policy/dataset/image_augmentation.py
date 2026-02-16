@@ -30,16 +30,23 @@ def adjust_brightness_contrast_gamma(
     img,
     brightness_range=(-20, 20),
     contrast_range=(0.9, 1.1),
-    gamma_range=(0.9, 1.1)
+    gamma_range=(0.95, 1.05)  # 收窄一点
 ):
     img = img.astype(np.float32)
+
     brightness = random.uniform(*brightness_range)
     contrast = random.uniform(*contrast_range)
     gamma = random.uniform(*gamma_range)
+
     img = img * contrast + brightness
     img = np.clip(img, 0, 255)
-    img = np.power(img / 255.0, gamma) * 255.0
-    return img.astype(np.uint8)
+
+    img = img / 255.0
+    img = np.power(img, gamma)
+    img = np.clip(img, 0.0, 1.0)
+
+    return (img * 255.0).astype(np.uint8)
+
 
 
 def channel_gain(img, gain_range=(0.95, 1.05)):

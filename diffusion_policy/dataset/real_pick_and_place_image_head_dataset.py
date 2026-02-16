@@ -212,24 +212,29 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         obs_dict = dict()
         for key in self.rgb_keys:
             img = data[key][T_slice]  # H W C, uint8, 0-255
-            print("================")
-            print("no head view augmentation !!")
             # if key == 'left_eye_img' and 'right_eye_img' in data:
             #     if np.random.rand() < 0.5:  # 50% 概率
             #         img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
-            if key == 'left_eye_img':
+            if 'eye' in key:
                 # if np.random.rand() < 0.2 and self.random_mask_head_image:  # 20% 的概率
                 #     img = np.zeros_like(img)  # 20% 的概率全黑
-                # img = apply_image_augmentation(img)
+                img = apply_image_augmentation(img)
                 img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
-            else:
+            elif 'wrist' in key:
                 img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
+
+                if np.random.rand() < 0.2:  # 20% 的概率
+                    #img = np.zeros_like(img)  # 20% 的概率全黑
+                    img = np.random.uniform(0, 0.01, size=img.shape).astype(np.float32)
+            else:
+                logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
+                raise NotImplementedError(f"Unknown image key: {key}")
 
             # move channel last to channel first
             # T,H,W,C
             # convert uint8 image to float32
-            obs_dict[key] = np.moveaxis(img,-1,1
-                ).astype(np.float32) / 255.
+            obs_dict[key] = np.clip(np.moveaxis(img,-1,1
+                ).astype(np.float32) / 255., 0., 1.)
 
             # T,C,H,W
             # save ram
