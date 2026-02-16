@@ -231,6 +231,7 @@ def build_obs_window(
             if k in lowdim_keys:
                 obs[k] = torch.from_numpy(v.astype(np.float32))
 
+    obs['left_eye_img'] = torch.zeros_like(obs['left_eye_img'])
     return obs
 
 
@@ -424,7 +425,11 @@ def plot_debug_episode(
 
 def main():
     parser = argparse.ArgumentParser(description="Pick-and-place sign accuracy evaluation")
-    parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
+    # mask wrist
+    # parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
+    # 
+    parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.14/11.45.00_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
+    
     parser.add_argument("--cfg", default=None, help="Optional cfg yaml path")
     parser.add_argument("--dataset", default='/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh/replay_buffer.zarr', help="Path to replay_buffer.zarr")
     parser.add_argument("--n-obs-steps", type=int, default=1, help="Observation history length")
@@ -435,7 +440,7 @@ def main():
     parser.add_argument("--smooth-window", type=int, default=5, help="Smoothing window for gripper width")
     parser.add_argument("--zero-eps", type=float, default=1e-6, help="Ignore near-zero actions")
     parser.add_argument("--output-csv", default=None, help="Optional output CSV path")
-    parser.add_argument("--debug-episode", type=int, default=93, help="If set, only run this episode and save debug plot")
+    parser.add_argument("--debug-episode", type=int, default=None, help="If set, only run this episode and save debug plot")
     parser.add_argument("--debug-dir", default="./debug_sign_accuracy", help="Output directory for debug plots")
     args = parser.parse_args()
 
