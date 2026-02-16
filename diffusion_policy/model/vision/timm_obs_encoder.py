@@ -327,6 +327,20 @@ class TimmObsEncoder(ModuleAttrMixin):
         self._last_feature_map = dict()
         return result
 
+    def get_param_grad_norms(self, norm_type: float = 2.0):
+        result = {}
+        for key, module in self.key_model_map.items():
+            total = 0.0
+            count = 0
+            for p in module.parameters():
+                if p.grad is None:
+                    continue
+                total += p.grad.norm(p=norm_type).item()
+                count += 1
+            if count > 0:
+                result[key] = total / count
+        return result
+
     def aggregate_feature(self, feature, fused_feature=None):
         if self.model_name.startswith('vit'):
             if self.feature_aggregation == 'cls_token':
