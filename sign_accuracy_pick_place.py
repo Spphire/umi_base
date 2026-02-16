@@ -364,6 +364,7 @@ def plot_debug_episode(
     gt_actions: np.ndarray,
     zero_eps: float,
     chunk_len: int,
+    plot_relative: bool,
     output_dir: str,
 ):
     w = np.asarray(gripper_width).squeeze()
@@ -375,6 +376,10 @@ def plot_debug_episode(
 
     pred_x = pred_actions[:, 0]
     gt_x = gt_actions[:, 0]
+
+    if plot_relative:
+        pred_x = np.concatenate([[0.0], pred_x[1:] - pred_x[:-1]])
+        gt_x = np.concatenate([[0.0], gt_x[1:] - gt_x[:-1]])
 
     valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
     same = (np.sign(pred_x) == np.sign(gt_x)) & valid
@@ -409,7 +414,7 @@ def plot_debug_episode(
         ax2.scatter(good_idx, pred_x[good_idx], color="blue", s=20, label="sign match")
         ax2.scatter(bad_idx, pred_x[bad_idx], color="purple", s=20, label="sign mismatch")
 
-    ax2.set_title("Action X Sign Consistency")
+    ax2.set_title("Action X Sign Consistency" + (" (Relative)" if plot_relative else ""))
     ax2.set_xlabel("Timestep")
     ax2.set_ylabel("Action X")
     ax2.legend()
@@ -507,16 +512,15 @@ def main():
                 idx=idx,
             )
 
-        if action_representation == "absolute":
-            gt_actions = absolute_to_relative_action(gt_actions)
-            if pred_chunk is not None and len(pred_chunk) > 0:
-                pred_chunk = absolute_to_relative_action(pred_chunk)
-            if args.debug_episode is not None:
-                pred_actions = absolute_to_relative_action(pred_actions)
+        gt_actions_eval = gt_actions
+        plot_relative = False
+        if action_representation != "relative":
+            gt_actions_eval = absolute_to_relative_action(gt_actions)
+            plot_relative = True
 
         acc, correct, valid = compute_sign_accuracy(
             pred_chunk,
-            gt_actions,
+            gt_actions_eval,
             idx,
             zero_eps=args.zero_eps,
         )
@@ -538,9 +542,10 @@ def main():
                 gripper_width,
                 window,
                 pred_actions,
-                gt_actions,
+                gt_actions_eval,
                 args.zero_eps,
                 max(1, int(chunk_len)) if chunk_len > 0 else getattr(policy, "n_action_steps", 8),
+                plot_relative,
                 args.debug_dir,
             )
             break
