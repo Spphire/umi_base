@@ -122,7 +122,13 @@ training:
   debug: False
   resume: False
   # optimization
-  lr_scheduler: cosine
+  #lr_scheduler: cosine
+  lr_scheduler: polynomial
+  lr_scheduler_kwargs:
+    power: 5.0           # power越大，前期下降越陡
+    end_lr: 1.0e-7       # 最小值
+    cycle: False         # 不循环
+
   lr_warmup_steps: 2000
   num_epochs: 600
   gradient_accumulate_every: 1
