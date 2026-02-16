@@ -391,7 +391,7 @@ class TimmObsEncoder(ModuleAttrMixin):
 
             feature = self.aggregate_feature(raw_feature, fused_feature)
             assert len(feature.shape) == 2 and feature.shape[0] == B * T
-            if self.record_feature_stats:
+            if self.record_feature_stats and feature.requires_grad:
                 feature.retain_grad()
                 self._last_feature_map[key] = feature
             features.append(feature.reshape(B, -1))
@@ -403,7 +403,7 @@ class TimmObsEncoder(ModuleAttrMixin):
             assert B == batch_size
             assert data.shape[2:] == self.key_shape_map[key]
             lowdim_feature = data.reshape(B, -1)
-            if self.record_feature_stats:
+            if self.record_feature_stats and lowdim_feature.requires_grad:
                 lowdim_feature.retain_grad()
                 self._last_feature_map[key] = lowdim_feature
             features.append(lowdim_feature)
