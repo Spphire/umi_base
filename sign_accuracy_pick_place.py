@@ -304,16 +304,17 @@ def compute_sign_accuracy(
     end = min(end, len(pred_actions) - 1, len(gt_actions) - 1)
     start = min(start, end)
 
-    pred_x = pred_actions[start:end + 1, 0]
-    gt_x = gt_actions[start:end + 1, 0]
+    idx = end
+    pred_x = pred_actions[idx, 0]
+    gt_x = gt_actions[idx, 0]
 
-    valid = (np.abs(gt_x) > zero_eps) & (np.abs(pred_x) > zero_eps)
-    if valid.sum() == 0:
+    valid = (abs(gt_x) > zero_eps) and (abs(pred_x) > zero_eps)
+    if not valid:
         return float("nan"), 0, 0
 
-    correct = np.sign(pred_x[valid]) == np.sign(gt_x[valid])
-    acc = float(correct.mean())
-    return acc, int(correct.sum()), int(valid.sum())
+    correct = np.sign(pred_x) == np.sign(gt_x)
+    acc = 1.0 if correct else 0.0
+    return acc, int(correct), 1
 
 
 def plot_debug_episode(
@@ -329,6 +330,7 @@ def plot_debug_episode(
     start, end = window
     end = min(end, len(pred_actions) - 1, len(gt_actions) - 1)
     start = min(start, end)
+    idx = end
 
     pred_x = pred_actions[:, 0]
     gt_x = gt_actions[:, 0]
@@ -344,6 +346,7 @@ def plot_debug_episode(
     ax1 = fig.add_subplot(2, 1, 1)
     ax1.plot(w, color="black", linewidth=2, label="gripper_width")
     ax1.axvspan(start, end, color="orange", alpha=0.2, label="closing_window")
+    ax1.axvline(idx, color="blue", linestyle=":", linewidth=2, label="test_frame")
     ax1.set_title(f"Episode {episode_idx} - Gripper Width with Closing Window")
     ax1.set_xlabel("Timestep")
     ax1.set_ylabel("Width")
@@ -355,6 +358,7 @@ def plot_debug_episode(
     ax2.plot(t, gt_x, color="green", linewidth=2, label="GT X")
     ax2.plot(t, pred_x, color="red", linewidth=2, linestyle="--", label="Pred X")
     ax2.axvspan(start, end, color="orange", alpha=0.2, label="closing_window")
+    ax2.axvline(idx, color="blue", linestyle=":", linewidth=2, label="test_frame")
 
     if len(same) == len(t):
         good_idx = np.where(same)[0]
