@@ -302,9 +302,30 @@ class TimmObsEncoder(ModuleAttrMixin):
                 num_heads=feature_dim // 64,
                 output_dim=feature_dim
             )
+
+        self.record_feature_stats = False
+        self._last_feature_map = dict()
+
         logger.info(
             "number of parameters: %e", sum(p.numel() for p in self.parameters())
         )
+
+    def enable_feature_recording(self, enabled: bool = True):
+        self.record_feature_stats = enabled
+
+    def pop_feature_grad_norms(self, norm_type: float = 2.0):
+        result = {}
+        for key, feat in self._last_feature_map.items():
+            if feat is None or feat.grad is None:
+                continue
+            grad = feat.grad
+            if grad.ndim > 1:
+                grad_norm = grad.norm(p=norm_type, dim=-1).mean().item()
+            else:
+                grad_norm = grad.norm(p=norm_type).item()
+            result[key] = grad_norm
+        self._last_feature_map = dict()
+        return result
 
     def aggregate_feature(self, feature, fused_feature=None):
         if self.model_name.startswith('vit'):
@@ -370,6 +391,9 @@ class TimmObsEncoder(ModuleAttrMixin):
 
             feature = self.aggregate_feature(raw_feature, fused_feature)
             assert len(feature.shape) == 2 and feature.shape[0] == B * T
+            if self.record_feature_stats:
+                feature.retain_grad()
+                self._last_feature_map[key] = feature
             features.append(feature.reshape(B, -1))
 
         # process lowdim input
@@ -378,7 +402,11 @@ class TimmObsEncoder(ModuleAttrMixin):
             B, T = data.shape[:2]
             assert B == batch_size
             assert data.shape[2:] == self.key_shape_map[key]
-            features.append(data.reshape(B, -1))
+            lowdim_feature = data.reshape(B, -1)
+            if self.record_feature_stats:
+                lowdim_feature.retain_grad()
+                self._last_feature_map[key] = lowdim_feature
+            features.append(lowdim_feature)
         
         # concatenate all features
         result = torch.cat(features, dim=-1)

@@ -254,6 +254,19 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
             cfg.training.val_every = 1
             cfg.training.sample_every = 1
 
+        # feature grad logging (optional)
+        feature_grad_log_enabled = False
+        feature_grad_log_every = 100
+        if hasattr(cfg.training, 'feature_grad_log'):
+            feature_grad_log_enabled = bool(cfg.training.feature_grad_log)
+        if hasattr(cfg.training, 'feature_grad_log_every'):
+            feature_grad_log_every = int(cfg.training.feature_grad_log_every)
+
+        unwrapped_model = accelerator.unwrap_model(self.model)
+        if feature_grad_log_enabled and hasattr(unwrapped_model, 'obs_encoder'):
+            if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
+                unwrapped_model.obs_encoder.enable_feature_recording(True)
+
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
@@ -278,6 +291,11 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         accelerator.backward(loss)
 
+                        grad_norms = {}
+                        if feature_grad_log_enabled and (self.global_step % feature_grad_log_every == 0):
+                            if hasattr(unwrapped_model, 'obs_encoder') and hasattr(unwrapped_model.obs_encoder, 'pop_feature_grad_norms'):
+                                grad_norms = unwrapped_model.obs_encoder.pop_feature_grad_norms()
+
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
                             self.optimizer.step()
@@ -298,6 +316,9 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
+                        if accelerator.is_main_process and len(grad_norms) > 0:
+                            for k, v in grad_norms.items():
+                                step_log[f'grad_norm/{k}'] = v
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:

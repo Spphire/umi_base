@@ -121,6 +121,7 @@ def find_closing_window(
     close_eps: float = 1e-4,
     min_len: int = 5,
     smooth_window: int = 5,
+    min_drop: float = 0.0,
 ) -> Optional[Tuple[int, int]]:
     w = np.asarray(gripper_width).squeeze()
     if w.ndim != 1 or len(w) < 2:
@@ -149,17 +150,28 @@ def find_closing_window(
     if not segments:
         return None
 
+    # filter by minimum drop
+    filtered_segments: List[Tuple[int, int, float]] = []
+    for s, e in segments:
+        end_idx = min(e + 1, len(w_smooth) - 1)
+        drop = float(w_smooth[s] - w_smooth[end_idx])
+        if drop >= min_drop:
+            filtered_segments.append((s, e, drop))
+
+    if not filtered_segments:
+        return None
+
     min_idx = int(np.argmin(w_smooth))
     target = max(0, min_idx - 1)
 
     def segment_score(seg):
-        s, e = seg
+        s, e, drop = seg
         if s <= target <= e:
-            return (0, abs(e - target))
-        return (1, abs(e - target))
+            return (0, -drop, abs(e - target))
+        return (1, -drop, abs(e - target))
 
-    segments.sort(key=segment_score)
-    seg_start, seg_end = segments[0]
+    filtered_segments.sort(key=segment_score)
+    seg_start, seg_end, _ = filtered_segments[0]
 
     window_start = seg_start
     window_end = seg_end + 1
@@ -433,6 +445,7 @@ def main():
     parser.add_argument("--close-eps", type=float, default=1e-4, help="Threshold for detecting closing slope")
     parser.add_argument("--min-len", type=int, default=5, help="Minimum closing window length")
     parser.add_argument("--smooth-window", type=int, default=5, help="Smoothing window for gripper width")
+    parser.add_argument("--min-drop", type=float, default=0.0, help="Minimum drop in gripper width to accept a closing segment")
     parser.add_argument("--zero-eps", type=float, default=1e-6, help="Ignore near-zero actions")
     parser.add_argument("--output-csv", default=None, help="Optional output CSV path")
     parser.add_argument("--debug-episode", type=int, default=93, help="If set, only run this episode and save debug plot")
@@ -476,6 +489,7 @@ def main():
             close_eps=args.close_eps,
             min_len=args.min_len,
             smooth_window=args.smooth_window,
+            min_drop=args.min_drop,
         )
         if window is None:
             print(f"Episode {ep_idx}: no closing window found, skipping")
@@ -495,15 +509,7 @@ def main():
                 action_representation=action_representation,
                 relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
             )
-            pred_chunk = pred_chunk = predict_actions_chunk_at_index(
-                policy,
-                episode_data,
-                device,
-                n_obs_steps=args.n_obs_steps,
-                action_representation=action_representation,
-                relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
-                idx=idx,
-            )
+            pred_chunk = pred_actions[idx:idx + getattr(policy, "n_action_steps", 8)]
         else:
             pred_chunk = predict_actions_chunk_at_index(
                 policy,
