@@ -388,9 +388,9 @@ def plot_debug_episode(
 
 def main():
     parser = argparse.ArgumentParser(description="Pick-and-place sign accuracy evaluation")
-    parser.add_argument("--ckpt", required=True, help="Path to policy checkpoint")
+    parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
     parser.add_argument("--cfg", default=None, help="Optional cfg yaml path")
-    parser.add_argument("--dataset", required=True, help="Path to replay_buffer.zarr")
+    parser.add_argument("--dataset", default='/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh/replay_buffer.zarr', help="Path to replay_buffer.zarr")
     parser.add_argument("--n-obs-steps", type=int, default=1, help="Observation history length")
     parser.add_argument("--start-episode", type=int, default=0, help="Start episode index (inclusive)")
     parser.add_argument("--end-episode", type=int, default=None, help="End episode index (exclusive)")
