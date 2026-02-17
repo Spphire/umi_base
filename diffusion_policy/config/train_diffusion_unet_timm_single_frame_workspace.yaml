@@ -112,7 +112,7 @@ optimizer:
   _target_: torch.optim.AdamW
   lr: 3.0e-4
   betas: [0.95, 0.999]
-  eps: 1.0e-8
+  eps: 1.0e-6
   weight_decay: 1.0e-6
   encoder_weight_decay: 1.0e-6
 
@@ -122,12 +122,12 @@ training:
   debug: False
   resume: False
   # optimization
-  #lr_scheduler: cosine
-  lr_scheduler: polynomial
-  lr_scheduler_kwargs:
-    power: 5.0           # power越大，前期下降越陡
-    end_lr: 1.0e-7       # 最小值
-    cycle: False         # 不循环
+  lr_scheduler: cosine
+  # lr_scheduler: polynomial
+  # lr_scheduler_kwargs:
+  #   power: 5.0           # power越大，前期下降越陡
+  #   end_lr: 1.0e-7       # 最小值
+  #   cycle: False         # 不循环
 
   lr_warmup_steps: 2000
   num_epochs: 600

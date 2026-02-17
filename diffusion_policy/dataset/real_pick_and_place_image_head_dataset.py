@@ -224,8 +224,8 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
                 img = apply_image_augmentation(img, apply_transform=False)
                 img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
 
-                # if np.random.rand() < 0.2:  # 20% 的概率
-                #     img = np.random.uniform(0, 0.01, size=img.shape).astype(np.float32)
+                if np.random.rand() < 0.2:  # 20% 的概率
+                    img = np.random.uniform(0, 2.55, size=img.shape).astype(np.float32)
             else:
                 logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
                 raise NotImplementedError(f"Unknown image key: {key}")
