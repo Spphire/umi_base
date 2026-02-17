@@ -289,7 +289,8 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         # compute loss
                         raw_loss = self.model(batch)
                         if not torch.isfinite(raw_loss):
-                            accelerator.print("[NaN Debug] raw_loss is not finite")
+                            rank = getattr(accelerator, "process_index", 0)
+                            print(f"[NaN Debug][rank {rank}] raw_loss is not finite", flush=True)
                             try:
                                 obs = batch.get('obs', {})
                                 act = batch.get('action', None)
@@ -297,18 +298,20 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                                     for k, v in obs.items():
                                         if torch.is_tensor(v):
                                             v_cpu = v.detach().float().cpu()
-                                            accelerator.print(
-                                                f"  obs[{k}] min={v_cpu.min().item():.6f} max={v_cpu.max().item():.6f} "
-                                                f"finite={torch.isfinite(v_cpu).all().item()}"
+                                            print(
+                                                f"  [rank {rank}] obs[{k}] min={v_cpu.min().item():.6f} max={v_cpu.max().item():.6f} "
+                                                f"finite={torch.isfinite(v_cpu).all().item()}",
+                                                flush=True
                                             )
                                 if torch.is_tensor(act):
                                     act_cpu = act.detach().float().cpu()
-                                    accelerator.print(
-                                        f"  action min={act_cpu.min().item():.6f} max={act_cpu.max().item():.6f} "
-                                        f"finite={torch.isfinite(act_cpu).all().item()}"
+                                    print(
+                                        f"  [rank {rank}] action min={act_cpu.min().item():.6f} max={act_cpu.max().item():.6f} "
+                                        f"finite={torch.isfinite(act_cpu).all().item()}",
+                                        flush=True
                                     )
                             except Exception as e:
-                                accelerator.print(f"[NaN Debug] failed to inspect batch: {e}")
+                                print(f"[NaN Debug][rank {rank}] failed to inspect batch: {e}", flush=True)
                             raise RuntimeError("raw_loss is NaN/Inf")
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         accelerator.backward(loss)
