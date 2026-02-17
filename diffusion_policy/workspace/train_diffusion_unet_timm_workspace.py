@@ -327,6 +327,19 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
                             self.optimizer.step()
+                            # scan params for NaN/Inf after step
+                            rank = getattr(accelerator, "process_index", 0)
+                            for name, p in accelerator.unwrap_model(self.model).named_parameters():
+                                if not p.requires_grad:
+                                    continue
+                                if not torch.isfinite(p).all():
+                                    p_cpu = p.detach().float().cpu()
+                                    print(
+                                        f"[Param NaN][rank {rank}] {name} min={p_cpu.min().item():.6f} "
+                                        f"max={p_cpu.max().item():.6f} finite={torch.isfinite(p_cpu).all().item()}",
+                                        flush=True
+                                    )
+                                    raise RuntimeError("Parameter NaN/Inf after optimizer.step")
                             self.optimizer.zero_grad()
                             lr_scheduler.step()
                         
