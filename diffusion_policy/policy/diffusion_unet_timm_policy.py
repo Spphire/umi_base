@@ -182,14 +182,33 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
     def compute_loss(self, batch, return_per_sample_loss=False):
+        def _debug_tensor(name, t):
+            if not torch.is_tensor(t):
+                return
+            if torch.isfinite(t).all():
+                return
+            t_cpu = t.detach().float().cpu()
+            print(
+                f"[NaN Debug][{name}] min={t_cpu.min().item():.6f} max={t_cpu.max().item():.6f} "
+                f"finite={torch.isfinite(t_cpu).all().item()} shape={tuple(t_cpu.shape)}",
+                flush=True
+            )
+            raise RuntimeError(f"NaN/Inf detected in {name}")
+
         # normalize input
         assert "valid_mask" not in batch
         nobs = self.normalizer.normalize(batch["obs"])
         nactions = self.normalizer["action"].normalize(batch["action"])
+        # check normalized inputs
+        if isinstance(nobs, dict):
+            for k, v in nobs.items():
+                _debug_tensor(f"nobs[{k}]", v)
+        _debug_tensor("nactions", nactions)
 
         original_batch_size = nactions.shape[0]
         assert self.obs_as_global_cond
         global_cond = self.obs_encoder(nobs)
+        _debug_tensor("global_cond", global_cond)
 
         # train on multiple diffusion samples per obs
         if self.train_diffusion_n_samples != 1:
@@ -206,11 +225,13 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         trajectory = nactions
         # Sample noise that we'll add to the images
         noise = torch.randn(trajectory.shape, device=trajectory.device)
+        _debug_tensor("noise", noise)
         # input perturbation by adding additonal noise to alleviate exposure bias
         # reference: https://github.com/forever208/DDPM-IP
         noise_new = noise + self.input_pertub * torch.randn(
             trajectory.shape, device=trajectory.device
         )
+        _debug_tensor("noise_new", noise_new)
 
         # Sample a random timestep for each image
         timesteps = torch.randint(
@@ -225,11 +246,13 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         noisy_trajectory = self.noise_scheduler.add_noise(
             trajectory, noise_new, timesteps
         )
+        _debug_tensor("noisy_trajectory", noisy_trajectory)
 
         # Predict the noise residual
         pred = self.model(
             noisy_trajectory, timesteps, local_cond=None, global_cond=global_cond
         )
+        _debug_tensor("pred", pred)
 
         pred_type = self.noise_scheduler.config.prediction_type
         if pred_type == "epsilon":
@@ -240,9 +263,11 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
             target = self.noise_scheduler.get_velocity(trajectory, noise, timesteps)
         else:
             raise ValueError(f"Unsupported prediction type {pred_type}")
+        _debug_tensor("target", target)
 
         loss = F.mse_loss(pred, target, reduction="none")
         loss = loss.type(loss.dtype)
+        _debug_tensor("loss", loss)
         # per-sample loss: shape [batch_size] (or [batch_size * n_samples] if repeated)
         per_sample_loss = reduce(loss, "b ... -> b (...)", "mean").mean(dim=-1)
 
