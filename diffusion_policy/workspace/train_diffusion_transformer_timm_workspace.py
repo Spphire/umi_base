@@ -179,6 +179,19 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
             cfg.training.val_every = 1
             cfg.training.sample_every = 1
 
+        # feature grad logging (optional)
+        feature_grad_log_enabled = False
+        feature_grad_log_every = 100
+        if hasattr(cfg.training, 'feature_grad_log'):
+            feature_grad_log_enabled = bool(cfg.training.feature_grad_log)
+        if hasattr(cfg.training, 'feature_grad_log_every'):
+            feature_grad_log_every = int(cfg.training.feature_grad_log_every)
+
+        unwrapped_model = accelerator.unwrap_model(self.model)
+        if feature_grad_log_enabled and hasattr(unwrapped_model, 'obs_encoder'):
+            if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
+                unwrapped_model.obs_encoder.enable_feature_recording(True)
+
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
@@ -208,6 +221,14 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         loss.backward()
 
+                        grad_norms = {}
+                        param_grad_norms = {}
+                        if feature_grad_log_enabled and (self.global_step % feature_grad_log_every == 0):
+                            if hasattr(unwrapped_model, 'obs_encoder') and hasattr(unwrapped_model.obs_encoder, 'pop_feature_grad_norms'):
+                                grad_norms = unwrapped_model.obs_encoder.pop_feature_grad_norms()
+                            if hasattr(unwrapped_model, 'obs_encoder') and hasattr(unwrapped_model.obs_encoder, 'get_param_grad_norms'):
+                                param_grad_norms = unwrapped_model.obs_encoder.get_param_grad_norms()
+
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
                             self.optimizer.step()
@@ -228,6 +249,13 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
+                        if accelerator.is_main_process:
+                            if len(grad_norms) > 0:
+                                for k, v in grad_norms.items():
+                                    step_log[f'grad_norm/{k}'] = v
+                            if len(param_grad_norms) > 0:
+                                for k, v in param_grad_norms.items():
+                                    step_log[f'grad_norm_param/{k}'] = v
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
@@ -258,22 +286,30 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                     step_log.update(runner_log)
 
                 # run validation
-                # if (self.epoch % cfg.training.val_every) == 0 and len(val_dataloader) > 0 and accelerator.is_main_process:
-                #     with torch.no_grad():
-                #         val_losses = list()
-                #         with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
-                #                 leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
-                #             for batch_idx, batch in enumerate(tepoch):
-                #                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                #                 loss = self.model(batch)
-                #                 val_losses.append(loss)
-                #                 if (cfg.training.max_val_steps is not None) \
-                #                     and batch_idx >= (cfg.training.max_val_steps-1):
-                #                     break
-                #         if len(val_losses) > 0:
-                #             val_loss = torch.mean(torch.tensor(val_losses)).item()
-                #             # log epoch average validation loss
-                #             step_log['val_loss'] = val_loss
+                if cfg.task.dataset.val_ratio > 0 and (self.epoch % cfg.training.val_every) == 0:
+                    with torch.no_grad():
+                        with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
+                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                            num = 0
+                            loss = None
+                            for batch_idx, batch in enumerate(tepoch):
+                                batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                if loss is None:
+                                    loss = self.model(batch)
+                                else:
+                                    loss += self.model(batch)
+                                num += 1
+
+                                if (cfg.training.max_val_steps is not None) \
+                                    and batch_idx >= (cfg.training.max_val_steps-1):
+                                    break
+                        if loss is not None:
+                            loss = loss / num
+                            all_loss = accelerator.gather_for_metrics(loss)
+                            if accelerator.is_main_process:
+                                step_log['val_loss'] = all_loss.mean().item()
+                        else:
+                            print(f"Warning: validation loss is None, maybe because val dataset is empty: num={num}")
 
                 def log_action_mse(step_log, category, pred_action, gt_action):
                     B, T, _ = pred_action.shape
@@ -291,6 +327,19 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         gt_action = batch['action']
                         pred_action = policy.predict_action(batch['obs'])['action_pred']
                         log_action_mse(step_log, 'train', pred_action, gt_action)
+                        mse_train = torch.nn.functional.mse_loss(pred_action, gt_action)
+
+                        # head masking evaluation if head image exists
+                        obs_dict = batch['obs']
+                        has_head_img = 'left_eye_img' in obs_dict
+                        if has_head_img:
+                            obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
+                            obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
+                            pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
+                            log_action_mse(step_log, 'train_no_head', pred_action_masked, gt_action)
+                            mse_train_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
+                            step_log['train_action_mse_error_no_head'] = mse_train_no_head.item()
+                            step_log['train_action_mse_head_importance'] = (mse_train_no_head - mse_train).item()
 
                         if len(val_dataloader) > 0:
                             val_sampling_batch = next(iter(val_dataloader))
@@ -298,6 +347,18 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             gt_action = batch['action']
                             pred_action = policy.predict_action(batch['obs'])['action_pred']
                             log_action_mse(step_log, 'val', pred_action, gt_action)
+                            mse_val = torch.nn.functional.mse_loss(pred_action, gt_action)
+
+                            obs_dict = batch['obs']
+                            has_head_img = 'left_eye_img' in obs_dict
+                            if has_head_img:
+                                obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
+                                obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
+                                pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
+                                log_action_mse(step_log, 'val_no_head', pred_action_masked, gt_action)
+                                mse_val_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
+                                step_log['val_action_mse_error_no_head'] = mse_val_no_head.item()
+                                step_log['val_action_mse_head_importance'] = (mse_val_no_head - mse_val).item()
 
                         del batch
                         del gt_action

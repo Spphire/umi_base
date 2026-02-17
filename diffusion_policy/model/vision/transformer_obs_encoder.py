@@ -219,9 +219,43 @@ class TransformerObsEncoder(ModuleAttrMixin):
         self.low_dim_keys = low_dim_keys
         self.key_shape_map = key_shape_map
 
+        self.record_feature_stats = False
+        self._last_feature_map = dict()
+
         logger.info(
             "number of parameters: %e", sum(p.numel() for p in self.parameters())
         )
+
+    def enable_feature_recording(self, enabled: bool = True):
+        self.record_feature_stats = enabled
+
+    def pop_feature_grad_norms(self, norm_type: float = 2.0):
+        result = {}
+        for key, feat in self._last_feature_map.items():
+            if feat is None or feat.grad is None:
+                continue
+            grad = feat.grad
+            if grad.ndim > 1:
+                grad_norm = grad.norm(p=norm_type, dim=-1).mean().item()
+            else:
+                grad_norm = grad.norm(p=norm_type).item()
+            result[key] = grad_norm
+        self._last_feature_map = dict()
+        return result
+
+    def get_param_grad_norms(self, norm_type: float = 2.0):
+        result = {}
+        for key, module in self.key_model_map.items():
+            total = 0.0
+            count = 0
+            for p in module.parameters():
+                if p.grad is None:
+                    continue
+                total += p.grad.norm(p=norm_type).item()
+                count += 1
+            if count > 0:
+                result[key] = total / count
+        return result
 
     def aggregate_feature(self, feature):
         # Return: B, N, C
@@ -273,6 +307,9 @@ class TransformerObsEncoder(ModuleAttrMixin):
             emb = self.key_projection_map[key](feature)
             assert len(emb.shape) == 3 and emb.shape[0] == B * T and emb.shape[-1] == self.n_emb
             emb = emb.reshape(B,-1,self.n_emb)
+            if self.record_feature_stats and emb.requires_grad:
+                emb.retain_grad()
+                self._last_feature_map[key] = emb
             embeddings.append(emb)
 
         # process lowdim input
@@ -284,6 +321,9 @@ class TransformerObsEncoder(ModuleAttrMixin):
             data = data.reshape(B,T,-1)
             emb = self.key_projection_map[key](data)
             assert emb.shape[-1] == self.n_emb
+            if self.record_feature_stats and emb.requires_grad:
+                emb.retain_grad()
+                self._last_feature_map[key] = emb
             embeddings.append(emb)
         
         # concatenate all features along t

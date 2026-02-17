@@ -18,7 +18,8 @@ TASK := q3_mouse
 # workspace config , have to be consistent with the task
 # WKSPACE := train_diffusion_unet_real_image_workspace
 # WKSPACE := train_diffusion_unet_timm_workspace
-WKSPACE := train_diffusion_unet_timm_single_frame_workspace
+#WKSPACE := train_diffusion_unet_timm_single_frame_workspace
+WKSPACE := train_diffusion_transformer_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
 # record config
