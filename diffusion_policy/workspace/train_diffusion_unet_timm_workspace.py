@@ -262,6 +262,14 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         if hasattr(cfg.training, 'feature_grad_log_every'):
             feature_grad_log_every = int(cfg.training.feature_grad_log_every)
 
+        # gradient clipping (optional)
+        grad_clip_enabled = False
+        grad_clip_norm = 1.0
+        if hasattr(cfg.training, 'grad_clip_enabled'):
+            grad_clip_enabled = bool(cfg.training.grad_clip_enabled)
+        if hasattr(cfg.training, 'grad_clip_norm'):
+            grad_clip_norm = float(cfg.training.grad_clip_norm)
+
         unwrapped_model = accelerator.unwrap_model(self.model)
         if feature_grad_log_enabled and hasattr(unwrapped_model, 'obs_encoder'):
             if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
@@ -316,6 +324,20 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         accelerator.backward(loss)
 
+                        # scan gradients for NaN/Inf after backward
+                        rank = getattr(accelerator, "process_index", 0)
+                        for name, p in accelerator.unwrap_model(self.model).named_parameters():
+                            if p.grad is None:
+                                continue
+                            if not torch.isfinite(p.grad).all():
+                                g_cpu = p.grad.detach().float().cpu()
+                                print(
+                                    f"[Grad NaN][rank {rank}] {name} min={g_cpu.min().item():.6f} "
+                                    f"max={g_cpu.max().item():.6f} finite={torch.isfinite(g_cpu).all().item()}",
+                                    flush=True
+                                )
+                                raise RuntimeError("Gradient NaN/Inf after backward")
+
                         grad_norms = {}
                         param_grad_norms = {}
                         if feature_grad_log_enabled and (self.global_step % feature_grad_log_every == 0):
@@ -326,6 +348,16 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
 
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
+                            # if grad_clip_enabled and grad_clip_norm > 0:
+                            #     total_norm = accelerator.clip_grad_norm_(
+                            #         self.model.parameters(), grad_clip_norm
+                            #     )
+                            #     if not torch.isfinite(total_norm):
+                            #         rank = getattr(accelerator, "process_index", 0)
+                            #         print(
+                            #             f"[Grad Clip][rank {rank}] non-finite total_norm={total_norm}",
+                            #             flush=True
+                            #         )
                             self.optimizer.step()
                             # scan params for NaN/Inf after step
                             rank = getattr(accelerator, "process_index", 0)

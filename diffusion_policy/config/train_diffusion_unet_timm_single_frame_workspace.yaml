@@ -154,6 +154,9 @@ training:
   in_the_wild_type: ["seen_object-unseen_env", "unseen_object-seen_env", "unseen_object-unseen_env"]
   feature_grad_log: true
   feature_grad_log_every: 100
+  # gradient clipping
+  grad_clip_enabled: true
+  grad_clip_norm: 1.0
 
 logging:
   project: diffusion_policy_debug
