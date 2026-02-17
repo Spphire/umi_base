@@ -288,6 +288,23 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
 
                         # compute loss
                         raw_loss = self.model(batch)
+                        if not torch.isfinite(raw_loss):
+                            if accelerator.is_main_process:
+                                print("[NaN Debug] raw_loss is not finite")
+                                try:
+                                    obs = batch.get('obs', {})
+                                    act = batch.get('action', None)
+                                    if isinstance(obs, dict):
+                                        for k, v in obs.items():
+                                            if torch.is_tensor(v):
+                                                v_cpu = v.detach().float().cpu()
+                                                print(f"  obs[{k}] min={v_cpu.min().item():.6f} max={v_cpu.max().item():.6f} finite={torch.isfinite(v_cpu).all().item()}")
+                                    if torch.is_tensor(act):
+                                        act_cpu = act.detach().float().cpu()
+                                        print(f"  action min={act_cpu.min().item():.6f} max={act_cpu.max().item():.6f} finite={torch.isfinite(act_cpu).all().item()}")
+                                except Exception as e:
+                                    print(f"[NaN Debug] failed to inspect batch: {e}")
+                            raise RuntimeError("raw_loss is NaN/Inf")
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         accelerator.backward(loss)
 
