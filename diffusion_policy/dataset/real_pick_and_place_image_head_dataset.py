@@ -216,12 +216,12 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             #     if np.random.rand() < 0.5:  # 50% 概率
             #         img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
             if 'eye' in key:
-                # if np.random.rand() < 0.2 and self.random_mask_head_image:  # 20% 的概率
-                #     img = np.zeros_like(img)  # 20% 的概率全黑
-                img = apply_image_augmentation(img, apply_transform=True)
+                if np.random.rand() < 0.5 and 'right_eye_img' in data:  # 50% 的概率 使用右眼图像
+                    img = data['right_eye_img'][T_slice]  # H W C, uint
+                #img = apply_image_augmentation(img, apply_transform=True)
                 img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
             elif 'wrist' in key:
-                img = apply_image_augmentation(img, apply_transform=False)
+                #img = apply_image_augmentation(img, apply_transform=False)
                 img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
 
                 if np.random.rand() < 0.2:  # 20% 的概率
