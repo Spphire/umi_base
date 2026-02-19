@@ -385,7 +385,7 @@ class TimmObsEncoder(ModuleAttrMixin):
     def forward(self, obs_dict):
         features = list()
         batch_size = next(iter(obs_dict.values())).shape[0]
-        
+
         # process rgb input
         for key in self.rgb_keys:
             img = obs_dict[key]
@@ -408,6 +408,11 @@ class TimmObsEncoder(ModuleAttrMixin):
             if self.record_feature_stats and feature.requires_grad:
                 feature.retain_grad()
                 self._last_feature_map[key] = feature
+            # NaN/Inf check for each rgb branch
+            if not torch.isfinite(feature).all():
+                feature_cpu = feature.detach().float().cpu()
+                print(f"[NaN Debug][timm_obs_encoder] rgb key={key} min={feature_cpu.min().item():.6f} max={feature_cpu.max().item():.6f} finite={torch.isfinite(feature_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[timm_obs_encoder] NaN/Inf detected in rgb branch '{key}'")
             features.append(feature.reshape(B, -1))
 
         # process lowdim input
@@ -420,11 +425,20 @@ class TimmObsEncoder(ModuleAttrMixin):
             if self.record_feature_stats and lowdim_feature.requires_grad:
                 lowdim_feature.retain_grad()
                 self._last_feature_map[key] = lowdim_feature
+            # NaN/Inf check for each lowdim branch
+            if not torch.isfinite(lowdim_feature).all():
+                lowdim_cpu = lowdim_feature.detach().float().cpu()
+                print(f"[NaN Debug][timm_obs_encoder] lowdim key={key} min={lowdim_cpu.min().item():.6f} max={lowdim_cpu.max().item():.6f} finite={torch.isfinite(lowdim_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[timm_obs_encoder] NaN/Inf detected in lowdim branch '{key}'")
             features.append(lowdim_feature)
-        
+
         # concatenate all features
         result = torch.cat(features, dim=-1)
-
+        # NaN/Inf check for global_cond/obs_tokens
+        if not torch.isfinite(result).all():
+            result_cpu = result.detach().float().cpu()
+            print(f"[NaN Debug][timm_obs_encoder] global_cond/obs_tokens min={result_cpu.min().item():.6f} max={result_cpu.max().item():.6f} finite={torch.isfinite(result_cpu).all().item()}", flush=True)
+            raise RuntimeError("[timm_obs_encoder] NaN/Inf detected in global_cond/obs_tokens (拼接后)")
         return result
     
 
