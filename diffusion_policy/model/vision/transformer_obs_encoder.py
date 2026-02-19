@@ -293,7 +293,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
     def forward(self, obs_dict):
         embeddings = list()
         batch_size = next(iter(obs_dict.values())).shape[0]
-        
+
         # process rgb input
         for key in self.rgb_keys:
             img = obs_dict[key]
@@ -301,10 +301,35 @@ class TransformerObsEncoder(ModuleAttrMixin):
             assert B == batch_size
             assert img.shape[2:] == self.key_shape_map[key]
             img = img.reshape(B*T, *img.shape[2:])
+            # NaN/Inf check for input
+            if not torch.isfinite(img).all():
+                img_cpu = img.detach().float().cpu()
+                print(f"[NaN Debug][{key}] input reshape min={img_cpu.min().item():.6f} max={img_cpu.max().item():.6f} finite={torch.isfinite(img_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected in input after reshape")
             img = self.key_transform_map[key](img)
+            # NaN/Inf check after transform
+            if not torch.isfinite(img).all():
+                img_cpu = img.detach().float().cpu()
+                print(f"[NaN Debug][{key}] after transform min={img_cpu.min().item():.6f} max={img_cpu.max().item():.6f} finite={torch.isfinite(img_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected after transform")
             raw_feature = self.key_model_map[key](img)
+            # NaN/Inf check after backbone
+            if not torch.isfinite(raw_feature).all():
+                raw_cpu = raw_feature.detach().float().cpu()
+                print(f"[NaN Debug][{key}] after backbone min={raw_cpu.min().item():.6f} max={raw_cpu.max().item():.6f} finite={torch.isfinite(raw_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected after backbone")
             feature = self.aggregate_feature(raw_feature)
+            # NaN/Inf check after aggregate_feature
+            if not torch.isfinite(feature).all():
+                feat_cpu = feature.detach().float().cpu()
+                print(f"[NaN Debug][{key}] after aggregate_feature min={feat_cpu.min().item():.6f} max={feat_cpu.max().item():.6f} finite={torch.isfinite(feat_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected after aggregate_feature")
             emb = self.key_projection_map[key](feature)
+            # NaN/Inf check after projection
+            if not torch.isfinite(emb).all():
+                emb_cpu = emb.detach().float().cpu()
+                print(f"[NaN Debug][{key}] after projection min={emb_cpu.min().item():.6f} max={emb_cpu.max().item():.6f} finite={torch.isfinite(emb_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected after projection")
             assert len(emb.shape) == 3 and emb.shape[0] == B * T and emb.shape[-1] == self.n_emb
             emb = emb.reshape(B,-1,self.n_emb)
             if self.record_feature_stats and emb.requires_grad:
@@ -320,14 +345,24 @@ class TransformerObsEncoder(ModuleAttrMixin):
             assert data.shape[2:] == self.key_shape_map[key]
             data = data.reshape(B,T,-1)
             emb = self.key_projection_map[key](data)
+            # NaN/Inf check for lowdim branch
+            if not torch.isfinite(emb).all():
+                emb_cpu = emb.detach().float().cpu()
+                print(f"[NaN Debug][{key}] lowdim after projection min={emb_cpu.min().item():.6f} max={emb_cpu.max().item():.6f} finite={torch.isfinite(emb_cpu).all().item()}", flush=True)
+                raise RuntimeError(f"[{key}] NaN/Inf detected in lowdim branch after projection")
             assert emb.shape[-1] == self.n_emb
             if self.record_feature_stats and emb.requires_grad:
                 emb.retain_grad()
                 self._last_feature_map[key] = emb
             embeddings.append(emb)
-        
+
         # concatenate all features along t
         result = torch.cat(embeddings, dim=1)
+        # NaN/Inf check after concat
+        if not torch.isfinite(result).all():
+            result_cpu = result.detach().float().cpu()
+            print(f"[NaN Debug][transformer_obs_encoder] concat result min={result_cpu.min().item():.6f} max={result_cpu.max().item():.6f} finite={torch.isfinite(result_cpu).all().item()}", flush=True)
+            raise RuntimeError("[transformer_obs_encoder] NaN/Inf detected after feature concat")
         return result
 
     @torch.no_grad()

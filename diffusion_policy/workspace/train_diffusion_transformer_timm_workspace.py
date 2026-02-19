@@ -196,6 +196,7 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
             if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
                 unwrapped_model.obs_encoder.enable_feature_recording(True)
 
+
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
@@ -222,8 +223,48 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
 
                         # compute loss
                         raw_loss = self.model(batch)
+                        # NaN/Inf check for loss
+                        if not torch.isfinite(raw_loss):
+                            rank = getattr(accelerator, "process_index", 0)
+                            print(f"[NaN Debug][rank {rank}] raw_loss is not finite", flush=True)
+                            try:
+                                obs = batch.get('obs', {})
+                                act = batch.get('action', None)
+                                if isinstance(obs, dict):
+                                    for k, v in obs.items():
+                                        if torch.is_tensor(v):
+                                            v_cpu = v.detach().float().cpu()
+                                            print(
+                                                f"  [rank {rank}] obs[{k}] min={v_cpu.min().item():.6f} max={v_cpu.max().item():.6f} "
+                                                f"finite={torch.isfinite(v_cpu).all().item()}",
+                                                flush=True
+                                            )
+                                if torch.is_tensor(act):
+                                    act_cpu = act.detach().float().cpu()
+                                    print(
+                                        f"  [rank {rank}] action min={act_cpu.min().item():.6f} max={act_cpu.max().item():.6f} "
+                                        f"finite={torch.isfinite(act_cpu).all().item()}",
+                                        flush=True
+                                    )
+                            except Exception as e:
+                                print(f"[NaN Debug][rank {rank}] failed to inspect batch: {e}", flush=True)
+                            raise RuntimeError("raw_loss is NaN/Inf")
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         loss.backward()
+
+                        # scan gradients for NaN/Inf after backward
+                        rank = getattr(accelerator, "process_index", 0)
+                        for name, p in accelerator.unwrap_model(self.model).named_parameters():
+                            if p.grad is None:
+                                continue
+                            if not torch.isfinite(p.grad).all():
+                                g_cpu = p.grad.detach().float().cpu()
+                                print(
+                                    f"[Grad NaN][rank {rank}] {name} min={g_cpu.min().item():.6f} "
+                                    f"max={g_cpu.max().item():.6f} finite={torch.isfinite(g_cpu).all().item()}",
+                                    flush=True
+                                )
+                                raise RuntimeError("Gradient NaN/Inf after backward")
 
                         grad_norms = {}
                         param_grad_norms = {}
