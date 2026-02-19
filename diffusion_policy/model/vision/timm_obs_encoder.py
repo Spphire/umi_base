@@ -394,20 +394,45 @@ class TimmObsEncoder(ModuleAttrMixin):
             # it's B * T during training
             assert img.shape[2:] == self.key_shape_map[key], f"{key} shape mismatch: {img.shape[2:]} vs {self.key_shape_map[key]}"
             img = img.reshape(B*T, *img.shape[2:])
+            # 检查原始输入
+            if key == 'left_eye_img':
+                if not torch.isfinite(img).all():
+                    img_cpu = img.detach().float().cpu()
+                    print(f"[NaN Debug][left_eye_img] input reshape min={img_cpu.min().item():.6f} max={img_cpu.max().item():.6f} finite={torch.isfinite(img_cpu).all().item()}", flush=True)
+                    raise RuntimeError("[left_eye_img] NaN/Inf detected in input after reshape")
+            # transform
             if self.training:
                 img = self.key_transform_map[key](img)
             else:
                 img = self.key_eval_transform_map[key](img)
+            if key == 'left_eye_img':
+                if not torch.isfinite(img).all():
+                    img_cpu = img.detach().float().cpu()
+                    print(f"[NaN Debug][left_eye_img] after transform min={img_cpu.min().item():.6f} max={img_cpu.max().item():.6f} finite={torch.isfinite(img_cpu).all().item()}", flush=True)
+                    raise RuntimeError("[left_eye_img] NaN/Inf detected after transform")
+            # backbone
             raw_feature = self.key_model_map[key](img)
+            if key == 'left_eye_img':
+                if not torch.isfinite(raw_feature).all():
+                    raw_cpu = raw_feature.detach().float().cpu()
+                    print(f"[NaN Debug][left_eye_img] after backbone min={raw_cpu.min().item():.6f} max={raw_cpu.max().item():.6f} finite={torch.isfinite(raw_cpu).all().item()}", flush=True)
+                    raise RuntimeError("[left_eye_img] NaN/Inf detected after backbone")
             fused_feature = None
             if self.fused_model_name != '':
                 fused_feature = self.key_fused_model_map[key](img)
-
+            # aggregate
             feature = self.aggregate_feature(raw_feature, fused_feature)
+            if key == 'left_eye_img':
+                if not torch.isfinite(feature).all():
+                    feat_cpu = feature.detach().float().cpu()
+                    print(f"[NaN Debug][left_eye_img] after aggregate_feature min={feat_cpu.min().item():.6f} max={feat_cpu.max().item():.6f} finite={torch.isfinite(feat_cpu).all().item()}", flush=True)
+                    raise RuntimeError("[left_eye_img] NaN/Inf detected after aggregate_feature")
             assert len(feature.shape) == 2 and feature.shape[0] == B * T
             if self.record_feature_stats and feature.requires_grad:
                 feature.retain_grad()
                 self._last_feature_map[key] = feature
+            # projection
+            #（如果有projection层可插入此处）
             # NaN/Inf check for each rgb branch
             if not torch.isfinite(feature).all():
                 feature_cpu = feature.detach().float().cpu()
