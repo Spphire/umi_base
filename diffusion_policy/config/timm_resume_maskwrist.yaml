@@ -120,7 +120,7 @@ training:
   # device: "cuda:0,1,2,3,4,5" not used
   seed: 42
   debug: False
-  resume: False
+  resume: True
   # optimization
   lr_scheduler: cosine
   # lr_scheduler: polynomial
@@ -160,11 +160,11 @@ training:
 
 logging:
   project: diffusion_policy_debug
-  resume: False
+  resume: True
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: 2026.02.19/14.06.57_train_diffusion_unet_timm_q3_mouse_197
   tags: ["${name}", "${task_name}", "${exp_name}"]
-  id: null
+  id: "4iyd3kvs"
   group: null
 
 checkpoint:
@@ -178,14 +178,14 @@ checkpoint:
   only_save_recent: False
 
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
-  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  run_dir: data/outputs/2026.02.19/14.06.57_train_diffusion_unet_timm_q3_mouse_197
+  wandb_name_base: 2026.02.19/14.06.57_train_diffusion_unet_timm_q3_mouse_197
 
 hydra:
   job:
     override_dirname: ${name}
   run:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/2026.02.19/14.06.57_train_diffusion_unet_timm_q3_mouse_197
   sweep:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/2026.02.19/14.06.57_train_diffusion_unet_timm_q3_mouse_197
     subdir: ${hydra.job.num}
