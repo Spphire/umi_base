@@ -723,7 +723,7 @@ if __name__ == '__main__':
     use_absolute_action = True  # 使用绝对动作
     action_type = ActionType.head_6DOF_left_arm_6DOF_gripper_width  # 设置动作类型
     overwrite = True  # 是否覆盖已有数据
-    use_dino = False  # 是否使用DINO
+    use_dino = True  # 是否使用DINO
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
     gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
     
@@ -748,8 +748,8 @@ if __name__ == '__main__':
         use_dino=use_dino,
         gripper_width_bias=gripper_width_bias,
         gripper_width_scale=gripper_width_scale,
-        episode_clip_head_seconds=0.3,
-        episode_clip_tail_seconds=0.3,
+        episode_clip_head_seconds=0.1,
+        episode_clip_tail_seconds=0.0,
         use_hand_masking=use_hand_masking,
         hand_mask_value=hand_mask_value,
         grounding_dino_config=grounding_dino_config,

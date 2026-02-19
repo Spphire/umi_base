@@ -216,16 +216,16 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             #     if np.random.rand() < 0.5:  # 50% 概率
             #         img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
             if 'eye' in key:
-                if np.random.rand() < 0.5 and 'right_eye_img' in data:  # 50% 的概率 使用右眼图像
+                if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
                     img = data['right_eye_img'][T_slice]  # H W C, uint
                 #img = apply_image_augmentation(img, apply_transform=True)
-                img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
+                #img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
             elif 'wrist' in key:
                 #img = apply_image_augmentation(img, apply_transform=False)
-                img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
+                #img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
 
                 if np.random.rand() < 0.2:  # 20% 的概率
-                    img = np.random.uniform(0, 2.55, size=img.shape).astype(np.float32)
+                    img = np.zeros_like(img)  # 将手腕图像替换为全黑图像
             else:
                 logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
                 raise NotImplementedError(f"Unknown image key: {key}")
