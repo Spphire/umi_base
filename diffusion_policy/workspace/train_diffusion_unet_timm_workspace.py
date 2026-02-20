@@ -140,17 +140,6 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                 accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
 
-        # configure lr scheduler (must be after global_step is loaded)
-        self.lr_scheduler = get_scheduler(
-            cfg.training.lr_scheduler,
-            optimizer=self.optimizer,
-            num_warmup_steps=cfg.training.lr_warmup_steps,
-            num_training_steps=(
-                len(train_dataloader) * cfg.training.num_epochs) \
-                    // cfg.training.gradient_accumulate_every,
-            last_epoch=self.global_step-1
-        )
-
         # configure dataset
         dataset: BaseImageDataset
         if accelerator.is_main_process:
@@ -162,6 +151,17 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
             dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
+
+        # configure lr scheduler (must be after global_step is loaded)
+        self.lr_scheduler = get_scheduler(
+            cfg.training.lr_scheduler,
+            optimizer=self.optimizer,
+            num_warmup_steps=cfg.training.lr_warmup_steps,
+            num_training_steps=(
+                len(train_dataloader) * cfg.training.num_epochs) \
+                    // cfg.training.gradient_accumulate_every,
+            last_epoch=self.global_step-1
+        )
 
         # [mkdir if output_dir does not exist]
         if accelerator.is_main_process:

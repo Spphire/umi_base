@@ -83,6 +83,12 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
 
+        # configure dataset
+        dataset: BaseImageDataset
+        dataset = hydra.utils.instantiate(cfg.task.dataset)
+        assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
+        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+
         # configure lr scheduler (must be after global_step is loaded)
         self.lr_scheduler = get_scheduler(
             cfg.training.lr_scheduler,
@@ -93,12 +99,6 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                     // cfg.training.gradient_accumulate_every,
             last_epoch=self.global_step-1
         )
-        
-        # configure dataset
-        dataset: BaseImageDataset
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
-        assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
