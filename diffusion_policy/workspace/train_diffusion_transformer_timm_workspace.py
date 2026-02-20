@@ -64,9 +64,14 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
         if not cfg.training.resume:
             self.exclude_keys = ['optimizer']
 
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
-        
+
+        # 先初始化ema_model，保证load_checkpoint时不为None
+        if cfg.training.use_ema and self.ema_model is None:
+            self.ema_model = copy.deepcopy(self.model)
+
         accelerator = Accelerator(log_with='wandb')
         wandb_cfg = OmegaConf.to_container(cfg.logging, resolve=True)
         wandb_cfg.pop('project')
