@@ -81,6 +81,29 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
             init_kwargs={"wandb": wandb_cfg}
         )
 
+        # configure dataset
+        dataset: BaseImageDataset
+        if accelerator.is_main_process:
+            # build zarr cache only on the main process
+            dataset = hydra.utils.instantiate(cfg.task.dataset)
+        accelerator.wait_for_everyone()
+        # load again after it's built
+        if not accelerator.is_main_process:
+            dataset = hydra.utils.instantiate(cfg.task.dataset)
+        assert isinstance(dataset, BaseImageDataset)
+        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+
+        # configure lr scheduler (must be after global_step is loaded)
+        self.lr_scheduler = get_scheduler(
+            cfg.training.lr_scheduler,
+            optimizer=self.optimizer,
+            num_warmup_steps=cfg.training.lr_warmup_steps,
+            num_training_steps=(
+                len(train_dataloader) * cfg.training.num_epochs) \
+                    // cfg.training.gradient_accumulate_every,
+            last_epoch=self.global_step-1
+        )
+
         # resume training (before scheduler is created, so global_step is loaded first)
         if cfg.training.resume:
             lastest_ckpt_path = self.get_checkpoint_path()
@@ -88,25 +111,9 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
 
-        # configure dataset
-        dataset: BaseImageDataset
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
-        assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
-
-        # 只有非resume时才新建lr_scheduler，resume时直接用checkpoint恢复的
-        if not (cfg.training.resume and hasattr(self, 'lr_scheduler') and self.lr_scheduler is not None):
-            self.lr_scheduler = get_scheduler(
-                cfg.training.lr_scheduler,
-                optimizer=self.optimizer,
-                num_warmup_steps=cfg.training.lr_warmup_steps,
-                num_training_steps=(
-                    len(train_dataloader) * cfg.training.num_epochs) \
-                        // cfg.training.gradient_accumulate_every,
-                last_epoch=self.global_step-1
-            )
-        else:
-            print("Resuming with lr_scheduler loaded from checkpoint, last_epoch =", self.lr_scheduler.last_epoch)
+        # [mkdir if output_dir does not exist]
+        if accelerator.is_main_process:
+            os.makedirs(self.output_dir, exist_ok=True)
 
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
