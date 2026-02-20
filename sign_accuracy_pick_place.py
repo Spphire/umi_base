@@ -440,7 +440,9 @@ def main():
     # mask wrist
     # parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
     # 
-    parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.14/11.45.00_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
+    parser.add_argument("--ckpt", 
+        default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', 
+        help="Path to policy checkpoint")
     
     parser.add_argument("--cfg", default=None, help="Optional cfg yaml path")
     parser.add_argument("--dataset", default='/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh/replay_buffer.zarr', help="Path to replay_buffer.zarr")

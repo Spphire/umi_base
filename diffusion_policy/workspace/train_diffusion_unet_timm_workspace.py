@@ -133,13 +133,6 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
             init_kwargs={"wandb": wandb_cfg},
         )
 
-        # resume training (before scheduler is created, so global_step is loaded first)
-        if cfg.training.resume:
-            lastest_ckpt_path = self.get_checkpoint_path()
-            if lastest_ckpt_path.is_file():
-                accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
-                self.load_checkpoint(path=lastest_ckpt_path)
-
         # configure dataset
         dataset: BaseImageDataset
         if accelerator.is_main_process:
@@ -162,6 +155,13 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                     // cfg.training.gradient_accumulate_every,
             last_epoch=self.global_step-1
         )
+
+        # resume training (before scheduler is created, so global_step is loaded first)
+        if cfg.training.resume:
+            lastest_ckpt_path = self.get_checkpoint_path()
+            if lastest_ckpt_path.is_file():
+                accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
+                self.load_checkpoint(path=lastest_ckpt_path)
 
         # [mkdir if output_dir does not exist]
         if accelerator.is_main_process:

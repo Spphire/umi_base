@@ -1,0 +1,147 @@
+defaults:
+  - _self_
+  - task: q3_shop_bagging_0202
+
+name: train_diffusion_transformer_timm
+_target_: diffusion_policy.workspace.train_diffusion_transformer_timm_workspace.TrainDiffusionTransformerTimmWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "default"
+
+horizon: 16
+n_obs_steps: 1
+n_action_steps: 8
+n_latency_steps: 0
+n_emb: 768
+dataset_obs_steps: ${n_obs_steps}
+
+policy:
+  _target_: diffusion_policy.policy.diffusion_transformer_timm_policy.DiffusionTransformerTimmPolicy
+
+  shape_meta: ${shape_meta}
+
+  noise_scheduler:
+    _target_: diffusers.DDIMScheduler
+    num_train_timesteps: 50
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: True
+    set_alpha_to_one: True
+    steps_offset: 0
+    prediction_type: epsilon
+
+  obs_encoder:
+    _target_: diffusion_policy.model.vision.transformer_obs_encoder.TransformerObsEncoder
+    shape_meta: ${shape_meta}
+    global_pool: ''
+    n_emb: ${n_emb}
+    model_name: 'vit_base_patch16_clip_224.openai'
+    pretrained: True
+    frozen: False
+
+    # 'cls' or 'avg' or 'max' or 'soft_attention' or 'spatial_embedding' or 'transformer' or 'attention_pool_2d'
+    feature_aggregation: null
+
+    downsample_ratio: 32
+
+    transforms:
+      - type: RandomCrop
+        ratio: 0.95
+      - _target_: torchvision.transforms.ColorJitter
+        brightness: 0.3
+        contrast: 0.4
+        saturation: 0.5
+        hue: 0.08
+
+    use_group_norm: True
+    share_rgb_model: False
+
+  num_inference_steps: 16
+  input_pertub: 0.1
+  n_layer: 7
+  n_head: 8
+  n_emb: ${n_emb}
+  p_drop_attn: 0.1
+
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+dataloader:
+  batch_size: 64
+  num_workers: 4
+  shuffle: True
+  pin_memory: True
+  persistent_workers: True
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 4
+  shuffle: False
+  pin_memory: True
+  persistent_workers: True
+
+optimizer:
+  lr: 3.0e-4
+  weight_decay: 1.0e-6
+  obs_encoder_lr: 3.0e-5
+  obs_encoder_weight_decay: 1.0e-6
+  betas: [0.95, 0.999]
+
+training:
+  seed: 42
+  debug: False
+  resume: True
+  lr_scheduler: cosine
+  lr_warmup_steps: 2000
+  num_epochs: 600
+  gradient_accumulate_every: 1
+  use_ema: True
+  freeze_encoder: False
+  rollout_every: 10
+  checkpoint_every: 10
+  val_every: 1
+  sample_every: 5
+  max_train_steps: null
+  max_val_steps: null
+  tqdm_interval_sec: 1.0
+  feature_grad_log: true
+  feature_grad_log_every: 100
+
+logging:
+  project: diffusion_policy_debug
+  resume: True
+  mode: online
+  name: 2026.02.20_00.50.54_train_diffusion_transformer_timm_q3_mouse_197
+  tags: ["${name}", "${task_name}", "${exp_name}"]
+  id: '4g2j7cjq'
+  group: null
+
+checkpoint:
+  topk:
+    monitor_key: train_loss
+    mode: min
+    k: 5
+    format_str: 'epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+  only_save_recent: False
+
+multi_run:
+  run_dir: data/outputs/2026.02.20/00.50.54_train_diffusion_transformer_timm_q3_mouse_197
+  wandb_name_base: 2026.02.20/00.50.54_train_diffusion_transformer_timm_q3_mouse_197
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/2026.02.20/00.50.54_train_diffusion_transformer_timm_q3_mouse_197
+  sweep:
+    dir: data/outputs/2026.02.20/00.50.54_train_diffusion_transformer_timm_q3_mouse_197
+    subdir: ${hydra.job.num}
