@@ -221,8 +221,8 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         )
 
         # accelerator
-        train_dataloader, val_dataloader, self.model, self.ema_model, self.optimizer, lr_scheduler = accelerator.prepare(
-            train_dataloader, val_dataloader, self.model, self.ema_model, self.optimizer, lr_scheduler
+        train_dataloader, val_dataloader, self.model, self.ema_model, self.optimizer, self.lr_scheduler = accelerator.prepare(
+            train_dataloader, val_dataloader, self.model, self.ema_model, self.optimizer, self.lr_scheduler
         )
         if accelerator.state.num_processes > 1:
             self.model = torch.nn.parallel.DistributedDataParallel(
@@ -369,7 +369,7 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                                     )
                                     raise RuntimeError("Parameter NaN/Inf after optimizer.step")
                             self.optimizer.zero_grad()
-                            lr_scheduler.step()
+                            self.lr_scheduler.step()
                         
                         # update ema
                         if cfg.training.use_ema:
@@ -383,7 +383,7 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             'train_loss': raw_loss_cpu,
                             'global_step': self.global_step,
                             'epoch': self.epoch,
-                            'lr': lr_scheduler.get_last_lr()[0]
+                            'lr': self.lr_scheduler.get_last_lr()[0]
                         }
                         if accelerator.is_main_process:
                             if len(grad_norms) > 0:

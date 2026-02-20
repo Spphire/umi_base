@@ -60,6 +60,7 @@ class BaseWorkspace:
                         payload['state_dicts'][key] = _copy_to_cpu(value.state_dict())
                     else:
                         payload['state_dicts'][key] = value.state_dict()
+                    print(f"Debug: Saving state_dict for {key}: {value}")
             elif key in include_keys:
                 payload['pickles'][key] = dill.dumps(value)
         if use_thread:
