@@ -94,16 +94,19 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset) or isinstance(dataset, BaseDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
-        # configure lr scheduler (must be after global_step is loaded)
-        self.lr_scheduler = get_scheduler(
-            cfg.training.lr_scheduler,
-            optimizer=self.optimizer,
-            num_warmup_steps=cfg.training.lr_warmup_steps,
-            num_training_steps=(
-                len(train_dataloader) * cfg.training.num_epochs) \
-                    // cfg.training.gradient_accumulate_every,
-            last_epoch=self.global_step-1
-        )
+        # 只有非resume时才新建lr_scheduler，resume时直接用checkpoint恢复的
+        if not (cfg.training.resume and hasattr(self, 'lr_scheduler') and self.lr_scheduler is not None):
+            self.lr_scheduler = get_scheduler(
+                cfg.training.lr_scheduler,
+                optimizer=self.optimizer,
+                num_warmup_steps=cfg.training.lr_warmup_steps,
+                num_training_steps=(
+                    len(train_dataloader) * cfg.training.num_epochs) \
+                        // cfg.training.gradient_accumulate_every,
+                last_epoch=self.global_step-1
+            )
+        else:
+            print("Resuming with lr_scheduler loaded from checkpoint, last_epoch =", self.lr_scheduler.last_epoch)
 
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
