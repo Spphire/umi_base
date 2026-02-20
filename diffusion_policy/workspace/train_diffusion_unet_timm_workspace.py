@@ -42,7 +42,7 @@ from accelerate.utils import InitProcessGroupKwargs
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
-    include_keys = ['global_step', 'epoch']
+    include_keys = ['global_step', 'epoch', 'lr_scheduler']
 
     def __init__(self, cfg: OmegaConf, output_dir=None):
         super().__init__(cfg, output_dir=output_dir)
@@ -133,12 +133,23 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
             init_kwargs={"wandb": wandb_cfg},
         )
 
-        # resume training
+        # resume training (before scheduler is created, so global_step is loaded first)
         if cfg.training.resume:
             lastest_ckpt_path = self.get_checkpoint_path()
             if lastest_ckpt_path.is_file():
                 accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
+
+        # configure lr scheduler (must be after global_step is loaded)
+        self.lr_scheduler = get_scheduler(
+            cfg.training.lr_scheduler,
+            optimizer=self.optimizer,
+            num_warmup_steps=cfg.training.lr_warmup_steps,
+            num_training_steps=(
+                len(train_dataloader) * cfg.training.num_epochs) \
+                    // cfg.training.gradient_accumulate_every,
+            last_epoch=self.global_step-1
+        )
 
         # configure dataset
         dataset: BaseImageDataset
@@ -149,23 +160,20 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         # load again after it's built
         if not accelerator.is_main_process:
             dataset = hydra.utils.instantiate(cfg.task.dataset)
-            
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
 
         # [mkdir if output_dir does not exist]
         if accelerator.is_main_process:
             os.makedirs(self.output_dir, exist_ok=True)
-        
+
         # normalizer = dataset.get_normalizer()
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
-        
         if accelerator.is_main_process:
             normalizer = dataset.get_normalizer()
             with open(normalizer_path, 'wb') as f:
                 pickle.dump(normalizer, f)
-
         accelerator.wait_for_everyone()
         normalizer = pickle.load(open(normalizer_path, 'rb'))
 
@@ -176,19 +184,6 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
-
-        # configure lr scheduler
-        lr_scheduler = get_scheduler(
-            cfg.training.lr_scheduler,
-            optimizer=self.optimizer,
-            num_warmup_steps=cfg.training.lr_warmup_steps,
-            num_training_steps=(
-                len(train_dataloader) * cfg.training.num_epochs) \
-                    // cfg.training.gradient_accumulate_every,
-            # pytorch assumes stepping LRScheduler every epoch
-            # however huggingface diffusers steps it every batch
-            last_epoch=self.global_step-1
-        )
 
         # configure ema
         ema: EMAModel = None
@@ -276,9 +271,10 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                 unwrapped_model.obs_encoder.enable_feature_recording(True)
 
         # training loop
+        start_epoch = self.epoch
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(cfg.training.num_epochs):
+            for local_epoch_idx in range(start_epoch, cfg.training.num_epochs):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 if cfg.training.freeze_encoder:
