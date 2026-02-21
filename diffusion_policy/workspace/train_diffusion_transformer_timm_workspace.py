@@ -350,14 +350,6 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         else:
                             print(f"Warning: validation loss is None, maybe because val dataset is empty: num={num}")
 
-                def log_action_mse(step_log, category, pred_action, gt_action):
-                    B, T, _ = pred_action.shape
-                    pred_action = pred_action.view(B, T, -1, 10)
-                    gt_action = gt_action.view(B, T, -1, 10)
-                    step_log[f'{category}_action_mse_error'] = torch.nn.functional.mse_loss(pred_action, gt_action)
-                    #step_log[f'{category}_action_mse_error_pos'] = torch.nn.functional.mse_loss(pred_action[..., :3], gt_action[..., :3])
-                    #step_log[f'{category}_action_mse_error_rot'] = torch.nn.functional.mse_loss(pred_action[..., 3:9], gt_action[..., 3:9])
-                    #step_log[f'{category}_action_mse_error_width'] = torch.nn.functional.mse_loss(pred_action[..., 9], gt_action[..., 9])
                 # run diffusion sampling on a training batch
                 if (self.epoch % cfg.training.sample_every) == 0 and accelerator.is_main_process:
                     with torch.no_grad():
@@ -365,8 +357,8 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
                         gt_action = batch['action']
                         pred_action = policy.predict_action(batch['obs'])['action_pred']
-                        log_action_mse(step_log, 'train', pred_action, gt_action)
                         mse_train = torch.nn.functional.mse_loss(pred_action, gt_action)
+                        step_log['train_action_mse_error'] = mse_train.item()
 
                         # head masking evaluation if head image exists
                         obs_dict = batch['obs']
@@ -375,7 +367,6 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                             obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
                             pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
-                            log_action_mse(step_log, 'train_no_head', pred_action_masked, gt_action)
                             mse_train_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
                             step_log['train_action_mse_error_no_head'] = mse_train_no_head.item()
                             step_log['train_action_mse_head_importance'] = (mse_train_no_head - mse_train).item()
@@ -385,8 +376,8 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
                             gt_action = batch['action']
                             pred_action = policy.predict_action(batch['obs'])['action_pred']
-                            log_action_mse(step_log, 'val', pred_action, gt_action)
                             mse_val = torch.nn.functional.mse_loss(pred_action, gt_action)
+                            step_log['val_action_mse_error'] = mse_val.item()
 
                             obs_dict = batch['obs']
                             has_head_img = 'left_eye_img' in obs_dict
@@ -394,7 +385,6 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                                 obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                                 obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
                                 pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
-                                log_action_mse(step_log, 'val_no_head', pred_action_masked, gt_action)
                                 mse_val_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
                                 step_log['val_action_mse_error_no_head'] = mse_val_no_head.item()
                                 step_log['val_action_mse_head_importance'] = (mse_val_no_head - mse_val).item()
