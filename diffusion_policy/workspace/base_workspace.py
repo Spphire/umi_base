@@ -60,11 +60,13 @@ class BaseWorkspace:
                         payload['state_dicts'][key] = _copy_to_cpu(value.state_dict())
                     else:
                         payload['state_dicts'][key] = value.state_dict()
-                    print(f"Debug: Saving state_dict for {key}: {value}")
+                    print(f"Debug: Saving state_dict for {key}")
             elif key in include_keys:
                 payload['pickles'][key] = dill.dumps(value)
                 if 'epoch' in key:
                     print(f"Debug: Saving pickle for {key}: {value}")
+                else:
+                    print(f"Debug: Saving pickle for {key}")
         if use_thread:
             self._saving_thread = threading.Thread(
                 target=lambda : torch.save(payload, path.open('wb'), pickle_module=dill))
