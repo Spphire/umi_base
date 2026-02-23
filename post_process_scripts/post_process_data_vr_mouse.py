@@ -716,8 +716,8 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_choose_block_dh'
-    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_choose_block_dh'
+    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_mouse_dh_val'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_val'
     debug = False  # 设置为True以进行调试（只处理前5个文件）
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作

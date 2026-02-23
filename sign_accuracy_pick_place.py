@@ -56,7 +56,7 @@ def load_policy(ckpt_path: str, cfg_yaml_path: Optional[str] = None):
 
     cls = hydra.utils.get_class(cfg._target_)
     workspace = cls(cfg)
-    workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+    workspace.load_payload(payload, exclude_keys=['lr_scheduler'], include_keys=None)
 
     policy = workspace.model
     if cfg.training.use_ema and hasattr(workspace, "ema_model"):
@@ -441,11 +441,13 @@ def main():
     # parser.add_argument("--ckpt", default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', help="Path to policy checkpoint")
     # 
     parser.add_argument("--ckpt", 
-        default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.15/10.03.41_train_diffusion_unet_timm_q3_mouse_197/checkpoints/latest.ckpt', 
+        #default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.21/17.12.59_train_diffusion_unet_timm_q3_mouse_195/checkpoints/latest.ckpt', 
+        #help="Path to policy checkpoint")
+        default='/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.22/12.23.34_train_diffusion_unet_timm_q3_mouse_195/checkpoints/latest.ckpt', 
         help="Path to policy checkpoint")
     
     parser.add_argument("--cfg", default=None, help="Optional cfg yaml path")
-    parser.add_argument("--dataset", default='/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh/replay_buffer.zarr', help="Path to replay_buffer.zarr")
+    parser.add_argument("--dataset", default='/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_val/replay_buffer.zarr', help="Path to replay_buffer.zarr")
     parser.add_argument("--n-obs-steps", type=int, default=1, help="Observation history length")
     parser.add_argument("--start-episode", type=int, default=0, help="Start episode index (inclusive)")
     parser.add_argument("--end-episode", type=int, default=None, help="End episode index (exclusive)")

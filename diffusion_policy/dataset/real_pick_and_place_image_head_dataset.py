@@ -59,8 +59,14 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             zarr_load_keys.append('right_eye_img')
         if 'left_robot_gripper_width' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('left_robot_gripper_width')
+        if 'left_robot_tcp_pose' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
+            zarr_load_keys.append('left_robot_tcp_pose')
         if 'right_robot_gripper_width' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('right_robot_gripper_width')
+        if 'right_robot_tcp_pose' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
+            zarr_load_keys.append('right_robot_tcp_pose')
+        if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
+            zarr_load_keys.append('left_eye_tcp_pose')
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
         
@@ -148,7 +154,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         normalizer = LinearNormalizer()
 
         if self.relative_action:
-            relative_data_dict = {key: list() for key in (self.lowdim_keys + ['action']) if ('robot_tcp_pose' in key and 'wrt' not in key) or 'action' in key}
+            relative_data_dict = {key: list() for key in (self.lowdim_keys + ['action']) if ('tcp_pose' in key and 'wrt' not in key) or 'action' in key}
         else:
             relative_data_dict = {}
         inter_gripper_data_dict = {key: list() for key in self.lowdim_keys if 'wrt' in key}
@@ -180,9 +186,9 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         for key in list(set(self.lowdim_keys)):
             if self.relative_action and self.relative_tcp_obs_for_relative_action and key in relative_data_dict:
                 normalizer[key] = get_action_normalizer(relative_data_dict[key])
-            elif 'robot_tcp_pose' in key and 'wrt' in key:
+            elif 'tcp_pose' in key and 'wrt' in key:
                 normalizer[key] = get_action_normalizer(inter_gripper_data_dict[key])
-            elif 'robot_tcp_pose' in key and 'wrt' not in key:
+            elif 'tcp_pose' in key and 'wrt' not in key:
                 normalizer[key] = get_action_normalizer(self.replay_buffer[key][:, :self.shape_meta['obs'][key]['shape'][0]])
             else:
                 normalizer[key] = SingleFieldLinearNormalizer.create_fit(
@@ -212,30 +218,29 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         obs_dict = dict()
         for key in self.rgb_keys:
             img = data[key][T_slice]  # H W C, uint8, 0-255
-            # if key == 'left_eye_img' and 'right_eye_img' in data:
-            #     if np.random.rand() < 0.5:  # 50% 概率
-            #         img = data['right_eye_img'][T_slice]  # H W C, uint8, 0-255
-            if 'eye' in key:
-                if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
-                    img = data['right_eye_img'][T_slice]  # H W C, uint
-                #img = apply_image_augmentation(img, apply_transform=True)
-                #img = batch_resize_thwc(img, target_size=224, mode='pad')  # THWC uint8
-            elif 'wrist' in key:
-                pass
-                #img = apply_image_augmentation(img, apply_transform=False)
-                #img = batch_resize_thwc(img, target_size=224, mode='crop')  # THWC uint8
+            add_noise_flag = False
+            # if 'eye' in key:
+            #     if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
+            #         img = data['right_eye_img'][T_slice]  # H W C, uint
+            # elif 'wrist' in key:
+            #     if np.random.rand() < 0.15:  # 20% 的概率
+            #        add_noise_flag = True
+            # else:
+            #     logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
+            #     raise NotImplementedError(f"Unknown image key: {key}")
 
-                # if np.random.rand() < 0.15:  # 20% 的概率
-                #     img = np.zeros_like(img)  # 将手腕图像替换为全黑图像
-            else:
-                logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
-                raise NotImplementedError(f"Unknown image key: {key}")
+            # --- 归一化与通道转换 ---
+            # T,H,W,C -> T,C,H,W
+            img_normalized = np.moveaxis(img, -1, 1).astype(np.float32) / 255.0
 
-            # move channel last to channel first
-            # T,H,W,C
-            # convert uint8 image to float32
-            obs_dict[key] = np.clip(np.moveaxis(img,-1,1
-                ).astype(np.float32) / 255., 0., 1.)
+            # --- 注入噪声 ---
+            if add_noise_flag:
+                # 此时 img_normalized 范围是 [0, 1]
+                # scale=0.5 表示噪声非常剧烈，几乎抹杀纹理
+                noise = np.random.normal(0, 0.15, img_normalized.shape)
+                img_normalized = np.clip(img_normalized + noise, 0.0, 1.0)
+
+            obs_dict[key] = img_normalized
 
             # T,C,H,W
             # save ram
@@ -259,12 +264,13 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             # Make the length 10 or 20, not 9 or 18.
             # Shape in obs_dict[xxx] is (T, D).
             base_absolute_action = np.concatenate([
-                obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
-                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
+                data['left_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_robot_tcp_pose' in data else np.array([]),
+                data['right_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'right_robot_tcp_pose' in data else np.array([]),
 
                 data['left_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'left_robot_gripper_width' in data else np.array([]),
                 data['right_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'right_robot_gripper_width' in data else np.array([]),
 
+                data['left_eye_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_eye_tcp_pose' in data else np.array([]),
                 #obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
                 #obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)
@@ -275,14 +281,13 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
 
             if self.relative_tcp_obs_for_relative_action:
                 for key in self.lowdim_keys:
-                    if 'robot_tcp_pose' in key and 'wrt' not in key:
+                    if 'tcp_pose' in key and 'wrt' not in key:
                         # calculate relative obs from the last obs (as image history)
                         obs_dict[key] = absolute_actions_to_relative_actions(
                             obs_dict[key],
                             base_absolute_action=obs_dict[key][-1],
                             action_representation=self.action_representation
                         )
-
         torch_data = {
             'obs': dict_apply(obs_dict, torch.from_numpy),
             'action': torch.from_numpy(action)

@@ -480,6 +480,36 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                                 step_log['train_action_mse_error_no_head'] = mse_no_head.item()
                                 step_log['train_action_mse_head_importance'] = (mse_no_head - mse).item()
 
+                        if len(val_dataloader) > 0:
+                            batch = next(iter(val_dataloader))
+                            obs_dict = batch['obs']
+                            gt_action = batch['action']
+                            result = policy.predict_action(obs_dict)
+                            pred_action = result['action_pred']
+                            all_preds, all_gt = accelerator.gather_for_metrics((pred_action, gt_action))
+
+                            # Prepare for masked prediction if left_eye_img exists
+                            has_head_img = 'left_eye_img' in obs_dict
+                            if has_head_img:
+                                obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
+                                obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
+                                result_masked = policy.predict_action(obs_dict_masked)
+                                pred_action_masked = result_masked['action_pred']
+                                all_preds_masked, _ = accelerator.gather_for_metrics((pred_action_masked, gt_action))
+                            else:
+                                all_preds_masked = None
+
+                            if accelerator.is_main_process:
+                                mse = torch.nn.functional.mse_loss(all_preds, all_gt)
+                                step_log['val_action_mse_error'] = mse.item()
+                                
+                                # Log head image masking results if available
+                                if has_head_img and all_preds_masked is not None:
+                                    mse_no_head = torch.nn.functional.mse_loss(all_preds_masked, all_gt)
+                                    step_log['val_action_mse_error_no_head'] = mse_no_head.item()
+                                    step_log['val_action_mse_head_importance'] = (mse_no_head - mse).item()
+
+
                 accelerator.wait_for_everyone()
                 
                 # checkpoint

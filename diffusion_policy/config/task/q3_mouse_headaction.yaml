@@ -7,7 +7,7 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_mouse_195
+name: q3_mouse_headaction
 
 image_shape: [3, 224, 224]
 
@@ -17,10 +17,6 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       horizon: ${n_obs_steps}
       shape: ${task.image_shape}
       type: rgb
-    left_robot_tcp_pose:
-      horizon: ${n_obs_steps}
-      shape: [9]
-      type: low_dim
 
     left_eye_img:
       horizon: ${n_obs_steps}
@@ -28,7 +24,7 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       type: rgb
 
   action:
-    shape: [10]
+    shape: [19]
     horizon: ${horizon}
 
 env_runner:

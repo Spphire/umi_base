@@ -9,7 +9,7 @@ task_name: ${task.name}
 shape_meta: ${task.shape_meta}
 exp_name: "default"
 
-run_log_name: '2026.02.21/17.12.59_train_diffusion_unet_timm_q3_mouse_195'
+run_log_name: '2026.02.22/12.23.34_train_diffusion_unet_timm_q3_mouse_195'
 
 horizon: 16
 n_obs_steps: 1
@@ -166,7 +166,7 @@ logging:
   mode: online
   name: "${run_log_name}"
   tags: ["${name}", "${task_name}", "${exp_name}"]
-  id: "mguaypds"
+  id: "o1gcxss4"
   group: null
 
 checkpoint:
