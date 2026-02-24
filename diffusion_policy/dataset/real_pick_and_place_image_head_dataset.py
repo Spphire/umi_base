@@ -264,13 +264,15 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             # Make the length 10 or 20, not 9 or 18.
             # Shape in obs_dict[xxx] is (T, D).
             base_absolute_action = np.concatenate([
-                data['left_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_robot_tcp_pose' in data else np.array([]),
-                data['right_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'right_robot_tcp_pose' in data else np.array([]),
+                # data['left_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_robot_tcp_pose' in data else np.array([]),
+                # data['right_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'right_robot_tcp_pose' in data else np.array([]),
+                obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
+                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
 
                 data['left_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'left_robot_gripper_width' in data else np.array([]),
                 data['right_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'right_robot_gripper_width' in data else np.array([]),
 
-                data['left_eye_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_eye_tcp_pose' in data else np.array([]),
+                #data['left_eye_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_eye_tcp_pose' in data else np.array([]),
                 #obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
                 #obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)

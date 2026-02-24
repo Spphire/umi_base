@@ -1,0 +1,126 @@
+#   action_representation: 'only-y-train'
+#   可疑
+
+
+defaults:
+  - single_arm_one_iphone_30fps@_here_
+  # - single_arm_one_realsense_30fps@_here_
+  - _self_
+
+name: q3_choose_block_198_purecolor
+
+image_shape: [3, 224, 224]
+
+shape_meta: &shape_meta # acceptable types: rgb, low_dim
+  obs:
+    left_wrist_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+    left_robot_tcp_pose:
+      horizon: ${n_obs_steps}
+      shape: [9]
+      type: low_dim
+
+    left_eye_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+
+  action:
+    shape: [10]
+    horizon: ${horizon}
+
+env_runner:
+  _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
+  eval_episodes: 10
+  max_duration_time: 120
+  use_relative_action: True
+  tcp_action_update_interval: 10
+  gripper_action_update_interval: 10
+  latency_step: 3
+  gripper_latency_step: 4
+  control_fps: 10
+  inference_fps: 5
+  obs_temporal_downsample_ratio: 1
+  n_obs_steps: ${n_obs_steps}
+  task_name: ${task_name}
+  transform_params: ${task.transforms}
+  shape_meta: *shape_meta
+  tcp_ensemble_buffer_params:
+    ensemble_mode: "new"
+  gripper_ensemble_buffer_params:
+    ensemble_mode: "new"
+  enable_video_recording: False
+  vcamera_server_ip: 192.168.2.187
+  vcamera_server_port: 8102
+  env_params:
+    robot_server_ip: ${task.robot_server.host_ip}
+    robot_server_port: ${task.robot_server.port}
+    device_mapping_server_ip: ${task.device_mapping_server.host_ip}
+    device_mapping_server_port: ${task.device_mapping_server.port}
+    data_processing_params:
+      # TODO: fix this (support left or right)
+      mode: "single_arm_one_realsense"
+      image_resize_shape: [224, 224]
+      image_resize_mode: 'center_crop'
+      use_6d_rotation: True
+      debug: False
+    max_fps: 30
+    debug: False
+    # gripper control params
+    use_force_control_for_gripper: ${task.teleop_server.use_force_control_for_gripper}
+    max_gripper_width: ${task.teleop_server.max_gripper_width}
+    min_gripper_width: ${task.teleop_server.min_gripper_width}
+    grasp_force: ${task.teleop_server.grasp_force}
+    gripper_control_time_interval: ${task.teleop_server.gripper_control_time_interval}
+    gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
+    gripper_width_threshold: 0.046
+    enable_gripper_width_clipping: True
+  debug: False
+
+dataset:
+  _target_: diffusion_policy.dataset.cloud_pick_and_place_image_head_dataset.CloudPickAndPlaceImageHeadDataset
+  shape_meta: *shape_meta
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  n_obs_steps: ${dataset_obs_steps}
+  n_latency_steps: ${n_latency_steps}
+  seed: 42
+  val_ratio: 0.05
+  max_train_episodes: null
+  delta_action: False
+  relative_action: True
+  local_files_only: "/mnt/data/shenyibo/workspace/umi_base/.cache/q3_choose_block_dh_purecolor/replay_buffer.zarr"
+  datacloud_endpoint: http://100.100.101.223:8083
+  identifier: q3_choose_block_198_purecolor
+  use_data_filtering: False
+  use_absolute_action: True
+  action_type: head_6DOF_left_arm_6DOF_gripper_width
+  temporal_downsample_ratio: 1
+  temporal_upsample_ratio: 0
+  use_dino: True
+  use_quantiles: True
+  episode_clip_head_seconds: 0.0
+  episode_clip_tail_seconds: 0.0
+  action_representation: 'relative'
+  random_mask_head_image: False
+  query_filter:
+    "$and":
+      - metadata.problems:
+          "$not":
+            "$elemMatch":
+              slamJump:
+                "$exists": true
+      - metadata.problems:
+          "$not":
+            "$elemMatch":
+              framedrop2_5:
+                "$exists": true
+      - metadata.problems:
+          "$not":
+            "$elemMatch":
+              framedrop1_5_in_1s:
+                "$exists": true
+
