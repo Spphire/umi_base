@@ -276,10 +276,16 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
                 #obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
                 #obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)
-            action = absolute_actions_to_relative_actions(
-                action, base_absolute_action=base_absolute_action,
-                action_representation=self.action_representation
-            )
+            if base_absolute_action.shape[-1]+3 == action.shape[-1]:
+                action[...,:-3] = absolute_actions_to_relative_actions(
+                    action[...,:-3], base_absolute_action=base_absolute_action,
+                    action_representation=self.action_representation
+                )
+            else:
+                action = absolute_actions_to_relative_actions(
+                    action, base_absolute_action=base_absolute_action,
+                    action_representation=self.action_representation
+                )
 
             if self.relative_tcp_obs_for_relative_action:
                 for key in self.lowdim_keys:

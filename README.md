@@ -1,3 +1,7 @@
+/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.24/18.51.58_train_diffusion_unet_timm_q3_choose_block_198_vqa/checkpoints/latest.ckpt
+scp -C junjie@8.153.94.10:/mnt/data/shenyibo/workspace/umi_base/data/outputs/2026.02.24/18.51.58_train_diffusion_unet_timm_q3_choose_block_198_vqa/checkpoints/latest.ckpt ~/choose_block_vqa.ckpt
+
+
 # Data collection-Model training-Real robot evaluation Workflow Guidance
 
 ## Data collection (optional)

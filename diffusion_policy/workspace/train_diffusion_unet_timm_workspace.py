@@ -471,12 +471,26 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             all_preds_masked = None
 
                         if accelerator.is_main_process:
-                            mse = torch.nn.functional.mse_loss(all_preds, all_gt)
+                            # 假设 action 前10维为回归，后面为分类logits
+                            mse_dim = 10
+                            # all_preds, all_gt: [N, action_dim]
+                            action_pred = all_preds[..., :mse_dim]
+                            action_gt = all_gt[..., :mse_dim]
+                            mse = torch.nn.functional.mse_loss(action_pred, action_gt)
                             step_log['train_action_mse_error'] = mse.item()
-                            
+
+                            # 分类cross entropy loss
+                            if all_preds.shape[-1] > mse_dim:
+                                class_logits = all_preds[..., mse_dim:].mean(dim=-2)
+                                class_gt = all_gt[..., mse_dim:].mean(dim=-2)
+                                gt_class = class_gt.argmax(dim=-1)
+                                ce_loss = torch.nn.functional.cross_entropy(class_logits, gt_class)
+                                step_log['train_action_ce_loss'] = ce_loss.item()
+
                             # Log head image masking results if available
                             if has_head_img and all_preds_masked is not None:
-                                mse_no_head = torch.nn.functional.mse_loss(all_preds_masked, all_gt)
+                                action_pred_masked = all_preds_masked[..., :mse_dim]
+                                mse_no_head = torch.nn.functional.mse_loss(action_pred_masked, action_gt)
                                 step_log['train_action_mse_error_no_head'] = mse_no_head.item()
                                 step_log['train_action_mse_head_importance'] = (mse_no_head - mse).item()
 

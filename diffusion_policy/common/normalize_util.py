@@ -278,6 +278,16 @@ def get_action_normalizer(actions: np.ndarray, temporally_independent_normalizat
         normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
         if D == 10:
             normalizers.append(normalizer_fn(array_to_stats(actions[...,9:])))
+    # special code for classify
+    elif D==13:
+        normalizers = []
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
+        # don't normalize rotation
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,3:9])))
+        # gripper width
+        normalizers.append(normalizer_fn(array_to_stats(actions[...,9:10])))
+        # don't normalize classify
+        normalizers.append(get_identity_normalizer_from_stat(array_to_stats(actions[...,10:13])))
     elif D == 18 or D == 20:
         normalizers = []
         normalizers.append(normalizer_fn(array_to_stats(actions[...,:3])))
