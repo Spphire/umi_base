@@ -65,6 +65,12 @@ def matrix4x4_to_pose_6d(mat: np.ndarray) -> np.ndarray:
     trans = mat[:3, 3]
     return np.concatenate([trans, euler])
 
+def matrix4x4_to_pose_7d(mat: np.ndarray) -> np.ndarray:
+    # convert 4x4 transformation matrix to 7D pose (x, y, z, qw, qx, qy, qz)
+    quat = t3d.quaternions.mat2quat(mat[:3, :3])
+    trans = mat[:3, 3]
+    return np.concatenate([trans, quat])  # quat is (qw, qx, qy, qz)
+
 def ortho6d_to_rotation_matrix(ortho6d: np.ndarray) -> np.ndarray:
     """
     Compute rotation matrix from ortho6d representation
