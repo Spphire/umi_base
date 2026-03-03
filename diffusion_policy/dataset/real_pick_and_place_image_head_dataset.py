@@ -55,8 +55,8 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         
         zarr_path = os.path.join(dataset_path)
         zarr_load_keys = rgb_keys + lowdim_keys + ['action']
-        if 'left_eye_img' in zarr_load_keys:
-            zarr_load_keys.append('right_eye_img')
+        # if 'left_eye_img' in zarr_load_keys:
+        #     zarr_load_keys.append('right_eye_img')
         if 'left_robot_gripper_width' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('left_robot_gripper_width')
         if 'left_robot_tcp_pose' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
@@ -65,10 +65,10 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             zarr_load_keys.append('right_robot_gripper_width')
         if 'right_robot_tcp_pose' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('right_robot_tcp_pose')
-        if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
-            zarr_load_keys.append('left_eye_tcp_pose')
+        # if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
+        #     zarr_load_keys.append('left_eye_tcp_pose')
 
-        zarr_load_keys.append('left_wrist_mask_rate')
+        # zarr_load_keys.append('left_wrist_mask_rate')
 
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
@@ -223,7 +223,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             img = data[key][T_slice]  # H W C, uint8, 0-255
             mask_img_flag = False
             if 'eye' in key:
-                if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
+                if np.random.rand() < 0.5 and 'right_eye_img' in data.keys():  # 50% 的概率 使用右眼图像
                     img = data['right_eye_img'][T_slice]  # H W C, uint
             elif 'wrist' in key:
                 if 'left_wrist_mask_rate' in data.keys():
