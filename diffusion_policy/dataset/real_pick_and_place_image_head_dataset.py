@@ -67,6 +67,9 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             zarr_load_keys.append('right_robot_tcp_pose')
         if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
             zarr_load_keys.append('left_eye_tcp_pose')
+
+        zarr_load_keys.append('left_wrist_mask_rate')
+
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
         
@@ -218,13 +221,14 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         obs_dict = dict()
         for key in self.rgb_keys:
             img = data[key][T_slice]  # H W C, uint8, 0-255
-            add_noise_flag = False
-            # if 'eye' in key:
-            #     if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
-            #         img = data['right_eye_img'][T_slice]  # H W C, uint
-            # elif 'wrist' in key:
-            #     if np.random.rand() < 0.15:  # 20% 的概率
-            #        add_noise_flag = True
+            mask_img_flag = False
+            if 'eye' in key:
+                if np.random.rand() < 0.5:  # 50% 的概率 使用右眼图像
+                    img = data['right_eye_img'][T_slice]  # H W C, uint
+            elif 'wrist' in key:
+                if 'left_wrist_mask_rate' in data.keys():
+                    if np.random.rand() < 0.2*data['left_wrist_mask_rate'][T_slice].astype(np.float32).item():  # 20% 的概率
+                        mask_img_flag = True
             # else:
             #     logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
             #     raise NotImplementedError(f"Unknown image key: {key}")
@@ -233,12 +237,8 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             # T,H,W,C -> T,C,H,W
             img_normalized = np.moveaxis(img, -1, 1).astype(np.float32) / 255.0
 
-            # --- 注入噪声 ---
-            if add_noise_flag:
-                # 此时 img_normalized 范围是 [0, 1]
-                # scale=0.5 表示噪声非常剧烈，几乎抹杀纹理
-                noise = np.random.normal(0, 0.15, img_normalized.shape)
-                img_normalized = np.clip(img_normalized + noise, 0.0, 1.0)
+            if mask_img_flag:
+                img_normalized = np.zeros_like(img_normalized)
 
             obs_dict[key] = img_normalized
 
@@ -276,9 +276,10 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
                 #obs_dict['left_robot_gripper_width'][-1] if 'left_robot_gripper_width' in obs_dict else np.array([]),
                 #obs_dict['right_robot_gripper_width'][-1] if 'right_robot_gripper_width' in obs_dict else np.array([]),
             ], axis=-1)
-            if base_absolute_action.shape[-1]+3 == action.shape[-1]:
-                action[...,:-3] = absolute_actions_to_relative_actions(
-                    action[...,:-3], base_absolute_action=base_absolute_action,
+            extra_dim=1
+            if base_absolute_action.shape[-1]+extra_dim == action.shape[-1]:
+                action[...,:-extra_dim] = absolute_actions_to_relative_actions(
+                    action[...,:-extra_dim], base_absolute_action=base_absolute_action,
                     action_representation=self.action_representation
                 )
             else:

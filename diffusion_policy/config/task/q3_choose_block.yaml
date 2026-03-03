@@ -7,7 +7,7 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_choose_block_99
+name: q3_choose_block_198
 
 image_shape: [3, 224, 224]
 

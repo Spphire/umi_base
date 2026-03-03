@@ -481,10 +481,9 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
 
                             # 分类cross entropy loss
                             if all_preds.shape[-1] > mse_dim:
-                                class_logits = all_preds[..., mse_dim:].mean(dim=-2)
-                                class_gt = all_gt[..., mse_dim:].mean(dim=-2)
-                                gt_class = class_gt.argmax(dim=-1)
-                                ce_loss = torch.nn.functional.cross_entropy(class_logits, gt_class)
+                                class_logits = all_preds[..., mse_dim:]
+                                class_gt = all_gt[..., mse_dim:]
+                                ce_loss = torch.nn.functional.mse_loss(class_logits, class_gt)
                                 step_log['train_action_ce_loss'] = ce_loss.item()
 
                             # Log head image masking results if available

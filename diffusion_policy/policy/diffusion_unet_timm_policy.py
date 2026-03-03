@@ -279,9 +279,7 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         mse_per_sample = reduce(mse_loss, "b ... -> b (...)", "mean").mean(dim=-1)
 
         if pred.shape[-1] > mse_dim:
-            class_logits = pred[..., mse_dim:].mean(dim=-2)
-            target_class = target[..., mse_dim:].mean(dim=-2).argmax(dim=-1)
-            ce_loss = F.cross_entropy(class_logits, target_class, reduction="none")
+            ce_loss = F.mse_loss(pred[..., mse_dim:], target[..., mse_dim:], reduction="none")
             ce_loss = ce_loss.type(ce_loss.dtype)
             _debug_tensor("ce_loss", ce_loss)
             ce_per_sample = reduce(ce_loss, "b ... -> b (...)", "mean").mean(dim=-1)
@@ -289,7 +287,7 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
             ce_per_sample = torch.zeros_like(mse_per_sample)
 
         # 合并loss（可加权，这里简单相加）
-        per_sample_loss = mse_per_sample + ce_per_sample*0.01
+        per_sample_loss = mse_per_sample + ce_per_sample*0.005
 
         if self.train_diffusion_n_samples != 1:
             # average across repeated samples for each original batch item

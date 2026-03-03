@@ -7,7 +7,7 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_choose_block_198_vqa
+name: q3_choose_block_198_vqa_5e-4
 
 image_shape: [3, 224, 224]
 
@@ -28,7 +28,7 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       type: rgb
 
   action:
-    shape: [13]
+    shape: [11]
     horizon: ${horizon}
 
 env_runner:
