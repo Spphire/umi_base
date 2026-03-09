@@ -339,7 +339,7 @@ def convert_episodes_to_zarr(input_dir: str, output_dir: str, overwrite: bool = 
 
 def main():
     parser = argparse.ArgumentParser(description="Convert compressed teleop episodes to replay_buffer.zarr")
-    parser.add_argument("--input-dir", "-i", default="/mnt/data/shenyibo/workspace/umi_base/.cache/pack_teleop_nofisheye_mouse", help="Folder containing episode_xxx subfolders")
+    parser.add_argument("--input-dir", "-i", default="/mnt/data/users/shenyibo/umi_base/.cache/teleop_nofisheye_mouse", help="Folder containing episode_xxx subfolders")
     parser.add_argument("--output-dir", "-o", default=".cache/teleop_nofisheye_mouse", help="Output folder for replay_buffer.zarr")
     parser.add_argument("--no-overwrite", action="store_true", help="Do not overwrite existing zarr")
     args = parser.parse_args()

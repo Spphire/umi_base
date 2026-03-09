@@ -92,6 +92,7 @@ train_acc8:
 	task=${TASK}
 
 train_acc8_amp:
+	export HF_HUB_OFFLINE=1 && \
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
