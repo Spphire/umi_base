@@ -80,6 +80,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
         key_shape_map = dict()
 
         assert global_pool == ''
+        print("DEBUG model_name:", model_name)
         model = timm.create_model(
             model_name=model_name,
             pretrained=pretrained,

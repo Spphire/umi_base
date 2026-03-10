@@ -53,7 +53,7 @@ policy:
         brightness: 0.3
         contrast: 0.4
         saturation: 0.5
-        hue: 0.08
+        #hue: 0.08
 
     use_group_norm: True
     share_rgb_model: True

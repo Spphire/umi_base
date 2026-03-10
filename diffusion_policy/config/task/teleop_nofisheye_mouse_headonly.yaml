@@ -7,16 +7,12 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_mouse_195_20%mask
+name: teleop_nofisheye_mouse_100_headonly_just1img
 
 image_shape: [3, 224, 224]
 
 shape_meta: &shape_meta # acceptable types: rgb, low_dim
   obs:
-    left_wrist_img:
-      horizon: ${n_obs_steps}
-      shape: ${task.image_shape}
-      type: rgb
     left_robot_tcp_pose:
       horizon: ${n_obs_steps}
       shape: [9]
@@ -92,10 +88,9 @@ dataset:
   max_train_episodes: null
   delta_action: False
   relative_action: True
-  #local_files_only: "/mnt/workspace/shenyibo/data/umi_base/packsnackq3_1-24/replay_buffer.zarr"
-  local_files_only: "/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_train/replay_buffer.zarr"
+  local_files_only: ".cache/teleop_nofisheye_mouse/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
-  identifier: q3_mouse_195
+  identifier: teleop_nofisheye_mouse_100
   use_data_filtering: False
   use_absolute_action: True
   action_type: head_6DOF_left_arm_6DOF_gripper_width

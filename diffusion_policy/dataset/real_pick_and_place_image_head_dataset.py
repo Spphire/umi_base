@@ -162,6 +162,31 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             relative_data_dict = {}
         inter_gripper_data_dict = {key: list() for key in self.lowdim_keys if 'wrt' in key}
         
+        head_sum = 0
+        wrist_sum = 0
+        head_count = 0
+        wrist_count = 0
+
+        for data in tqdm.tqdm(self, leave=False, desc="Calculating brightness stats"):
+            for key in self.rgb_keys:
+                img = data['obs'][key]   # T,C,H,W or T,H,W,C depending on dataset
+                
+                if 'eye' in key:
+                    head_sum += img.mean()
+                    head_count += 1
+                elif 'wrist' in key:
+                    wrist_sum += img.mean()
+                    wrist_count += 1
+
+        head_mean = head_sum / max(head_count,1)
+        wrist_mean = wrist_sum / max(wrist_count,1)
+
+        self.wrist_brightness_scale = head_mean / (wrist_mean + 1e-6)
+
+        print("Head brightness:", head_mean)
+        print("Wrist brightness:", wrist_mean)
+        print("Wrist scale:", self.wrist_brightness_scale)
+        
         for data in tqdm.tqdm(self, leave=False, desc='Calculating inter-gripper relative obs and relative action/obs for normalizer'):
             for key in relative_data_dict.keys():
                 if key == 'action':
@@ -230,13 +255,12 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
                 #     if np.random.rand() < 0.2*data['left_wrist_mask_rate'][T_slice].astype(np.float32).item():  # 20% 的概率
                 #         mask_img_flag = True
 
-                # if np.random.rand() < 0.15:  # 15% 的概率 mask wrist 图像
-                #     mask_img_flag = True
-                mask_img_flag = True
-                #pass
-            # else:
-            #     logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
-            #     raise NotImplementedError(f"Unknown image key: {key}")
+                if np.random.rand() < 0.2:  # 15% 的概率 mask wrist 图像
+                    mask_img_flag = True
+                #img = img.astype(np.float32) * 0.5
+            else:
+                logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
+                raise NotImplementedError(f"Unknown image key: {key}")
 
             # --- 归一化与通道转换 ---
             # T,H,W,C -> T,C,H,W
