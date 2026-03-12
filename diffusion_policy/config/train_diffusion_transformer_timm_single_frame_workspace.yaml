@@ -88,9 +88,9 @@ val_dataloader:
   persistent_workers: True
 
 optimizer:
-  lr: 7.5e-5
+  lr: 3.0e-4
   weight_decay: 1.0e-6
-  obs_encoder_lr: 7.5e-6
+  obs_encoder_lr: 3.0e-5
   obs_encoder_weight_decay: 1.0e-6
   betas: [0.95, 0.999]
 

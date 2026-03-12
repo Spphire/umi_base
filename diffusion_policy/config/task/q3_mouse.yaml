@@ -7,7 +7,7 @@ defaults:
   # - single_arm_one_realsense_30fps@_here_
   - _self_
 
-name: q3_mouse_195_20%mask
+name: q3_mouse_195_0.6brightness_0.15maskhead
 
 image_shape: [3, 224, 224]
 

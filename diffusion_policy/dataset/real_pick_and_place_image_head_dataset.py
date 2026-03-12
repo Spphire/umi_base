@@ -250,14 +250,10 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             if 'eye' in key:
                 if np.random.rand() < 0.5 and 'right_eye_img' in data.keys():  # 50% 的概率 使用右眼图像
                     img = data['right_eye_img'][T_slice]  # H W C, uint
-            elif 'wrist' in key:
-                # if 'left_wrist_mask_rate' in data.keys():
-                #     if np.random.rand() < 0.2*data['left_wrist_mask_rate'][T_slice].astype(np.float32).item():  # 20% 的概率
-                #         mask_img_flag = True
-
-                if np.random.rand() < 0.2:  # 15% 的概率 mask wrist 图像
+                if np.random.rand() < 0.15:  # 15% 的概率 mask wrist 图像
                     mask_img_flag = True
-                #img = img.astype(np.float32) * 0.5
+            elif 'wrist' in key:
+                img = img.astype(np.float32) * 0.6
             else:
                 logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
                 raise NotImplementedError(f"Unknown image key: {key}")

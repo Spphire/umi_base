@@ -450,6 +450,12 @@ def convert_data_to_zarr(
         # 处理头部TCP pose（无坐标转换）
         left_eye_tcp_pose_arrays.append(obs_dict['left_eye_tcp_pose'])
         right_eye_tcp_pose_arrays.append(obs_dict['right_eye_tcp_pose'])
+
+        invGamma = 1.0 / 1.8
+        table = np.array([
+            ((i / 255.0) ** invGamma) * 255
+            for i in range(256)
+        ]).astype("uint8")
         
         # 处理头部图像（应用手臂遮罩）
         if 'left_eye_img' in obs_dict:
@@ -494,6 +500,7 @@ def convert_data_to_zarr(
             else:
                 # 不使用遮罩
                 for img in obs_dict['left_eye_img']:
+                    img = cv2.LUT(img, table)
                     if use_dino:
                         img = center_crop_and_resize_image(img, crop=False)
                     processed_images.append(img)
@@ -542,6 +549,7 @@ def convert_data_to_zarr(
             else:
                 # 不使用遮罩
                 for img in obs_dict['right_eye_img']:
+                    img = cv2.LUT(img, table)
                     if use_dino:
                         img = center_crop_and_resize_image(img, crop=False)
                     processed_images.append(img)
@@ -716,8 +724,8 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_choose_block_dh'
-    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_choose_block_dh'
+    input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_mouse_dh_train'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_train_head1.8gamma'
     debug = False  # 设置为True以进行调试（只处理前5个文件）
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
