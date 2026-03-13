@@ -4,10 +4,25 @@
 import os
 import json
 import hashlib
-import bson
 import cv2
 import numpy as np
 from pprint import pprint
+
+# ================== 兼容处理：修复bson.loads导入问题 ==================
+# 优先使用新版pymongo的导入方式，兼容不同版本/库
+try:
+    # 新版pymongo (4.x+) 推荐的导入方式
+    from bson import loads as bson_loads
+except ImportError:
+    try:
+        # 旧版pymongo 兼容方式
+        import bson
+        bson_loads = bson.loads
+    except (ImportError, AttributeError):
+        # 终极备选：使用pymongo.bson.BSON.decode
+        from bson import BSON
+        def bson_loads(raw_data):
+            return BSON(raw_data).decode()
 
 # ================== 配置 ==================
 RECORD_DIR = r"downloads/QuestTest_records/33a6bf65-97e2-4248-aa79-ba635a199f8a"
@@ -53,7 +68,9 @@ def load_stereo_bson(bson_path: str):
     print(f"[INFO] Loading BSON: {bson_path}")
     with open(bson_path, "rb") as f:
         raw = f.read()
-    data = bson.loads(raw)
+    
+    # 核心修改：使用兼容的bson_loads方法
+    data = bson_loads(raw)
 
     if not isinstance(data, dict):
         raise TypeError(f"Unexpected BSON structure: {type(data)}")

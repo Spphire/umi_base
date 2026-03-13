@@ -1,6 +1,38 @@
 import cv2
 import numpy as np
 
+def resize_image(image, target_size=(224, 224), mode='crop'):
+    h, w = image.shape[:2]
+    target_w, target_h = target_size
+
+    if mode == 'crop':
+        min_dim = min(h, w)
+        # Calculate center crop coordinates
+        y_start = (h - min_dim) // 2
+        x_start = (w - min_dim) // 2
+        # Center crop to square
+        cropped_img = image[y_start:y_start+min_dim, x_start:x_start+min_dim]
+        # Resize to target size
+        resized_img = cv2.resize(cropped_img, target_size)
+    elif mode == 'pad':
+        scale = min(target_w / w, target_h / h)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        resized = cv2.resize(image, (new_w, new_h))
+        # Create black canvas
+        padded_img = np.zeros((target_h, target_w, image.shape[2]), dtype=image.dtype)
+        # Center the resized image
+        y_offset = (target_h - new_h) // 2
+        x_offset = (target_w - new_w) // 2
+        padded_img[y_offset:y_offset + new_h, x_offset:x_offset + new_w] = resized
+        resized_img = padded_img
+    else: # just resize without cropping or padding
+        # check ascpect ratio
+        assert abs((h/w) - (target_h/target_w)) < 0.01, "Aspect ratio of image does not match target size"
+        resized_img = cv2.resize(image, target_size)
+
+    return resized_img
+
 def center_pad_and_resize_image(image, target_size=(224, 224)):
     """
     Center the image, pad with black to make it square, then resize to target size

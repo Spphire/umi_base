@@ -39,8 +39,8 @@ policy:
   obs_encoder:
     _target_: diffusion_policy.model.vision.timm_obs_encoder.TimmObsEncoder
     shape_meta: ${shape_meta}
-    #model_name: 'vit_base_patch16_dinov3.lvd1689m'
-    model_name: 'vit_base_patch16_clip_224.openai'
+    model_name: 'vit_base_patch16_dinov3.lvd1689m'
+    #model_name: 'vit_base_patch16_clip_224.openai'
     #model_name: 'vit_base_patch14_dinov2.lvd142m'
     # model_name: 'convnext_base.clip_laion2b_augreg_ft_in12k'
     pretrained: True
@@ -66,7 +66,7 @@ policy:
         brightness: 0.3
         contrast: 0.4
         saturation: 0.5
-        hue: 0.08
+        #hue: 0.08
 
     use_group_norm: True
     share_rgb_model: True
@@ -131,7 +131,7 @@ training:
   #   cycle: False         # 不循环
 
   lr_warmup_steps: 2000
-  num_epochs: 600
+  num_epochs: 500
   gradient_accumulate_every: 1
   layer_decay: 1.0
   # EMA destroys performance when used with BatchNorm
@@ -163,7 +163,7 @@ logging:
   project: diffusion_policy_debug
   resume: False
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
   tags: ["${name}", "${task_name}", "${exp_name}"]
   id: null
   group: null
@@ -179,14 +179,14 @@ checkpoint:
   only_save_recent: False
 
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
-  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
 
 hydra:
   job:
     override_dirname: ${name}
   run:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
   sweep:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
     subdir: ${hydra.job.num}

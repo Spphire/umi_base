@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 
 from diffusion_policy.real_world.post_process_utils import DataPostProcessingManagerVR
-from diffusion_policy.common.image_utils import center_crop_and_resize_image
+from diffusion_policy.common.image_utils import center_crop_and_resize_image, resize_image
 from diffusion_policy.common.data_models import ActionType
 
 # GroundedSAM imports
@@ -197,6 +197,7 @@ def convert_data_to_zarr(
     debug: bool = False,
     overwrite: bool = True,
     use_dino: bool = False,
+    resize_target: Optional[tuple] = None,
     gripper_width_bias: float = 0.0,
     gripper_width_scale: float = 1.0,
     episode_clip_head_seconds: float = 0.0,
@@ -428,6 +429,12 @@ def convert_data_to_zarr(
             gripper_width_pad_cnt += 1
         if gripper_width_pad_cnt > 0:
             logger.warning(f"Gripper width data padded {gripper_width_pad_cnt} times for session {session[0]}")
+
+        invGamma = 1.0 / 0.55
+        table = np.array([
+            ((i / 255.0) ** invGamma) * 255
+            for i in range(256)
+        ]).astype("uint8")
         
         # 处理左臂腕部图像
         if 'left_wrist_img' in obs_dict:
@@ -441,7 +448,11 @@ def convert_data_to_zarr(
             if use_dino:
                 processed_images = []
                 for img in obs_dict['left_wrist_img']:
-                    processed_img = center_crop_and_resize_image(img)
+                    #img = cv2.LUT(img, table)
+                    if resize_target is None:
+                        processed_img = resize_image(img, mode='crop')
+                    else:
+                        processed_img = resize_image(img, mode='resize', target_size=resize_target)
                     processed_images.append(processed_img)
                 left_wrist_img_arrays.append(np.array(processed_images))
             else:
@@ -450,12 +461,6 @@ def convert_data_to_zarr(
         # 处理头部TCP pose（无坐标转换）
         left_eye_tcp_pose_arrays.append(obs_dict['left_eye_tcp_pose'])
         right_eye_tcp_pose_arrays.append(obs_dict['right_eye_tcp_pose'])
-
-        invGamma = 1.0 / 1.8
-        table = np.array([
-            ((i / 255.0) ** invGamma) * 255
-            for i in range(256)
-        ]).astype("uint8")
         
         # 处理头部图像（应用手臂遮罩）
         if 'left_eye_img' in obs_dict:
@@ -488,24 +493,28 @@ def convert_data_to_zarr(
                             logger.info(f"Last left eye image (masked) saved to {first_masked_path}")
                         
                         if use_dino:
-                            masked_img = center_crop_and_resize_image(masked_img, crop=False)
+                            masked_img = resize_image(masked_img, mode='pad')
                         processed_images.append(masked_img)
                     except Exception as e:
                         logger.error(f"Failed to mask frame {idx} in session {session[0]}: {e}")
                         # 如果遮罩失败，使用原图
                         img_to_use = img
                         if use_dino:
-                            img_to_use = center_crop_and_resize_image(img, crop=False)
+                            img_to_use = resize_image(img, mode='pad')
                         processed_images.append(img_to_use)
             else:
                 # 不使用遮罩
-                for img in obs_dict['left_eye_img']:
-                    img = cv2.LUT(img, table)
-                    if use_dino:
-                        img = center_crop_and_resize_image(img, crop=False)
-                    processed_images.append(img)
-            
-            left_eye_img_arrays.append(np.array(processed_images))
+                if use_dino:
+                    for img in obs_dict['left_eye_img']:
+                        #img = cv2.LUT(img, table)
+                        if resize_target is None:
+                            img = resize_image(img, mode='pad')
+                        else:
+                            img = resize_image(img, mode='resize', target_size=resize_target)
+                        processed_images.append(img)
+                    left_eye_img_arrays.append(np.array(processed_images))
+                else:
+                    left_eye_img_arrays.append(np.array(obs_dict['left_eye_img']))
 
         if 'right_eye_img' in obs_dict:
             # 保存第一张原始图片
@@ -537,24 +546,28 @@ def convert_data_to_zarr(
                             logger.info(f"Last right eye image (masked) saved to {first_masked_path}")
                         
                         if use_dino:
-                            masked_img = center_crop_and_resize_image(masked_img, crop=False)
+                            masked_img = resize_image(masked_img, mode='pad')
                         processed_images.append(masked_img)
                     except Exception as e:
                         logger.error(f"Failed to mask frame {idx} in session {session[0]}: {e}")
                         # 如果遮罩失败，使用原图
                         img_to_use = img
                         if use_dino:
-                            img_to_use = center_crop_and_resize_image(img, crop=False)
+                            img_to_use = resize_image(img, mode='pad')
                         processed_images.append(img_to_use)
             else:
                 # 不使用遮罩
-                for img in obs_dict['right_eye_img']:
-                    img = cv2.LUT(img, table)
-                    if use_dino:
-                        img = center_crop_and_resize_image(img, crop=False)
-                    processed_images.append(img)
-            
-            right_eye_img_arrays.append(np.array(processed_images))
+                if use_dino:
+                    for img in obs_dict['right_eye_img']:
+                        #img = cv2.LUT(img, table)
+                        if resize_target is None:
+                            img = resize_image(img, mode='pad')
+                        else:
+                            img = resize_image(img, mode='resize', target_size=resize_target)
+                        processed_images.append(img)
+                    right_eye_img_arrays.append(np.array(processed_images))
+                else:
+                    right_eye_img_arrays.append(np.array(obs_dict['right_eye_img']))
 
     
     if skipped_sessions > 0:
@@ -725,13 +738,14 @@ def create_zarr_storage(
 if __name__ == '__main__':
     # 示例使用
     input_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/targz_q3_mouse_dh_train'
-    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_train_head1.8gamma'
+    output_dir = '/mnt/data/shenyibo/workspace/umi_base/.cache/q3_mouse_dh_384x288'
     debug = False  # 设置为True以进行调试（只处理前5个文件）
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
     action_type = ActionType.head_6DOF_left_arm_6DOF_gripper_width  # 设置动作类型
     overwrite = True  # 是否覆盖已有数据
     use_dino = True  # 是否使用DINO
+    resize_target = (384, 288)  # DINOv3输入大小
     gripper_width_bias = 0.0  # 设置夹爪宽度偏差
     gripper_width_scale = 1.0  # 设置夹爪宽度缩放比例
     
@@ -754,6 +768,7 @@ if __name__ == '__main__':
         debug=debug,
         overwrite=overwrite,
         use_dino=use_dino,
+        resize_target=resize_target,
         gripper_width_bias=gripper_width_bias,
         gripper_width_scale=gripper_width_scale,
         episode_clip_head_seconds=0.1,
