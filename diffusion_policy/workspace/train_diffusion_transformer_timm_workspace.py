@@ -10,6 +10,7 @@ if __name__ == "__main__":
 import os
 import hydra
 import torch
+import torch.distributed as dist
 from omegaconf import OmegaConf
 import pathlib
 from torch.utils.data import DataLoader
@@ -85,6 +86,12 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
             init_kwargs={"wandb": wandb_cfg}
         )
 
+        # Ensure all ranks share one output_dir from rank-0 hydra runtime.
+        if accelerator.num_processes > 1 and dist.is_available() and dist.is_initialized():
+            shared_output_dir = [self.output_dir if accelerator.is_main_process else None]
+            dist.broadcast_object_list(shared_output_dir, src=0)
+            self._output_dir = shared_output_dir[0]
+
         # configure dataset
         dataset: BaseImageDataset
         if accelerator.is_main_process:
@@ -122,6 +129,7 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
         # [mkdir if output_dir does not exist]
         if accelerator.is_main_process:
             os.makedirs(self.output_dir, exist_ok=True)
+        accelerator.wait_for_everyone()
 
         # compute normalizer on the main process and save to disk
         normalizer_path = os.path.join(self.output_dir, 'normalizer.pkl')
