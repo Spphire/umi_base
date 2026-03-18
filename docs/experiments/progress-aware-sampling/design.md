@@ -94,6 +94,7 @@ Each step should be gated by ablation results before moving to the next.
 1. Embedding quality may limit neighbor validity.
 2. Over-constrained pair selection may reduce diversity.
 3. Offline neighbor index may become stale if data distribution changes.
+4. Analysis encoder mismatch with training encoder can invalidate pair quality.
 
 ## 8. Non-Goals for this branch stage
 

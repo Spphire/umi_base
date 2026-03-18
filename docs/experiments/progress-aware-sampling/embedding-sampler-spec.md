@@ -42,6 +42,25 @@ Candidate source:
 
 - fixed DINO/timm backbone features from wrist/head image streams.
 
+## 4.1 Encoder Consistency Requirement (mandatory)
+
+The analysis encoder used for sampling artifacts must be consistent with training config.
+
+At minimum, lock and validate:
+
+1. `policy.obs_encoder.model_name`
+2. `policy.obs_encoder.pretrained`
+3. any checkpoint/version tag used by the timm backbone
+
+Recommended to include in cache signature:
+
+1. workspace config name
+2. task name
+3. obs encoder config hash (resolved)
+4. feature extraction script version
+
+If any of these change, cached embeddings/neighbor indices must be rebuilt.
+
 ## 5. Neighbor and Selection Logic
 
 For each anchor sample `i`:
@@ -97,6 +116,7 @@ Suggested cache artifacts:
 2. `embeddings_head.npy`
 3. `knn_wrist_indices.npy`
 4. `structured_pairs.npy` or grouped index list
+5. `meta.json` (encoder signature, config hash, build timestamp, feature version)
 
 ## 9. Diagnostics
 

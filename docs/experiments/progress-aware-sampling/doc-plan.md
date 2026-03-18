@@ -29,6 +29,7 @@ Complete documentation for the progress-aware sampling feature before code imple
 - Define required joint score:
   - head-distance
   - future-action distance
+- Define mandatory encoder-consistency checks against training config.
 - Freeze v1 schema for sampler integration.
 
 ## M3. Experiment contract (primary path)

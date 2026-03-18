@@ -9,6 +9,7 @@ Current highest-priority path is embedding-based cross-view sampling:
 - wrist embedding close
 - head embedding far
 - future-action embedding/action target far (required in joint score)
+- analysis encoder signature must match training config
 
 Progress/direction labels are now optional add-ons, not the main path.
 
