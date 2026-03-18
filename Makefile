@@ -9,13 +9,16 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 
-#TASK := q3_mouse_384x288
-TASK := q3_hang_cup
+#TASK := q3_hang_cup
+TASK := q3_mouse
 #WKSPACE := HOMMI
 
 WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 #WKSPACE := train_diffusion_transformer_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
+
+# dataset defaults (override from CLI when needed)
+LOCAL_DATASET_ZARR ?= /mnt/workspace/users/shenyibo/umi_base/.cache/q3_mouse_dh_train/replay_buffer.zarr
 
 # structured sampling defaults (override from CLI when needed)
 STRUCTURED_SAMPLING_ENABLED ?= true
@@ -96,7 +99,8 @@ train_acc8_amp:
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
-	task=${TASK}
+	task=${TASK} \
+	task.dataset.local_files_only=${LOCAL_DATASET_ZARR}
 
 train_acc8_amp_structured:
 	export HF_HUB_OFFLINE=1 && \
@@ -104,6 +108,7 @@ train_acc8_amp_structured:
 	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK} \
+	task.dataset.local_files_only=${LOCAL_DATASET_ZARR} \
 	+dataloader.structured_sampling.enabled=${STRUCTURED_SAMPLING_ENABLED} \
 	+dataloader.structured_sampling.candidate_indices_path=${STRUCTURED_CANDIDATE_INDICES_PATH} \
 	+dataloader.structured_sampling.structured_ratio=${STRUCTURED_RATIO} \
