@@ -2,6 +2,7 @@ from typing import Dict, List
 import torch
 import numpy as np
 import os
+import cv2
 from threadpoolctl import threadpool_limits
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -255,9 +256,9 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
                 #     if np.random.rand() < 0.2*data['left_wrist_mask_rate'][T_slice].astype(np.float32).item():  # 20% 的概率
                 #         mask_img_flag = True
 
-                if np.random.rand() < 0.2:  # 15% 的概率 mask wrist 图像
+                if np.random.rand() < 0.05:  # 15% 的概率 mask wrist 图像
                     mask_img_flag = True
-                #img = img.astype(np.float32) * 0.5
+                pass
             else:
                 logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
                 raise NotImplementedError(f"Unknown image key: {key}")

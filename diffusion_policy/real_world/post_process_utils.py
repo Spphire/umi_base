@@ -590,6 +590,9 @@ class DataPostProcessingManagerVR:
 
         # 匹配iphone的unity帧
         unity_ts = np.array(head_data['leftCameraAccessTimestamps'])
+        #assert abs(len(head_data['leftCameraAccessTimestamps'])-len(head_data['rightCameraAccessTimestamps']))<2
+        min_len = min(len(head_data['leftCameraAccessTimestamps']), len(head_data['rightCameraAccessTimestamps']))
+        unity_ts = unity_ts[:min_len]
         end_frame_indices = np.searchsorted(unity_ts, clipped_end_time, side='right')
         _, unity_match_idx = match_aruco_to_iphone(timestamps_proj['left_wrist'].reshape(-1), unity_ts[:end_frame_indices])
 

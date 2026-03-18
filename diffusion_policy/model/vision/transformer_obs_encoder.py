@@ -1,4 +1,5 @@
 import copy
+from typing import Any, Dict, Optional
 
 import timm
 import numpy as np
@@ -48,7 +49,49 @@ class AttentionPool2d(nn.Module):
             need_weights=False
         )
         return x.squeeze(0)
-    
+
+
+class TokenAttentionPool(nn.Module):
+    """Learnable-query attention pooling over a ViT token sequence.
+
+    Input:  x : [B, N, C]  (patch tokens, no CLS)
+    Output: pooled : [B, C]  (caller unsqueezes to [B, 1, C])
+
+    Caches per-call attention weights in ``_last_attn_weights``:
+        shape [B, num_heads, 1, N], detached — mean over heads gives a
+        [B, N] saliency map suitable for 16×16 heatmap overlay.
+    """
+
+    def __init__(self, embed_dim: int, num_heads: int, output_dim: Optional[int] = None):
+        super().__init__()
+        self.query = nn.Parameter(torch.randn(1, 1, embed_dim) / embed_dim ** 0.5)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            batch_first=True,
+        )
+        self.norm = nn.LayerNorm(embed_dim)
+        out = output_dim if (output_dim is not None and output_dim != embed_dim) else None
+        self.proj = nn.Linear(embed_dim, out) if out else nn.Identity()
+        self._last_attn_weights: Optional[torch.Tensor] = None  # [B, heads, 1, N]
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: [B, N, C]  →  pooled: [B, C]"""
+        q = self.query.expand(x.shape[0], -1, -1)  # [B, 1, C]
+        pooled, attn_weights = self.attn(
+            query=q, key=x, value=x,
+            need_weights=True,
+            average_attn_weights=False,  # keep per-head: [B, heads, 1, N]
+        )
+        self._last_attn_weights = attn_weights.detach()
+        return self.proj(self.norm(pooled[:, 0, :]))  # [B, C]
+
+    def get_last_attention_map(self) -> Optional[torch.Tensor]:
+        """Returns mean-over-heads attention: [B, N]"""
+        if self._last_attn_weights is None:
+            return None
+        return self._last_attn_weights.mean(dim=1).squeeze(1)  # [B, N]
+
 
 class TransformerObsEncoder(ModuleAttrMixin):
     def __init__(self,
@@ -63,7 +106,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
             use_group_norm: bool=False,
             # use single rgb model for all rgb inputs
             share_rgb_model: bool=False,
-            feature_aggregation: str=None,
+            feature_aggregation: Any=None,
             downsample_ratio: int=32
         ):
         """
@@ -80,7 +123,6 @@ class TransformerObsEncoder(ModuleAttrMixin):
         key_shape_map = dict()
 
         assert global_pool == ''
-        print("DEBUG model_name:", model_name)
         model = timm.create_model(
             model_name=model_name,
             pretrained=pretrained,
@@ -127,30 +169,27 @@ class TransformerObsEncoder(ModuleAttrMixin):
                     num_channels=x.num_features)
             )
             
-        # handle feature aggregation
-        self.feature_aggregation = feature_aggregation
-        if model_name.startswith('vit'):
-            # assert self.feature_aggregation is None # vit uses the CLS token
-            if self.feature_aggregation is None:
-                # Use all tokens from ViT
-                pass
-            elif self.feature_aggregation != 'cls':
-                logger.warn(f'vit will use the CLS token. feature_aggregation ({self.feature_aggregation}) is ignored!')
-                self.feature_aggregation = 'cls'
-        
-        if self.feature_aggregation == 'soft_attention':
+        # ---------------------------------------------------------------------------
+        # Per-key feature aggregation
+        # ---------------------------------------------------------------------------
+        # feature_aggregation can be:
+        #   str / None : same strategy for every rgb key
+        #     ViT  → 'cls' | 'attn_pool' | None (keep all tokens)
+        #     CNN  → 'avg' | 'max' | 'soft_attention' | 'spatial_embedding' | ...
+        #   dict       : per-key overrides, e.g.
+        #     {'default': 'cls', 'left_wrist_img': 'cls', 'left_eye_img': 'attn_pool'}
+        # ---------------------------------------------------------------------------
+        self.feature_aggregation = feature_aggregation          # kept for CNN compat
+        self.key_aggregation_map: Dict[str, Optional[str]] = {} # filled per-key below
+        self.key_pool_module_map = nn.ModuleDict()              # TokenAttentionPool per key
+        self._last_attention_maps: Dict[str, torch.Tensor] = {} # [B, N] heatmap cache
+
+        # CNN-only legacy global module (soft_attention)
+        _global_agg_str = feature_aggregation if isinstance(feature_aggregation, str) else None
+        if (not model_name.startswith('vit')) and _global_agg_str == 'soft_attention':
             self.attention = nn.Sequential(
                 nn.Linear(feature_dim, 1, bias=False),
                 nn.Softmax(dim=1)
-            )
-        elif self.feature_aggregation == 'spatial_embedding':
-            self.spatial_embedding = torch.nn.Parameter(torch.randn(feature_map_shape[0] * feature_map_shape[1], feature_dim))
-        elif self.feature_aggregation == 'attention_pool_2d':
-            self.attention_pool_2d = AttentionPool2d(
-                spacial_dim=feature_map_shape[0],
-                embed_dim=feature_dim,
-                num_heads=feature_dim // 64,
-                output_dim=feature_dim
             )
         
         image_shape = None
@@ -179,12 +218,59 @@ class TransformerObsEncoder(ModuleAttrMixin):
 
                 this_model = model if share_rgb_model else copy.deepcopy(model)
                 key_model_map[key] = this_model
-                
+
+                # Determine per-key aggregation strategy
+                #
+                # Supported behavior:
+                # 1) feature_aggregation is str / None:
+                #    use the same aggregation for all rgb obs keys.
+                # 2) feature_aggregation is dict:
+                #    - exact key match has highest priority
+                #    - otherwise, try substring match where cfg_key is contained in obs key
+                #    - if no match, fallback to 'default' (if provided), else None
+                is_mapping_agg = hasattr(feature_aggregation, 'items') and hasattr(feature_aggregation, 'get')
+                if is_mapping_agg:
+                    key_agg = None
+
+                    # priority 1: exact match
+                    if key in feature_aggregation:
+                        key_agg = feature_aggregation[key]
+                    else:
+                        # priority 2: substring match
+                        # e.g. cfg key 'wrist' matches obs key 'left_wrist_img'
+                        for cfg_key, cfg_agg in feature_aggregation.items():
+                            if cfg_key == 'default':
+                                continue
+                            if isinstance(cfg_key, str) and cfg_key in key:
+                                key_agg = cfg_agg
+                                break
+
+                    # priority 3: default fallback
+                    if key_agg is None:
+                        key_agg = feature_aggregation.get('default', None)
+                else:
+                    key_agg = feature_aggregation
+                if model_name.startswith('vit') and key_agg not in (None, 'cls', 'attn_pool'):
+                    logger.warn(
+                        f'[{key}] ViT does not support aggregation "{key_agg}", falling back to "cls"'
+                    )
+                    key_agg = 'cls'
+                self.key_aggregation_map[key] = key_agg
+
                 # check if we need feature projection
                 with torch.no_grad():
                     example_img = torch.zeros((1,)+tuple(shape))
                     example_feature_map = this_model(example_img)
-                    example_features = self.aggregate_feature(example_feature_map)
+                    # For attn_pool: build TokenAttentionPool from the backbone output dim
+                    if model_name.startswith('vit') and key_agg == 'attn_pool':
+                        patch_tokens = example_feature_map[:, 1:, :]  # skip CLS
+                        embed_dim = patch_tokens.shape[-1]
+                        num_heads = max(1, embed_dim // 64)
+                        pool_mod = TokenAttentionPool(embed_dim=embed_dim, num_heads=num_heads)
+                        self.key_pool_module_map[key] = pool_mod
+                        example_features = pool_mod(patch_tokens).unsqueeze(1)  # [1, 1, C]
+                    else:
+                        example_features = self.aggregate_feature(key, example_feature_map)
                     feature_shape = example_features.shape
                     feature_size = feature_shape[-1]
                 proj = nn.Identity()
@@ -258,37 +344,81 @@ class TransformerObsEncoder(ModuleAttrMixin):
                 result[key] = total / count
         return result
 
-    def aggregate_feature(self, feature):
-        # Return: B, N, C
-        
+    # ------------------------------------------------------------------
+    # Attention heatmap API
+    # ------------------------------------------------------------------
+
+    def get_last_attention_maps(self) -> Dict[str, torch.Tensor]:
+        """Return cached attention maps from the last forward() call.
+
+        Keys are obs keys that use ``'attn_pool'`` aggregation.
+        Values are tensors of shape ``[B, N_patches]`` (mean over heads).
+
+        N_patches = (H / patch_size) * (W / patch_size),
+        e.g. 256 for ViT-B/14 at 224 px.
+
+        Reshape to (H/patch_size, W/patch_size) and upsample to 224×224
+        for a spatial heatmap overlay::
+
+            attn = encoder.get_last_attention_maps()['left_eye_img']  # [B, 256]
+            heat = attn.reshape(B, 16, 16)
+            heat = F.interpolate(heat.unsqueeze(1).float(), (224, 224),
+                                 mode='bilinear', align_corners=False).squeeze(1)
+        """
+        return dict(self._last_attention_maps)
+
+    def pop_last_attention_maps(self) -> Dict[str, torch.Tensor]:
+        """Return and clear cached attention maps."""
+        result = dict(self._last_attention_maps)
+        self._last_attention_maps.clear()
+        return result
+
+    # ------------------------------------------------------------------
+
+    def aggregate_feature(self, key: str, feature: torch.Tensor) -> torch.Tensor:
+        """Aggregate backbone output for *key* into shape [B, N_out, C].
+
+        Strategy is read from ``self.key_aggregation_map[key]``:
+
+        * ``'cls'``       → [B, 1, C]   CLS token
+        * ``'attn_pool'`` → [B, 1, C]   learned attention pool over patch tokens;
+                            writes [B, N_patches] map to _last_attention_maps[key]
+        * ``None``        → [B, N, C]   all ViT tokens (or flattened CNN spatial)
+        """
         if self.model_name.startswith('vit'):
-            # vit uses the CLS token
-            if self.feature_aggregation == 'cls':
-                return feature[:, [0], :]
-            
-            # or use all tokens
-            assert self.feature_aggregation is None 
-            return feature
-        
-        # resnet
+            agg = self.key_aggregation_map.get(key, None)
+            if agg == 'cls':
+                return feature[:, [0], :]           # [B, 1, C]
+            if agg == 'attn_pool':
+                pool = self.key_pool_module_map[key]
+                patch_tokens = feature[:, 1:, :]    # skip CLS → [B, N_patches, C]
+                pooled = pool(patch_tokens)          # [B, C]
+                attn_map = pool.get_last_attention_map()  # [B, N_patches]
+                if attn_map is not None:
+                    self._last_attention_maps[key] = attn_map
+                return pooled.unsqueeze(1)           # [B, 1, C]
+            # None → return all tokens
+            return feature                           # [B, N_all, C]
+
+        # ---- CNN (ResNet / ConvNext) – legacy global behavior ----
+        fa = self.feature_aggregation if isinstance(self.feature_aggregation, str) else None
         assert len(feature.shape) == 4
-        if self.feature_aggregation == 'attention_pool_2d':
+        if fa == 'attention_pool_2d':
             return self.attention_pool_2d(feature)
 
-        feature = torch.flatten(feature, start_dim=-2) # B, 512, 7*7
-        feature = torch.transpose(feature, 1, 2) # B, 7*7, 512
+        feature = torch.flatten(feature, start_dim=-2)  # B, C, H*W
+        feature = torch.transpose(feature, 1, 2)        # B, H*W, C
 
-        if self.feature_aggregation == 'avg':
-            return torch.mean(feature, dim=[1], keepdim=True)
-        elif self.feature_aggregation == 'max':
-            return torch.amax(feature, dim=[1], keepdim=True)
-        elif self.feature_aggregation == 'soft_attention':
+        if fa == 'avg':
+            return torch.mean(feature, dim=1, keepdim=True)
+        elif fa == 'max':
+            return torch.amax(feature, dim=1, keepdim=True)
+        elif fa == 'soft_attention':
             weight = self.attention(feature)
             return torch.sum(feature * weight, dim=1, keepdim=True)
-        elif self.feature_aggregation == 'spatial_embedding':
+        elif fa == 'spatial_embedding':
             return torch.mean(feature * self.spatial_embedding, dim=1, keepdim=True)
         else:
-            assert self.feature_aggregation is None
             return feature
         
     def forward(self, obs_dict):
@@ -319,7 +449,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
                 raw_cpu = raw_feature.detach().float().cpu()
                 print(f"[NaN Debug][{key}] after backbone min={raw_cpu.min().item():.6f} max={raw_cpu.max().item():.6f} finite={torch.isfinite(raw_cpu).all().item()}", flush=True)
                 raise RuntimeError(f"[{key}] NaN/Inf detected after backbone")
-            feature = self.aggregate_feature(raw_feature)
+            feature = self.aggregate_feature(key, raw_feature)
             # NaN/Inf check after aggregate_feature
             if not torch.isfinite(feature).all():
                 feat_cpu = feature.detach().float().cpu()
@@ -386,14 +516,142 @@ class TransformerObsEncoder(ModuleAttrMixin):
 
 def test():
     import hydra
+    from hydra.utils import instantiate
     from omegaconf import OmegaConf
+    import math
     OmegaConf.register_new_resolver("eval", eval, replace=True)
 
-    with hydra.initialize('../diffusion_policy/config'):
-        cfg = hydra.compose('train_diffusion_transformer_umi_workspace')
+    with hydra.initialize(version_base=None, config_path='../../../diffusion_policy/config'):
+        cfg = hydra.compose(config_name='HOMMI')
         OmegaConf.resolve(cfg)
 
-    shape_meta = cfg.task.shape_meta
-    encoder = TransformerObsEncoder(
-        shape_meta=shape_meta
+    encoder = instantiate(cfg.policy.obs_encoder)
+
+    # ------------------------------------------------------------------ #
+    # 1. Inspect encoder internal state
+    # ------------------------------------------------------------------ #
+    print("\n[TEST] rgb_keys           :", encoder.rgb_keys)
+    print("[TEST] low_dim_keys       :", encoder.low_dim_keys)
+    print("[TEST] key_aggregation_map:", encoder.key_aggregation_map)
+    print("[TEST] key_pool_module_map:", list(encoder.key_pool_module_map.keys()))
+
+    # Every rgb key must have an entry in key_aggregation_map
+    for key in encoder.rgb_keys:
+        assert key in encoder.key_aggregation_map, \
+            f"[{key}] missing from key_aggregation_map"
+
+    # Every attn_pool key must have a matching TokenAttentionPool module
+    for key, agg in encoder.key_aggregation_map.items():
+        if agg == 'attn_pool':
+            assert key in encoder.key_pool_module_map, \
+                f"[{key}] uses attn_pool but no TokenAttentionPool module found"
+            pool_mod = encoder.key_pool_module_map[key]
+            assert type(pool_mod).__name__ == 'TokenAttentionPool', \
+                f"[{key}] pool module type is {type(pool_mod).__name__}, expected TokenAttentionPool"
+            assert hasattr(pool_mod, 'get_last_attention_map'), \
+                f"[{key}] pool module missing get_last_attention_map()"
+        else:
+            assert key not in encoder.key_pool_module_map, \
+                f"[{key}] agg={agg} but unexpected pool module exists"
+
+    # ------------------------------------------------------------------ #
+    # 2. Dummy forward pass
+    # ------------------------------------------------------------------ #
+    obs_shape_meta = cfg.task.shape_meta['obs']
+    obs_dict = {}
+    for key, attr in obs_shape_meta.items():
+        shape = tuple(attr['shape'])
+        horizon = int(attr['horizon'])
+        obs_dict[key] = torch.zeros((1, horizon) + shape, dtype=torch.float32)
+
+    out = encoder(obs_dict)
+    print("[TEST] encoder output shape:", tuple(out.shape))
+    assert out.ndim == 3 and out.shape[0] == 1 and out.shape[-1] == encoder.n_emb, \
+        f"unexpected output shape {out.shape}"
+
+    # ------------------------------------------------------------------ #
+    # 3. Attention map sanity check for attn_pool keys
+    # ------------------------------------------------------------------ #
+    attn_maps = encoder.get_last_attention_maps()
+    attn_pool_keys = [k for k, v in encoder.key_aggregation_map.items() if v == 'attn_pool']
+    print("[TEST] attn_pool keys      :", attn_pool_keys)
+    print("[TEST] cached attn keys    :", list(attn_maps.keys()))
+
+    for key in attn_pool_keys:
+        assert key in attn_maps, f"[{key}] missing attention map after forward()"
+        amap = attn_maps[key]
+        assert amap.ndim == 2, \
+            f"[{key}] attention map shape should be [B*T, N_patches], got {amap.shape}"
+        N = amap.shape[1]
+        g = int(math.isqrt(N))
+        assert g * g == N, \
+            f"[{key}] N_patches={N} is not a perfect square; cannot reshape to grid"
+        print(f"[TEST]   {key}: attn shape={tuple(amap.shape)}, "
+              f"grid={g}x{g}, value range=[{amap.min():.4f}, {amap.max():.4f}]")
+
+    print("[TEST] all checks passed.")
+
+    # ------------------------------------------------------------------ #
+    # 4. ONNX export  (visualise with Netron — https://netron.app)
+    # ------------------------------------------------------------------ #
+    import os
+
+    class _EncoderWrapper(nn.Module):
+        """Wraps TransformerObsEncoder for ONNX export.
+
+        ONNX requires plain tensor inputs, not dicts.  This wrapper fixes the
+        key order as ``rgb_keys + low_dim_keys`` (both already sorted) and
+        reconstructs the obs dict internally so the full graph is traced.
+
+        Input names in Netron will match the obs-key names.
+        """
+        def __init__(self, enc):
+            super().__init__()
+            self.enc = enc
+            # fixed positional order: rgb first, then low-dim (mirrors forward())
+            self.keys: list = enc.rgb_keys + enc.low_dim_keys
+
+        def forward(self, *args):
+            obs = {k: v for k, v in zip(self.keys, args)}
+            return self.enc(obs)
+
+    wrapper = _EncoderWrapper(encoder).eval()
+    dummy_inputs = tuple(obs_dict[k] for k in wrapper.keys)
+    input_names  = list(wrapper.keys)
+    output_names = ["embeddings"]
+
+    onnx_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "encoder_debug.onnx"
     )
+    print(f"\n[ONNX] exporting to: {onnx_path}")
+
+    # NOTE:
+    # torchvision antialiased resize maps to aten::_upsample_bilinear2d_aa,
+    # which is not supported by torch.onnx (opset 17) in some PyTorch builds.
+    # For architecture visualization, we bypass input transforms during export.
+    _backup_transform_map = {k: v for k, v in encoder.key_transform_map.items()}
+    try:
+        for k in encoder.rgb_keys:
+            encoder.key_transform_map[k] = nn.Identity()
+
+        with torch.no_grad():
+            torch.onnx.export(
+                wrapper,
+                dummy_inputs,
+                onnx_path,
+                input_names=input_names,
+                output_names=output_names,
+                opset_version=17,
+                do_constant_folding=True,
+            )
+    finally:
+        for k, v in _backup_transform_map.items():
+            encoder.key_transform_map[k] = v
+
+    print("[ONNX] export done.")
+    print("[ONNX] input keys (positional order):", input_names)
+    print("[ONNX] open encoder_debug.onnx with Netron: https://netron.app")
+
+
+if __name__ == "__main__":
+    test()

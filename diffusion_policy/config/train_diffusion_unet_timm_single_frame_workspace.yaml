@@ -39,8 +39,8 @@ policy:
   obs_encoder:
     _target_: diffusion_policy.model.vision.timm_obs_encoder.TimmObsEncoder
     shape_meta: ${shape_meta}
-    #model_name: 'vit_base_patch16_dinov3.lvd1689m'
-    model_name: 'vit_base_patch16_clip_224.openai'
+    model_name: 'vit_base_patch16_dinov3.lvd1689m'
+    #model_name: 'vit_base_patch16_clip_224.openai'
     #model_name: 'vit_base_patch14_dinov2.lvd142m'
     # model_name: 'convnext_base.clip_laion2b_augreg_ft_in12k'
     pretrained: True
@@ -66,7 +66,7 @@ policy:
         brightness: 0.3
         contrast: 0.4
         saturation: 0.5
-        hue: 0.08
+        #hue: 0.08
 
     use_group_norm: True
     share_rgb_model: True
