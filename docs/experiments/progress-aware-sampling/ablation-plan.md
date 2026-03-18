@@ -29,6 +29,7 @@ To keep comparisons fair:
   - head embedding distance
   - future-action distance
 - Mixed batch strategy (structured + random).
+- Candidate pool size should be batch-size aware (`M_pool >= 4 * B_struct`).
 
 ## E2. E1 + Weight Tuning (optional)
 
@@ -93,6 +94,7 @@ For each run record:
 - head_importance train/val
 - wrist/head distance stats for structured pairs
 - action-distance stats for structured pairs
+- candidate pool and cap params (`B`, `p_structured`, `M_pool`, `max_per_class`)
 - notes on failure mode
 
 ## 7. Minimum Deliverables Per Stage

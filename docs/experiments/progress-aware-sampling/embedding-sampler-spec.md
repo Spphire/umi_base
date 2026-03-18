@@ -101,6 +101,29 @@ Default start:
 
 - `p_structured = 0.5`
 
+## 6.1 Candidate Pool Size and Per-Class Cap (batch-size aware)
+
+If class/group constraints are applied during structured selection, limits should scale with batch size.
+
+Definitions:
+
+- `B`: batch size
+- `B_struct = round(B * p_structured)`
+- `M_pool`: number of pre-ranked candidates considered for each anchor
+
+Recommended defaults:
+
+1. `M_pool >= 4 * B_struct` (better `6 * B_struct` if memory allows)
+2. If class balancing is used, per-class cap:
+   - `max_per_class = max(1, ceil(rho * B_struct))`
+   - default `rho = 0.4`
+
+Rationale:
+
+1. Small fixed candidate limits break when batch size grows.
+2. Batch-aware caps preserve "head-far + action-far" optimization space.
+3. Cap prevents one class/group from monopolizing a structured batch.
+
 ## 7. Optional Filters
 
 Optional in later stage:
