@@ -18,6 +18,15 @@ To keep comparisons fair:
 
 ## 3. Experiment Matrix
 
+## E-1. Label Quality Dry-Run (required pre-stage)
+
+- Run label extraction only (no training).
+- Validate:
+  - phase histogram
+  - left/right ratio
+  - anchor visualization on sampled episodes
+  - trend alternation sanity checks
+
 ## E0. Baseline
 
 - Existing sampler (status quo).
@@ -58,11 +67,13 @@ Proceed from E1 to E2 only if:
 
 1. No major regression in total success rate
 2. Direction gap does not worsen
+3. Label confidence coverage is acceptable (high-confidence samples dominate)
 
 Proceed from E2 to E3 only if:
 
 1. Direction gap still materially large
 2. Sampling overhead remains manageable
+3. No evidence that label noise is the main bottleneck
 
 ## 6. Logging and Reporting Template
 
@@ -84,4 +95,3 @@ For each run record:
    - what improved
    - what regressed
    - recommendation for next stage
-

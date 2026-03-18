@@ -101,3 +101,30 @@ Each step should be gated by ablation results before moving to the next.
 2. No reward/objective redesign.
 3. No production deployment changes before ablation results.
 
+## 9. Data Pipeline Notes from Existing Scripts
+
+Relevant references:
+
+1. `post_process_scripts/post_process_data_vr_mouse.py`
+2. `scripts/analyze_gripper_trend.py`
+3. `sign_accuracy_pick_place.py`
+
+Decisions for this branch:
+
+1. Keep progress labeling independent from aruco calibration.
+   - Current converter already calls `use_aruco_calibration=False`.
+   - Aruco logic is considered low value for this single-head/single-arm task and should not block labeling.
+2. Treat hand/arm masking (GroundedSAM + SAM) as a separate low-priority module.
+   - Do not couple SAM stability work with progress-aware sampling rollout.
+   - If revisited, expose a standalone function interface that converter scripts can call in one switch.
+
+## 10. Labeling Strategy Source of Truth
+
+Progress extraction will combine two existing ideas:
+
+1. Trend segmentation from `scripts/analyze_gripper_trend.py`
+   - smooth width, classify `flat/up/down`, merge short noisy windows.
+2. Closing-window localization from `sign_accuracy_pick_place.py`
+   - pick the dominant close segment near width minimum with `min_len` and `min_drop` constraints.
+
+This hybrid approach is expected to be more robust than pure normalized-time splitting.

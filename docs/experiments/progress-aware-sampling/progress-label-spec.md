@@ -31,17 +31,26 @@ For each episode, compute:
 3. `t_release_start`
 4. `t_release_end`
 
-Suggested first-pass logic:
+Suggested first-pass logic (hybrid):
 
-- Smooth gripper width with moving average.
-- Detect close event by negative slope + width below `w_close_thresh`.
-- Detect release event by positive slope + width above `w_open_thresh`.
+1. Smooth width signal (moving average or Savitzky-Golay).
+2. Build trend labels (`flat/up/down`) from derivative sign.
+3. Merge short windows to suppress noise.
+4. Find dominant closing segment near minimum width.
+5. Derive release segment from first stable open trend after transport.
 
 Defaults (to tune per dataset):
 
-- `w_close_thresh = 0.035`
-- `w_open_thresh = 0.055`
-- slope window size: 5-9 steps
+- `close_eps = 1e-4`
+- `smooth_window = 5` (candidate range 5-11)
+- `min_len = 5`
+- `min_drop = 0.0` (tune upward if false positives appear)
+- optional `w_close_thresh = 0.035`, `w_open_thresh = 0.055` as hard guards
+
+Reference scripts:
+
+1. `scripts/analyze_gripper_trend.py`
+2. `sign_accuracy_pick_place.py` (`find_closing_window`)
 
 ## 4. Phase Label Definition
 
@@ -77,6 +86,11 @@ Default margin:
 
 - `x_margin = 0.02` (meters, tune per setup)
 
+Note:
+
+- Compute direction from the phase anchors (`x_at_grasp`, `x_at_release`), not from episode endpoints.
+- If direction is uncertain, keep sample but exclude it from strict left/right balancing quotas.
+
 ## 6. Output Schema
 
 Suggested per-sample metadata fields:
@@ -100,9 +114,16 @@ Before enabling sampler logic, validate:
 1. Phase distribution across dataset is reasonable.
 2. Left/right distribution is not heavily broken by labeling errors.
 3. Random episode visualization confirms anchors match actual manipulation stage.
+4. Alternation sanity check on gripper trend windows:
+   - repeated `up/up` or `down/down` segments should be rare after merge.
 
 ## 8. Versioning
 
 Tag this logic as `progress_spec_v1`.
 Any threshold/rule change must bump version and be recorded in update logs.
 
+## 9. Integration Boundaries
+
+1. Progress labels must not depend on aruco outputs.
+2. Progress labels must not depend on SAM masking availability.
+3. If a preprocessing variant is needed (for example SAM masking), keep it as optional side path and preserve the same label schema.

@@ -25,6 +25,9 @@ Complete documentation for the progress-aware sampling feature before code imple
 
 - Define phase/direction labels and confidence/fallback behavior.
 - Freeze v1 schema for code integration.
+- Lock reference heuristics from:
+  - `scripts/analyze_gripper_trend.py`
+  - `sign_accuracy_pick_place.py`
 
 ## M3. Experiment contract
 
@@ -38,6 +41,16 @@ Checklist:
 1. Data labeling rules are testable.
 2. Sampling strategy is decomposed into `S1 -> S2 -> S3`.
 3. Metrics are directly observable in current training/eval stack.
+4. Preprocessing dependencies are isolated from sampler logic.
+
+## M5. Preprocess cleanup notes (non-blocking)
+
+1. In `post_process_data_vr_mouse.py`, keep aruco disabled for this task path.
+2. Treat SAM hand/arm masking as separate optional module:
+   - own test script
+   - reusable function interface
+   - one-switch integration in converter
+3. Ensure sampler development is not blocked by SAM reliability.
 
 ## 4. Review Notes Template
 
@@ -47,10 +60,10 @@ When reviewing docs, comment on:
 2. Missing fallback behavior
 3. Evaluation ambiguity (especially direction metrics)
 4. Runtime complexity risks
+5. Scope leakage from preprocessing refactors into sampler milestones
 
 ## 5. Out of Scope
 
 1. Implementing sampler classes
 2. Editing dataloader or dataset code
 3. Changing policy architecture
-
