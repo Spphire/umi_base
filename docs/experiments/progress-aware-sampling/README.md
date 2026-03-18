@@ -78,3 +78,9 @@ Smoke run outputs:
    - `data/outputs/2026.03.18/17.43.01_train_diffusion_unet_timm_q3_mouse_rawresize_sharevit`
 2. structured (on):
    - `data/outputs/2026.03.18/18.10.32_train_diffusion_unet_timm_q3_mouse_rawresize_sharevit`
+
+Server robustness note:
+
+1. if candidate file is missing, run:
+   - `make prepare_structured_candidates`
+2. `make train_acc8_amp_structured` now auto-invokes that preparation step.

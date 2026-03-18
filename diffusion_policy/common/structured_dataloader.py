@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -54,6 +55,14 @@ def build_train_dataloader(
     candidate_indices_path = structured_cfg.get("candidate_indices_path", None)
     if candidate_indices_path is None:
         raise ValueError("structured_sampling.candidate_indices_path is required when enabled")
+    if not os.path.isfile(candidate_indices_path):
+        raise FileNotFoundError(
+            "structured_sampling candidate file not found: "
+            f"{candidate_indices_path}. "
+            "Generate it first (for fallback ring candidates): "
+            "python scripts/generate_structured_ring_candidates.py "
+            f"--dataset_zarr <replay_buffer.zarr> --output {candidate_indices_path}"
+        )
     candidate_indices = np.load(candidate_indices_path)
 
     sampler = StructuredCoverageBatchSampler(
@@ -90,4 +99,3 @@ def set_epoch_for_structured_sampler(dataloader, epoch: int) -> bool:
     inner = getattr(dataloader, "dataloader", None)
     updated = _try_set(inner) or updated
     return updated
-

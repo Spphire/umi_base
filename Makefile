@@ -25,6 +25,7 @@ STRUCTURED_SAMPLING_ENABLED ?= true
 STRUCTURED_CANDIDATE_INDICES_PATH ?= /mnt/workspace/users/shenyibo/umi_base/.cache/structured_sampling/${TASK}/candidate_indices_ring_top192.npy
 STRUCTURED_RATIO ?= 0.5
 STRUCTURED_SEED ?= 42
+STRUCTURED_TOP_M ?= 192
 
 # record config
 SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
@@ -102,7 +103,18 @@ train_acc8_amp:
 	task=${TASK} \
 	task.dataset.local_files_only=${LOCAL_DATASET_ZARR}
 
-train_acc8_amp_structured:
+prepare_structured_candidates:
+	@if [ ! -f ${STRUCTURED_CANDIDATE_INDICES_PATH} ]; then \
+		echo "[structured] candidate file missing, generating ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
+		python scripts/generate_structured_ring_candidates.py \
+		--dataset_zarr ${LOCAL_DATASET_ZARR} \
+		--output ${STRUCTURED_CANDIDATE_INDICES_PATH} \
+		--top_m ${STRUCTURED_TOP_M}; \
+	else \
+		echo "[structured] using existing candidate file: ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
+	fi
+
+train_acc8_amp_structured: prepare_structured_candidates
 	export HF_HUB_OFFLINE=1 && \
 	export HYDRA_FULL_ERROR=1 && \
 	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
