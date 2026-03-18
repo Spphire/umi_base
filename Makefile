@@ -17,6 +17,12 @@ WKSPACE := train_diffusion_unet_timm_single_frame_workspace
 #WKSPACE := train_diffusion_transformer_timm_single_frame_workspace
 # DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
 
+# structured sampling defaults (override from CLI when needed)
+STRUCTURED_SAMPLING_ENABLED ?= true
+STRUCTURED_CANDIDATE_INDICES_PATH ?= /mnt/workspace/users/shenyibo/umi_base/.cache/structured_sampling/${TASK}/candidate_indices_ring_top192.npy
+STRUCTURED_RATIO ?= 0.5
+STRUCTURED_SEED ?= 42
+
 # record config
 SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
 SAVE_FILE_DIR := ${TASK}
@@ -91,6 +97,17 @@ train_acc8_amp:
 	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
 	--config-name ${WKSPACE} \
 	task=${TASK}
+
+train_acc8_amp_structured:
+	export HF_HUB_OFFLINE=1 && \
+	export HYDRA_FULL_ERROR=1 && \
+	accelerate launch --config_file accelerate/8gpu-amp.yaml train.py \
+	--config-name ${WKSPACE} \
+	task=${TASK} \
+	+dataloader.structured_sampling.enabled=${STRUCTURED_SAMPLING_ENABLED} \
+	+dataloader.structured_sampling.candidate_indices_path=${STRUCTURED_CANDIDATE_INDICES_PATH} \
+	+dataloader.structured_sampling.structured_ratio=${STRUCTURED_RATIO} \
+	+dataloader.structured_sampling.seed=${STRUCTURED_SEED}
 
 train.data:
 	export HYDRA_FULL_ERROR=1 && \
