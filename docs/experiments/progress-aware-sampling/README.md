@@ -38,3 +38,43 @@ Batch-size-aware default guidance:
 - if class/group cap is used:
   - `max_per_class = max(1, ceil(rho * B_struct))`
   - default `rho = 0.4`
+
+## Runtime Status
+
+Structured batch sampling is integrated and runnable in both timm single-frame workspaces:
+
+- `train_diffusion_unet_timm_workspace.py`
+- `train_diffusion_transformer_timm_workspace.py`
+
+Activation switch:
+
+- `+dataloader.structured_sampling.enabled=true`
+- `+dataloader.structured_sampling.candidate_indices_path=...`
+- optional:
+  - `+dataloader.structured_sampling.structured_ratio=0.5`
+  - `+dataloader.structured_sampling.seed=42`
+
+## Verification Evidence
+
+Real-data check (`q3_mouse` local zarr):
+
+- dataset: `C:/Users/yibo/Downloads/umi_base/.cache/q3_mouse_dh_train/replay_buffer.zarr`
+- candidate index used in smoke test:
+  - `C:/Users/yibo/Downloads/umi_base/.cache/structured_sampling/q3_mouse/candidate_indices_ring_top192.npy`
+
+Sampler type introspection:
+
+1. with structured off:
+   - `sampler_obj = None`
+   - `batch_sampler_obj = BatchSampler`
+2. with structured on:
+   - `sampler_obj = StructuredCoverageBatchSampler`
+   - `batch_sampler_obj = StructuredCoverageBatchSampler`
+   - `is_structured_sampler = True`
+
+Smoke run outputs:
+
+1. baseline (off):
+   - `data/outputs/2026.03.18/17.43.01_train_diffusion_unet_timm_q3_mouse_rawresize_sharevit`
+2. structured (on):
+   - `data/outputs/2026.03.18/18.10.32_train_diffusion_unet_timm_q3_mouse_rawresize_sharevit`
