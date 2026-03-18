@@ -12,7 +12,6 @@ from diffusion_policy.dataset.real_pick_and_place_image_head_dataset import Real
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.data_models import ActionType
 from loguru import logger
-from post_process_scripts.post_process_data_vr import convert_data_to_zarr
 from tqdm import tqdm
 from omegaconf import OmegaConf, DictConfig
 
@@ -237,6 +236,8 @@ class CloudPickAndPlaceImageHeadDataset(RealPickAndPlaceImageHeadDataset):
                     return None
                 
                 # Step5: Build the zarr dataset
+                from post_process_scripts.post_process_data_vr import convert_data_to_zarr
+
                 zarr_path = convert_data_to_zarr(
                     input_dir=os.path.join(temp_dir, "downloaded_records"),
                     output_dir=self.cache_dir,
