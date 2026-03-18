@@ -26,6 +26,8 @@ STRUCTURED_CANDIDATE_INDICES_PATH ?= /mnt/workspace/users/shenyibo/umi_base/.cac
 STRUCTURED_RATIO ?= 0.5
 STRUCTURED_SEED ?= 42
 STRUCTURED_TOP_M ?= 192
+# default overwrite candidate file each run; set true to reuse existing file
+STRUCTURED_USE_EXISTING_CANDIDATES ?= false
 
 # record config
 SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data
@@ -104,14 +106,16 @@ train_acc8_amp:
 	task.dataset.local_files_only=${LOCAL_DATASET_ZARR}
 
 prepare_structured_candidates:
-	@if [ ! -f ${STRUCTURED_CANDIDATE_INDICES_PATH} ]; then \
-		echo "[structured] candidate file missing, generating ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
+	@if [ "${STRUCTURED_USE_EXISTING_CANDIDATES}" = "true" ] && [ -f ${STRUCTURED_CANDIDATE_INDICES_PATH} ]; then \
+		echo "[structured] reuse existing candidate file: ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
+	else \
+		echo "[structured] generating (overwrite) ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
 		python scripts/generate_structured_ring_candidates.py \
 		--dataset_zarr ${LOCAL_DATASET_ZARR} \
+		--config_name ${WKSPACE} \
+		--task ${TASK} \
 		--output ${STRUCTURED_CANDIDATE_INDICES_PATH} \
 		--top_m ${STRUCTURED_TOP_M}; \
-	else \
-		echo "[structured] using existing candidate file: ${STRUCTURED_CANDIDATE_INDICES_PATH}"; \
 	fi
 
 train_acc8_amp_structured: prepare_structured_candidates
