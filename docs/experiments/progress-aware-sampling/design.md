@@ -17,12 +17,12 @@ This indicates shortcut learning: the policy may rely on wrist-centric signals t
 
 ## 2. Working Hypothesis
 
-The task is phase-structured:
+The key issue is modality shortcut:
 
-1. Grasping phase: wrist information dominates.
-2. Transport/release phase: head information is more important for left/right decision.
+1. Wrist view often explains a large part of training loss.
+2. Head view carries decision-critical context but can be ignored.
 
-If all phases are uniformly mixed in minibatches, optimization may over-focus on wrist-dominant gradients.
+If we explicitly sample "same wrist context but different head context", the model is pressured to use head information.
 
 ## 3. Design Goals
 
@@ -32,39 +32,39 @@ If all phases are uniformly mixed in minibatches, optimization may over-focus on
 
 ## 4. Proposed Sampling Strategies
 
-## S1. Phase-Balanced Sampling (baseline improvement)
+## P1. Embedding-Based Cross-View Sampler (highest priority)
 
-Construct per-sample phase labels and enforce batch quotas:
+For each anchor sample:
 
-- `pre_grasp`
-- `grasp_transition`
-- `transport`
-- `release`
-
-Expected value:
-
-- Prevents phase under-representation.
-- Improves gradient coverage for transport/release phases.
-
-## S2. Phase + Direction Balanced Sampling
-
-Within key decision phases (`transport`, `release`), enforce left/right balance in each batch.
+1. find nearest neighbors by wrist embedding
+2. rank candidates by weighted joint score:
+   - head embedding distance
+   - future-action distance
+3. compose mixed batches with structured and random samples
 
 Expected value:
 
-- Directly counteracts direction collapse.
+1. task-agnostic
+2. no dependency on direction labels or absolute action coordinates
+3. direct pressure on head-view utilization
 
-## S3. Wrist-Similar, Head-Different Contrastive Batching (targeted)
+## P2. Weight Tuning for Joint Score (optional)
 
-Within decision phases, sample pairs/groups where:
-
-- wrist states are similar (pose and/or wrist feature close),
-- direction label differs (left vs right),
-- head content differs accordingly.
+Tune weighted combination between head-distance and future-action distance.
 
 Expected value:
 
-- Forces the model to use head information when wrist cues are ambiguous.
+1. avoids trivial "head different but supervision almost same" pairs
+2. improves stability across tasks
+
+## P3. Progress/Direction Labeling (optional enhancement)
+
+Use progress/direction labels only as secondary constraints after P1 is validated.
+
+Expected value:
+
+1. may improve phase coverage in some tasks
+2. should not be the primary dependency for generalization
 
 ## 5. Rollout and Training Acceptance Signals
 
@@ -82,18 +82,18 @@ Secondary signals:
 
 ## 6. Implementation Order (planned)
 
-1. Build progress labels and direction labels offline.
-2. Integrate `S1` sampler path.
-3. Add `S2` balancing constraints.
-4. Add optional `S3` targeted pairing.
+1. Build offline wrist/head embedding cache.
+2. Integrate `P1` sampler path.
+3. Add optional `P2` weight tuning and schedule.
+4. Add optional `P3` progress/label constraints only if needed.
 
 Each step should be gated by ablation results before moving to the next.
 
 ## 7. Risks
 
-1. Incorrect phase labeling can bias sampling in the wrong way.
-2. Over-constrained batches may reduce data diversity.
-3. S3 may increase data loading complexity and training latency.
+1. Embedding quality may limit neighbor validity.
+2. Over-constrained pair selection may reduce diversity.
+3. Offline neighbor index may become stale if data distribution changes.
 
 ## 8. Non-Goals for this branch stage
 
@@ -118,7 +118,7 @@ Decisions for this branch:
    - Do not couple SAM stability work with progress-aware sampling rollout.
    - If revisited, expose a standalone function interface that converter scripts can call in one switch.
 
-## 10. Labeling Strategy Source of Truth
+## 10. Labeling Strategy Source of Truth (secondary path)
 
 Progress extraction will combine two existing ideas:
 
@@ -127,4 +127,4 @@ Progress extraction will combine two existing ideas:
 2. Closing-window localization from `sign_accuracy_pick_place.py`
    - pick the dominant close segment near width minimum with `min_len` and `min_drop` constraints.
 
-This hybrid approach is expected to be more robust than pure normalized-time splitting.
+This hybrid approach remains available as an optional enhancement, but not as the primary sampler path.

@@ -1,4 +1,4 @@
-# Spec: Progress Label Extraction
+# Spec: Progress Label Extraction (Optional Add-on)
 
 Last updated: 2026-03-18
 Branch: `codex/progress-aware-sampling`
@@ -7,7 +7,8 @@ Branch: `codex/progress-aware-sampling`
 
 Define a reproducible way to assign per-timestep progress labels for sampling.
 
-This spec is designed to be robust and simple for first implementation.
+This spec is now a secondary enhancement path.
+Primary sampler direction is embedding-based cross-view sampling.
 
 ## 2. Input Signals
 
@@ -127,3 +128,4 @@ Any threshold/rule change must bump version and be recorded in update logs.
 1. Progress labels must not depend on aruco outputs.
 2. Progress labels must not depend on SAM masking availability.
 3. If a preprocessing variant is needed (for example SAM masking), keep it as optional side path and preserve the same label schema.
+4. Embedding-based sampler must work without this spec.

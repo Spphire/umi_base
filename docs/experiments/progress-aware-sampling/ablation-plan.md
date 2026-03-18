@@ -5,7 +5,7 @@ Branch: `codex/progress-aware-sampling`
 
 ## 1. Objective
 
-Evaluate whether progress-aware sampling improves head-view utilization and reduces left/right collapse.
+Evaluate whether embedding-based cross-view sampling improves head-view utilization and reduces directional collapse.
 
 ## 2. Fixed Conditions
 
@@ -18,7 +18,27 @@ To keep comparisons fair:
 
 ## 3. Experiment Matrix
 
-## E-1. Label Quality Dry-Run (required pre-stage)
+## E0. Baseline
+
+- Existing sampler (status quo).
+
+## E1. Embedding Cross-View Sampler (primary)
+
+- Wrist-neighbor + joint-score structured sampling.
+- Joint score includes:
+  - head embedding distance
+  - future-action distance
+- Mixed batch strategy (structured + random).
+
+## E2. E1 + Weight Tuning (optional)
+
+- Tune `alpha/beta` in joint score.
+
+## E3. E1/E2 + Progress/Direction Label Constraints (optional)
+
+- Add label-based gates only if needed after E1/E2 evidence.
+
+## E-1. Label Quality Dry-Run (only if E3 is enabled)
 
 - Run label extraction only (no training).
 - Validate:
@@ -26,22 +46,6 @@ To keep comparisons fair:
   - left/right ratio
   - anchor visualization on sampled episodes
   - trend alternation sanity checks
-
-## E0. Baseline
-
-- Existing sampler (status quo).
-
-## E1. S1 Phase-Balanced
-
-- Batch has controlled ratio across phase labels.
-
-## E2. S2 Phase + Direction Balanced
-
-- E1 plus left/right balancing in `transport` and `release`.
-
-## E3. S3 Wrist-Similar + Opposite Direction Pairing (optional after E2)
-
-- E2 plus targeted paired/group sampling in decision phases.
 
 ## 4. Metrics
 
@@ -67,13 +71,14 @@ Proceed from E1 to E2 only if:
 
 1. No major regression in total success rate
 2. Direction gap does not worsen
-3. Label confidence coverage is acceptable (high-confidence samples dominate)
+3. Structured pair diagnostics are healthy (`wrist-close`, `head-far`, and `action-far`)
 
 Proceed from E2 to E3 only if:
 
 1. Direction gap still materially large
 2. Sampling overhead remains manageable
-3. No evidence that label noise is the main bottleneck
+3. No evidence that embedding selection alone is sufficient
+4. Label quality dry-run passes
 
 ## 6. Logging and Reporting Template
 
@@ -81,11 +86,13 @@ For each run record:
 
 - run id
 - config name
-- sampler mode (`baseline`, `s1`, `s2`, `s3`)
+- sampler mode (`baseline`, `e1`, `e2`, `e3`)
 - seed
 - checkpoint used for eval
 - success_left / success_right / overall_success
 - head_importance train/val
+- wrist/head distance stats for structured pairs
+- action-distance stats for structured pairs
 - notes on failure mode
 
 ## 7. Minimum Deliverables Per Stage
