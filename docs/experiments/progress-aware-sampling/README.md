@@ -46,6 +46,12 @@ Structured batch sampling is integrated and runnable in both timm single-frame w
 - `train_diffusion_unet_timm_workspace.py`
 - `train_diffusion_transformer_timm_workspace.py`
 
+Dataset cleanup aligned with this strategy:
+
+- removed legacy wrist random-mask trick in
+  `diffusion_policy/dataset/real_pick_and_place_image_head_dataset.py::__getitem__`
+- head-view reliance should now come from sampling strategy rather than artificial wrist occlusion
+
 Activation switch:
 
 - `+dataloader.structured_sampling.enabled=true`

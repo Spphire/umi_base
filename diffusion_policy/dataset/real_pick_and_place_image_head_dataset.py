@@ -1,8 +1,7 @@
-from typing import Dict, List
+﻿from typing import Dict
 import torch
 import numpy as np
 import os
-import cv2
 from threadpoolctl import threadpool_limits
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -16,7 +15,6 @@ from diffusion_policy.common.action_utils import absolute_actions_to_relative_ac
 from loguru import logger
 import tqdm
 from diffusion_policy.common.normalize_util import get_action_normalizer
-from diffusion_policy.dataset.image_augmentation import apply_image_augmentation, batch_resize_thwc
 
 class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
     def __init__(self,
@@ -69,7 +67,6 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         # if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
         #     zarr_load_keys.append('left_eye_tcp_pose')
 
-        # zarr_load_keys.append('left_wrist_mask_rate')
 
         zarr_load_keys = list(filter(lambda key: "wrt" not in key, zarr_load_keys))
         replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=zarr_load_keys)
@@ -247,35 +244,20 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         obs_dict = dict()
         for key in self.rgb_keys:
             img = data[key][T_slice]  # H W C, uint8, 0-255
-            mask_img_flag = False
             if 'eye' in key:
-                if np.random.rand() < 0.5 and 'right_eye_img' in data.keys():  # 50% 的概率 使用右眼图像
+                # Optional eye-view swap augmentation when right-eye stream exists.
+                if np.random.rand() < 0.5 and 'right_eye_img' in data.keys():
                     img = data['right_eye_img'][T_slice]  # H W C, uint
             elif 'wrist' in key:
-                # if 'left_wrist_mask_rate' in data.keys():
-                #     if np.random.rand() < 0.2*data['left_wrist_mask_rate'][T_slice].astype(np.float32).item():  # 20% 的概率
-                #         mask_img_flag = True
-
-                if np.random.rand() < 0.05:  # 15% 的概率 mask wrist 图像
-                    mask_img_flag = True
                 pass
             else:
                 logger.warning(f"Unknown image key: {key}, no resizing or augmentation applied to this key.")
                 raise NotImplementedError(f"Unknown image key: {key}")
 
-            # --- 归一化与通道转换 ---
             # T,H,W,C -> T,C,H,W
             img_normalized = np.moveaxis(img, -1, 1).astype(np.float32) / 255.0
-
-            if mask_img_flag:
-                img_normalized = np.zeros_like(img_normalized)
-
             obs_dict[key] = img_normalized
 
-            # T,C,H,W
-            # save ram
-            if key not in self.rgb_keys:
-                del data[key]
         for key in self.lowdim_keys:
             if 'wrt' not in key:
                 obs_dict[key] = data[key][:, :self.shape_meta['obs'][key]['shape'][0]][T_slice].astype(np.float32)
@@ -356,3 +338,4 @@ def test():
 
 if __name__ == '__main__':
     test()
+
