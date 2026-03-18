@@ -26,6 +26,10 @@ from diffusion_policy.dataset.base_dataset import BaseImageDataset, BaseDataset
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
+from diffusion_policy.common.structured_dataloader import (
+    build_train_dataloader,
+    set_epoch_for_structured_sampler,
+)
 from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from accelerate import Accelerator
@@ -91,7 +95,11 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
         if not accelerator.is_main_process:
             dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+        train_dataloader, _ = build_train_dataloader(
+            dataset=dataset,
+            dataloader_cfg=cfg.dataloader,
+            default_seed=int(cfg.training.seed),
+        )
 
         # configure lr scheduler (must be after global_step is loaded)
         self.lr_scheduler = get_scheduler(
@@ -195,6 +203,7 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
             for local_epoch_idx in range(start_epoch, cfg.training.num_epochs):
+                set_epoch_for_structured_sampler(train_dataloader, self.epoch)
                 self.model.train()
 
                 step_log = dict()

@@ -32,6 +32,10 @@ from diffusion_policy.env_runner.real_pusht_image_runner import RealPushTImageRu
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
+from diffusion_policy.common.structured_dataloader import (
+    build_train_dataloader,
+    set_epoch_for_structured_sampler,
+)
 from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 from diffusion_policy.model.common.lr_decay import param_groups_lrd
@@ -143,7 +147,11 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         if not accelerator.is_main_process:
             dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+        train_dataloader, _ = build_train_dataloader(
+            dataset=dataset,
+            dataloader_cfg=cfg.dataloader,
+            default_seed=int(cfg.training.seed),
+        )
 
         # configure lr scheduler (must be after global_step is loaded)
         self.lr_scheduler = get_scheduler(
@@ -275,6 +283,7 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         with JsonLogger(log_path) as json_logger:
             for local_epoch_idx in range(start_epoch, cfg.training.num_epochs):
+                set_epoch_for_structured_sampler(train_dataloader, self.epoch)
                 step_log = dict()
                 # ========= train for this epoch ==========
                 if cfg.training.freeze_encoder:

@@ -23,5 +23,18 @@ Progress/direction labels are now optional add-ons, not the main path.
 
 ## Scope
 
-This phase is documentation-first.
-No model or dataset code changes are included yet.
+Current branch already includes v1 implementation skeleton:
+
+- offline metadata utilities (`structured_sampling_meta.py`)
+- offline KNN/joint-score utilities (`structured_sampling_index.py`)
+- coverage-first structured batch sampler (`structured_batch_sampler.py`)
+- train dataloader integration helper (`structured_dataloader.py`)
+- workspace integration for UNet/Transformer timm single-frame training
+
+Batch-size-aware default guidance:
+
+- `B_struct = round(batch_size * structured_ratio)`
+- candidate pool size `M_pool >= 4 * B_struct` (prefer `6 * B_struct`)
+- if class/group cap is used:
+  - `max_per_class = max(1, ceil(rho * B_struct))`
+  - default `rho = 0.4`
