@@ -12,6 +12,7 @@ This directory stores continuously maintained project notes, focused on:
 
 - `project-analysis.md`: system-level architecture and train/eval pipeline
 - `task-workspace-playbook.md`: daily-use task/workspace cheatsheet and commands
+- `experiments/progress-aware-sampling/`: design and execution docs for progress-aware sampling
 - `updates/`: date-based running log of changes and findings
 
 ## Maintenance Rules
