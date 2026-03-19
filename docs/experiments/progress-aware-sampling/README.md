@@ -96,3 +96,8 @@ DDP freeze-encoder compatibility note:
 1. in multi-GPU runs, `freeze_encoder=true` must operate on unwrapped model
 2. fixed in all related workspaces by switching from `self.model.obs_encoder` to
    `accelerator.unwrap_model(self.model).obs_encoder` during epoch freeze step
+
+Metric consistency note (UNet timm workspace):
+
+1. train/val head-mask MSE now both use first-10 action dims for comparable importance
+2. added `*_full` val metrics for full-dim debugging only

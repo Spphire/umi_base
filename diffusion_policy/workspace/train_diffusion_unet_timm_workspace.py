@@ -530,14 +530,28 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                                 all_preds_masked = None
 
                             if accelerator.is_main_process:
-                                mse = torch.nn.functional.mse_loss(all_preds, all_gt)
+                                # Keep train/val importance metric on the same action slice.
+                                mse_dim = min(10, all_preds.shape[-1], all_gt.shape[-1])
+                                action_pred = all_preds[..., :mse_dim]
+                                action_gt = all_gt[..., :mse_dim]
+                                mse = torch.nn.functional.mse_loss(action_pred, action_gt)
                                 step_log['val_action_mse_error'] = mse.item()
+
+                                # Optional full-dim metric for debugging/inspection.
+                                if all_preds.shape[-1] > mse_dim:
+                                    mse_full = torch.nn.functional.mse_loss(all_preds, all_gt)
+                                    step_log['val_action_mse_error_full'] = mse_full.item()
                                 
                                 # Log head image masking results if available
                                 if has_head_img and all_preds_masked is not None:
-                                    mse_no_head = torch.nn.functional.mse_loss(all_preds_masked, all_gt)
+                                    action_pred_masked = all_preds_masked[..., :mse_dim]
+                                    mse_no_head = torch.nn.functional.mse_loss(action_pred_masked, action_gt)
                                     step_log['val_action_mse_error_no_head'] = mse_no_head.item()
                                     step_log['val_action_mse_head_importance'] = (mse_no_head - mse).item()
+                                    if all_preds_masked.shape[-1] > mse_dim:
+                                        mse_no_head_full = torch.nn.functional.mse_loss(all_preds_masked, all_gt)
+                                        step_log['val_action_mse_error_no_head_full'] = mse_no_head_full.item()
+                                        step_log['val_action_mse_head_importance_full'] = (mse_no_head_full - mse_full).item()
 
 
                 accelerator.wait_for_everyone()
