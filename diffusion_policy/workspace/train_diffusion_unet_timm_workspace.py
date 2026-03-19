@@ -286,6 +286,18 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
             if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
                 unwrapped_model.obs_encoder.enable_feature_recording(True)
 
+        metric_seed_base = int(cfg.training.seed)
+        if hasattr(cfg.training, 'head_importance_eval_seed'):
+            metric_seed_base = int(cfg.training.head_importance_eval_seed)
+
+        def _make_eval_generator(seed: int, device: torch.device) -> torch.Generator:
+            try:
+                gen = torch.Generator(device=device)
+            except TypeError:
+                gen = torch.Generator(device=device.type)
+            gen.manual_seed(int(seed))
+            return gen
+
         # training loop
         start_epoch = self.epoch
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
@@ -306,6 +318,8 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         # batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
+                        # keep train-sampling metrics representative of current training dynamics
+                        train_sampling_batch = batch
 
                         # compute loss
                         raw_loss = self.model(batch)
@@ -470,8 +484,10 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         batch = train_sampling_batch
                         obs_dict = batch['obs']
                         gt_action = batch['action']
+                        train_eval_seed = metric_seed_base + self.epoch * 2
+                        train_gen = _make_eval_generator(train_eval_seed, gt_action.device)
 
-                        result = policy.predict_action(obs_dict)
+                        result = policy.predict_action(obs_dict, generator=train_gen)
                         pred_action = result['action_pred']
 
                         all_preds, all_gt = accelerator.gather_for_metrics((pred_action, gt_action))
@@ -481,7 +497,8 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                         if has_head_img:
                             obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                             obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
-                            result_masked = policy.predict_action(obs_dict_masked)
+                            train_gen_masked = _make_eval_generator(train_eval_seed, gt_action.device)
+                            result_masked = policy.predict_action(obs_dict_masked, generator=train_gen_masked)
                             pred_action_masked = result_masked['action_pred']
                             all_preds_masked, _ = accelerator.gather_for_metrics((pred_action_masked, gt_action))
                         else:
@@ -514,7 +531,9 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             batch = next(iter(val_dataloader))
                             obs_dict = batch['obs']
                             gt_action = batch['action']
-                            result = policy.predict_action(obs_dict)
+                            val_eval_seed = metric_seed_base + self.epoch * 2 + 1
+                            val_gen = _make_eval_generator(val_eval_seed, gt_action.device)
+                            result = policy.predict_action(obs_dict, generator=val_gen)
                             pred_action = result['action_pred']
                             all_preds, all_gt = accelerator.gather_for_metrics((pred_action, gt_action))
 
@@ -523,7 +542,8 @@ class TrainDiffusionUnetTimmWorkspace(BaseWorkspace):
                             if has_head_img:
                                 obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                                 obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
-                                result_masked = policy.predict_action(obs_dict_masked)
+                                val_gen_masked = _make_eval_generator(val_eval_seed, gt_action.device)
+                                result_masked = policy.predict_action(obs_dict_masked, generator=val_gen_masked)
                                 pred_action_masked = result_masked['action_pred']
                                 all_preds_masked, _ = accelerator.gather_for_metrics((pred_action_masked, gt_action))
                             else:

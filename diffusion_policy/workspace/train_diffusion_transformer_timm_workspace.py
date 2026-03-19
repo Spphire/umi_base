@@ -206,6 +206,18 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
             if hasattr(unwrapped_model.obs_encoder, 'enable_feature_recording'):
                 unwrapped_model.obs_encoder.enable_feature_recording(True)
 
+        metric_seed_base = int(cfg.training.seed)
+        if hasattr(cfg.training, 'head_importance_eval_seed'):
+            metric_seed_base = int(cfg.training.head_importance_eval_seed)
+
+        def _make_eval_generator(seed: int, device: torch.device) -> torch.Generator:
+            try:
+                gen = torch.Generator(device=device)
+            except TypeError:
+                gen = torch.Generator(device=device.type)
+            gen.manual_seed(int(seed))
+            return gen
+
         # training loop
         start_epoch = self.epoch
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
@@ -373,7 +385,9 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         # sample trajectory from training set, and evaluate difference
                         batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
                         gt_action = batch['action']
-                        pred_action = policy.predict_action(batch['obs'])['action_pred']
+                        train_eval_seed = metric_seed_base + self.epoch * 2
+                        train_gen = _make_eval_generator(train_eval_seed, gt_action.device)
+                        pred_action = policy.predict_action(batch['obs'], generator=train_gen)['action_pred']
                         mse_train = torch.nn.functional.mse_loss(pred_action, gt_action)
                         step_log['train_action_mse_error'] = mse_train.item()
 
@@ -383,7 +397,8 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                         if has_head_img:
                             obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                             obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
-                            pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
+                            train_gen_masked = _make_eval_generator(train_eval_seed, gt_action.device)
+                            pred_action_masked = policy.predict_action(obs_dict_masked, generator=train_gen_masked)['action_pred']
                             mse_train_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
                             step_log['train_action_mse_error_no_head'] = mse_train_no_head.item()
                             step_log['train_action_mse_head_importance'] = (mse_train_no_head - mse_train).item()
@@ -392,7 +407,9 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             val_sampling_batch = next(iter(val_dataloader))
                             batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
                             gt_action = batch['action']
-                            pred_action = policy.predict_action(batch['obs'])['action_pred']
+                            val_eval_seed = metric_seed_base + self.epoch * 2 + 1
+                            val_gen = _make_eval_generator(val_eval_seed, gt_action.device)
+                            pred_action = policy.predict_action(batch['obs'], generator=val_gen)['action_pred']
                             mse_val = torch.nn.functional.mse_loss(pred_action, gt_action)
                             step_log['val_action_mse_error'] = mse_val.item()
 
@@ -401,7 +418,8 @@ class TrainDiffusionTransformerTimmWorkspace(BaseWorkspace):
                             if has_head_img:
                                 obs_dict_masked = dict_apply(obs_dict, lambda x: x.clone() if isinstance(x, torch.Tensor) else x)
                                 obs_dict_masked['left_eye_img'] = torch.zeros_like(obs_dict_masked['left_eye_img'])
-                                pred_action_masked = policy.predict_action(obs_dict_masked)['action_pred']
+                                val_gen_masked = _make_eval_generator(val_eval_seed, gt_action.device)
+                                pred_action_masked = policy.predict_action(obs_dict_masked, generator=val_gen_masked)['action_pred']
                                 mse_val_no_head = torch.nn.functional.mse_loss(pred_action_masked, gt_action)
                                 step_log['val_action_mse_error_no_head'] = mse_val_no_head.item()
                                 step_log['val_action_mse_head_importance'] = (mse_val_no_head - mse_val).item()

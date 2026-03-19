@@ -101,3 +101,8 @@ Metric consistency note (UNet timm workspace):
 
 1. train/val head-mask MSE now both use first-10 action dims for comparable importance
 2. added `*_full` val metrics for full-dim debugging only
+
+Head-importance stability note:
+
+1. masked/unmasked comparison now uses identical diffusion sampling seed per pair
+2. this removes random-sampling noise from `*_head_importance` interpretation

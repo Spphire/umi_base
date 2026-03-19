@@ -128,6 +128,7 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
         self,
         obs_dict: Dict[str, torch.Tensor],
         fixed_action_prefix: torch.Tensor = None,
+        generator=None,
         debug=None,
     ) -> Dict[str, torch.Tensor]:
         """
@@ -167,6 +168,7 @@ class DiffusionUnetTimmPolicy(BaseImagePolicy):
             condition_mask=cond_mask,
             local_cond=None,
             global_cond=global_cond,
+            generator=generator,
             **self.kwargs,
         )
 
