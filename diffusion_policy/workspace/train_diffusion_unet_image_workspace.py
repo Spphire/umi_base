@@ -242,8 +242,8 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 if cfg.training.freeze_encoder:
-                    self.model.obs_encoder.eval()
-                    self.model.obs_encoder.requires_grad_(False)
+                    unwrapped_model.obs_encoder.eval()
+                    unwrapped_model.obs_encoder.requires_grad_(False)
 
                 train_losses = list()
                 with tqdm.tqdm(train_dataloader, desc=f"Training epoch {self.epoch}", 

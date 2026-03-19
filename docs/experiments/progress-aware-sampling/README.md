@@ -1,6 +1,6 @@
 # Progress-Aware Sampling
 
-Last updated: 2026-03-18
+Last updated: 2026-03-19
 Branch: `codex/progress-aware-sampling`
 
 This folder documents sampler design before code changes.
@@ -90,3 +90,9 @@ Server robustness note:
 1. if candidate file is missing, run:
    - `make prepare_structured_candidates`
 2. `make train_acc8_amp_structured` now auto-invokes that preparation step.
+
+DDP freeze-encoder compatibility note:
+
+1. in multi-GPU runs, `freeze_encoder=true` must operate on unwrapped model
+2. fixed in all related workspaces by switching from `self.model.obs_encoder` to
+   `accelerator.unwrap_model(self.model).obs_encoder` during epoch freeze step
