@@ -25,11 +25,11 @@
 
 项目：`apricity-shen2-shanghai-jiaotong-university/diffusion_policy_debug`
 
-| 序号 | run id | 时间标题 | structured ratio | freeze ViT | encoder lr 系数 | `val_head_importance@85` | `val_head_importance@595` | `best val_loss` | 备注 |
-|---|---|---|---:|---|---:|---:|---:|---:|---|
-| R1 | `7k5z92ij` | `2026.03.18-21.06.32...` | 0.5 | 否 | 0.1 | 0.001294 | -0.000049 | 0.021057 | 延缓有限，后期接近 collapse |
-| R2 | `v4qt0q4y` | `2026.03.18-22.10.27...` | 1.0 | 否 | 0.1 | 0.016519 | 0.000082 | 0.021329 | 比 0.5 明显更稳，但后期仍显著衰减 |
-| R3 | `9nfxvnet` | `2026.03.19-10.49.48...` | 0.0 | 是 | N/A | 0.004262 | 0.003991 | 0.023200 | 后期仍保持较高 head importance |
+| 序号 | run id | 时间标题 | structured ratio | freeze ViT | encoder lr 系数 | `val_head_importance@85` | `val_head_importance@595` | 备注 |
+|---|---|---|---:|---|---:|---:|---:|---|
+| R1 | `7k5z92ij` | `2026.03.18-21.06.32...` | 0.5 | 否 | 0.1 | 0.001294 | -0.000049 | 延缓有限，后期接近 collapse |
+| R2 | `v4qt0q4y` | `2026.03.18-22.10.27...` | 1.0 | 否 | 0.1 | 0.016519 | 0.000082 | 比 0.5 明显更稳，但后期仍显著衰减 |
+| R3 | `9nfxvnet` | `2026.03.19-10.49.48...` | 0.0 | 是 | N/A | 0.004262 | 0.003991 | 后期仍保持较高 head importance |
 
 初步结论（当前证据）：
 
@@ -70,7 +70,7 @@
 
 | 试验号 | structured ratio | freeze ViT | encoder lr 系数 | 目的 | 状态 |
 |---|---:|---|---:|---|---|
-| B1 | 1.0 | 否 | 0.1 | 当前默认 | 已有近似（R2） |
+| B1 | 1.0 | 否 | 0.1 | 当前默认（R2 实际配置） | 已有近似（R2） |
 | B2 | 1.0 | 否 | 0.03 | 降低 encoder 更新速度，减少预训练能力漂移 | 待跑 |
 | B3 | 1.0 | 否 | 0.01 | 更强保守微调 | 待跑 |
 | B4 | 0.5 | 否 | 0.03 | 检查 ratio 与 lr 的交互 | 待跑 |
@@ -128,6 +128,6 @@ training.encoder_lr_coefficient=0.03
 
 ## 6. 结果填写模板（复制即用）
 
-| 日期 | run id | ratio | freeze | encoder lr 系数 | best val_loss | val_mse@595 | val_head_imp@595 | 部署左/右成功率 | 结论 |
-|---|---|---:|---|---:|---:|---:|---:|---|---|
-| YYYY-MM-DD | `xxxxxx` |  |  |  |  |  |  |  |  |
+| 日期 | run id | ratio | freeze | encoder lr 系数 | val_mse@595 | val_head_imp@595 | 部署左/右成功率 | 结论 |
+|---|---|---:|---|---:|---:|---:|---|---|
+| YYYY-MM-DD | `xxxxxx` |  |  |  |  |  |  |  |
