@@ -68,18 +68,19 @@
 
 ### 3.2 阶段 B：encoder lr 微调（仅在不冻结分支）
 
-| 试验号 | structured ratio | freeze ViT | encoder lr 系数 | 目的 | 状态 |
+| 试验号 | structured ratio | freeze ViT | encoder lr 系数（base lr=3e-4） | 目的 | 状态 |
 |---|---:|---|---:|---|---|
-| B1 | 1.0 | 否 | 0.1 | 当前默认（R2 实际配置） | 已有近似（R2） |
-| B2 | 1.0 | 否 | 0.03 | 降低 encoder 更新速度，减少预训练能力漂移 | 待跑 |
-| B3 | 1.0 | 否 | 0.01 | 更强保守微调 | 待跑 |
-| B4 | 0.5 | 否 | 0.03 | 检查 ratio 与 lr 的交互 | 待跑 |
+| B1 | 1.0 | 否 | 0.1（3e-5） | 当前默认（R2 实际配置） | 已有近似（R2） |
+| B2 | 1.0 | 否 | 0.03（9e-6） | 降低 encoder 更新速度，减少预训练能力漂移 | 待跑 |
+| B3 | 1.0 | 否 | 0.01（3e-6） | 更强保守微调 | 待跑 |
+| B4 | 0.5 | 否 | 0.03（9e-6） | 检查 ratio 与 lr 的交互 | 待跑 |
 
 备注：
 
 1. UNet 中 encoder lr 实际为：
    - `obs_encoder_lr = optimizer.lr * training.encoder_lr_coefficient`
    - 当 `pretrained=True` 且 `use_lora=False` 时生效。
+   - 当前实验基线 `optimizer.lr=3e-4`（R1/R2 配置一致）。
 2. `freeze ViT=True` 时，encoder lr 不再是有效控制项。
 
 ## 4. 关键指标与判据
