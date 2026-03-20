@@ -37,6 +37,16 @@
 2. `freeze ViT` 对“后期是否 collapse”影响更大。
 3. 需要继续验证：`freeze` 稳定性收益是否能在部署成功率上兑现，且不牺牲主任务表现。
 
+### 2.1 完整曲线证据（最新三条）
+
+`ratio 影响下降速度` 以及 `freeze 对后期稳定性` 建议以完整曲线为准，不只看单点：
+
+![val head importance curve](assets/val_head_importance_curve_latest3.png)
+
+![val loss curve](assets/val_loss_curve_latest3.png)
+
+![val mse curve](assets/val_mse_curve_latest3.png)
+
 ## 3. 下一轮实验矩阵（建议执行）
 
 说明：
@@ -80,13 +90,16 @@
 |---|---|---|
 | `val_action_mse_head_importance` | head 信息贡献代理指标 | 后期不塌缩（维持正值且不过快衰减） |
 | `val_action_mse_error` | 主要动作误差 | 越低越好 |
-| `val_loss` | 验证损失 | 越低越好 |
+| `val_loss` | 去噪目标下的验证损失 | 重点看形态与拐点，不单看“越低越好” |
 | 左右部署成功率（left/right） | 真实任务目标 | 双侧均衡、总成功率高 |
 
 建议判据：
 
 1. 若后期（如 epoch >= 300）`val_head_importance` 仍稳定为正，记为“抗 collapse”。
-2. 同时要求 `val_action_mse_error` 和部署成功率不明显退化。
+2. `val_loss` 在扩散任务里出现“前快降、后缓升”并不必然代表坏过拟合，需结合：
+   - `val_action_mse_error`
+   - 左右部署成功率
+   - 曲线是否出现异常震荡或早期失稳
 3. 若只提升 importance 但部署无收益，应谨慎解读。
 
 ## 5. 推荐命令模板（UNet）

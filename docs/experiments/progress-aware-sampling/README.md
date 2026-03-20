@@ -21,7 +21,7 @@ Progress/direction labels are now optional add-ons, not the main path.
 - `ablation-plan.md`: experiment matrix and acceptance criteria
 - `doc-plan.md`: document development plan for this feature branch
 - `newcomer-quickstart.md`: onboarding guide for new lab members
-- `q3_mouse_experiment_matrix_zh.md`: 中文实验矩阵（ratio / freeze / encoder lr）
+- `q3_mouse_experiment_matrix_zh.md`: 中文实验矩阵（ratio / freeze / encoder lr，含完整曲线）
 
 ## Scope
 
