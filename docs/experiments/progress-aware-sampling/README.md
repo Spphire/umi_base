@@ -1,6 +1,6 @@
 # Progress-Aware Sampling
 
-Last updated: 2026-03-19
+Last updated: 2026-03-20
 Branch: `codex/progress-aware-sampling`
 
 This folder documents sampler design before code changes.
@@ -20,6 +20,7 @@ Progress/direction labels are now optional add-ons, not the main path.
 - `progress-label-spec.md`: how to derive task progress labels from trajectory data
 - `ablation-plan.md`: experiment matrix and acceptance criteria
 - `doc-plan.md`: document development plan for this feature branch
+- `newcomer-quickstart.md`: onboarding guide for new lab members
 
 ## Scope
 
