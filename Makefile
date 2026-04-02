@@ -10,7 +10,7 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 # teleop config
 
 #TASK := q3_mouse_384x288
-TASK := q3_hang_cup
+TASK := q3_place_cup_wristonly
 #WKSPACE := HOMMI
 
 WKSPACE := train_diffusion_unet_timm_single_frame_workspace

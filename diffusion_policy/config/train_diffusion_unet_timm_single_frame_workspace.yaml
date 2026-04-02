@@ -69,7 +69,7 @@ policy:
         #hue: 0.08
 
     use_group_norm: True
-    share_rgb_model: True
+    share_rgb_model: False
     imagenet_norm: True
     three_augment: False
     fused_model_name: ''
@@ -163,7 +163,7 @@ logging:
   project: diffusion_policy_debug
   resume: False
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
   tags: ["${name}", "${task_name}", "${exp_name}"]
   id: null
   group: null
@@ -179,14 +179,14 @@ checkpoint:
   only_save_recent: False
 
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
-  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
 
 hydra:
   job:
     override_dirname: ${name}
   run:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
   sweep:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
     subdir: ${hydra.job.num}

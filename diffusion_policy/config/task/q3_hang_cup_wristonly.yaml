@@ -8,7 +8,7 @@ defaults:
   - _self_
 
 #name: q3_mouse_head18e-1gamma_sharevit
-name: q3_hang_cup
+name: q3_hang_cup_wristonly
 
 image_shape: [3, 224, 224]
 
@@ -22,11 +22,10 @@ shape_meta: &shape_meta # acceptable types: rgb, low_dim
       horizon: ${n_obs_steps}
       shape: [9]
       type: low_dim
-
-    left_eye_img:
+    left_robot_gripper_width:
       horizon: ${n_obs_steps}
-      shape: ${task.image_shape}
-      type: rgb
+      shape: [1]
+      type: low_dim
 
   action:
     shape: [10]
@@ -81,7 +80,7 @@ env_runner:
   debug: False
 
 dataset:
-  _target_: diffusion_policy.dataset.cloud_pick_and_place_image_head_dataset.CloudPickAndPlaceImageHeadDataset
+  _target_: diffusion_policy.dataset.cloud_pick_and_place_image_dataset.CloudPickAndPlaceImageDataset
   shape_meta: *shape_meta
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
@@ -93,9 +92,9 @@ dataset:
   max_train_episodes: null
   delta_action: False
   relative_action: True
-  local_files_only: "/mnt/data/users/shenyibo/umi_base/.cache/q3_hang_cup/replay_buffer.zarr"
+  local_files_only: "/mnt/data/users/shenyibo/umi_base/.cache/q3_hang_cup_wristonly/replay_buffer.zarr"
   datacloud_endpoint: http://100.100.101.223:8083
-  identifier: q3_hang_cup
+  identifier: q3_hang_cup_wristonly
   use_data_filtering: False
   use_absolute_action: True
   action_type: head_6DOF_left_arm_6DOF_gripper_width
@@ -106,7 +105,6 @@ dataset:
   episode_clip_head_seconds: 0.0
   episode_clip_tail_seconds: 0.0
   action_representation: 'relative'
-  random_mask_head_image: False
   query_filter:
     "$and":
       - metadata.problems:

@@ -737,8 +737,8 @@ def create_zarr_storage(
 
 if __name__ == '__main__':
     # 示例使用
-    input_dir = '/mnt/workspace/users/shenyibo/umi_base/.cache/targz_q3_hang_cup'
-    output_dir = '/mnt/workspace/users/shenyibo/umi_base/.cache/q3_hang_cup'
+    input_dir = '/mnt/workspace/users/shenyibo/umi_base/.cache/targz_q3_place_cup'
+    output_dir = '/mnt/workspace/users/shenyibo/umi_base/.cache/q3_place_cup'
     debug = False  # 设置为True以进行调试（只处理前5个文件）
     temporal_downsample_ratio = 1  # 设置时序降采样比例
     use_absolute_action = True  # 使用绝对动作
@@ -771,8 +771,8 @@ if __name__ == '__main__':
         resize_target=resize_target,
         gripper_width_bias=gripper_width_bias,
         gripper_width_scale=gripper_width_scale,
-        episode_clip_head_seconds=0.1,
-        episode_clip_tail_seconds=0.0,
+        episode_clip_head_seconds=0.2,
+        episode_clip_tail_seconds=0.2,
         use_hand_masking=use_hand_masking,
         hand_mask_value=hand_mask_value,
         grounding_dino_config=grounding_dino_config,
