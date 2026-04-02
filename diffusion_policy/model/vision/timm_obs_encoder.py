@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 import timm
 import peft
@@ -17,6 +18,25 @@ from diffusion_policy.model.vision.choice_randomizer import RandomChoice
 from timm.layers.attention_pool import AttentionPoolLatent
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_per_key_bool(setting: Any, key: str, default: bool = False) -> bool:
+    if isinstance(setting, bool):
+        return setting
+    if hasattr(setting, "items") and hasattr(setting, "get"):
+        if key in setting:
+            return bool(setting[key])
+        for cfg_key, cfg_value in setting.items():
+            if cfg_key == "default":
+                continue
+            if isinstance(cfg_key, str) and cfg_key in key:
+                return bool(cfg_value)
+        if "default" in setting:
+            return bool(setting.get("default"))
+        return bool(default)
+    if setting is None:
+        return bool(default)
+    return bool(setting)
 
 class AttentionPool2d(nn.Module):
     def __init__(self, spacial_dim: int, embed_dim: int, num_heads: int, output_dim: int = None):
@@ -59,7 +79,7 @@ class TimmObsEncoder(ModuleAttrMixin):
             shape_meta: dict,
             model_name: str,
             pretrained: bool,
-            frozen: bool,
+            frozen: Any,
             global_pool: str,
             transforms: list,
             # replace BatchNorm with GroupNorm
@@ -91,15 +111,28 @@ class TimmObsEncoder(ModuleAttrMixin):
         key_transform_map = nn.ModuleDict()
         key_shape_map = dict()
         key_eval_transform_map = nn.ModuleDict()
+        key_frozen_map = dict()
 
         image_shape = None
         obs_shape_meta = shape_meta['obs']
+        rgb_obs_keys = list()
         for key, attr in obs_shape_meta.items():
             shape = tuple(attr['shape'])
             type = attr.get('type', 'low_dim')
             if type == 'rgb':
+                rgb_obs_keys.append(key)
                 assert image_shape is None or image_shape == shape[1:]
                 image_shape = shape[1:]
+        if share_rgb_model and hasattr(frozen, "items") and hasattr(frozen, "get"):
+            resolved_frozen = {
+                key: _resolve_per_key_bool(frozen, key, default=False)
+                for key in rgb_obs_keys
+            }
+            if len(set(resolved_frozen.values())) > 1:
+                raise ValueError(
+                    "share_rgb_model=True is incompatible with per-key frozen overrides. "
+                    "Set share_rgb_model=False to freeze head and fine-tune wrist independently."
+                )
 
         assert global_pool == ''
         if 'resnet' in model_name:
@@ -119,13 +152,10 @@ class TimmObsEncoder(ModuleAttrMixin):
                 drop_path_rate=drop_path_rate,  # stochastic depth
             )
 
-        if frozen:
-            assert pretrained
-            for param in model.parameters():
-                param.requires_grad = False
-        
         if use_lora:
-            assert pretrained and not frozen
+            assert pretrained
+            if isinstance(frozen, bool):
+                assert not frozen
             lora_config = peft.LoraConfig(
                 r=lora_rank,
                 lora_alpha=8,
@@ -230,8 +260,14 @@ class TimmObsEncoder(ModuleAttrMixin):
                 rgb_keys.append(key)
 
                 this_model = model if share_rgb_model else copy.deepcopy(model)
+                key_is_frozen = _resolve_per_key_bool(frozen, key, default=False)
+                if key_is_frozen:
+                    assert pretrained
+                    for param in this_model.parameters():
+                        param.requires_grad = False
                 key_model_map[key] = this_model
                 key_fused_model_map[key] = fused_model
+                key_frozen_map[key] = key_is_frozen
 
                 this_transform = transform
                 key_transform_map[key] = this_transform
@@ -259,6 +295,7 @@ class TimmObsEncoder(ModuleAttrMixin):
         self.low_dim_keys = low_dim_keys
         self.key_shape_map = key_shape_map
         self.key_eval_transform_map = key_eval_transform_map
+        self.key_frozen_map = key_frozen_map
         self.feature_aggregation = feature_aggregation
         self.fused_model_name = fused_model_name
         if model_name.startswith('vit'):

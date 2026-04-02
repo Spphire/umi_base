@@ -15,6 +15,25 @@ from diffusion_policy.common.pytorch_util import replace_submodules
 
 logger = logging.getLogger(__name__)
 
+
+def _resolve_per_key_bool(setting: Any, key: str, default: bool = False) -> bool:
+    if isinstance(setting, bool):
+        return setting
+    if hasattr(setting, "items") and hasattr(setting, "get"):
+        if key in setting:
+            return bool(setting[key])
+        for cfg_key, cfg_value in setting.items():
+            if cfg_key == "default":
+                continue
+            if isinstance(cfg_key, str) and cfg_key in key:
+                return bool(cfg_value)
+        if "default" in setting:
+            return bool(setting.get("default"))
+        return bool(default)
+    if setting is None:
+        return bool(default)
+    return bool(setting)
+
 class AttentionPool2d(nn.Module):
     def __init__(self, spacial_dim: int, embed_dim: int, num_heads: int, output_dim: int = None):
         super().__init__()
@@ -101,7 +120,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
             transforms: list=None,
             n_emb: int=768,
             pretrained: bool=False,
-            frozen: bool=False,
+            frozen: Any=False,
             # replace BatchNorm with GroupNorm
             use_group_norm: bool=False,
             # use single rgb model for all rgb inputs
@@ -121,6 +140,8 @@ class TransformerObsEncoder(ModuleAttrMixin):
         key_transform_map = nn.ModuleDict()
         key_projection_map = nn.ModuleDict()
         key_shape_map = dict()
+        key_frozen_map: Dict[str, bool] = {}
+        key_tokens_per_step_map: Dict[str, int] = {}
 
         assert global_pool == ''
         model = timm.create_model(
@@ -130,11 +151,6 @@ class TransformerObsEncoder(ModuleAttrMixin):
             num_classes=0            # remove classification layer
         )
         self.model_name = model_name
-
-        if frozen:
-            assert pretrained
-            for param in model.parameters():
-                param.requires_grad = False
         
         feature_dim = None
         if model_name.startswith('resnet'):
@@ -194,12 +210,24 @@ class TransformerObsEncoder(ModuleAttrMixin):
         
         image_shape = None
         obs_shape_meta = shape_meta['obs']
+        rgb_obs_keys = list()
         for key, attr in obs_shape_meta.items():
             shape = tuple(attr['shape'])
             type = attr.get('type', 'low_dim')
             if type == 'rgb':
+                rgb_obs_keys.append(key)
                 assert image_shape is None or image_shape == shape[1:]
                 image_shape = shape[1:]
+        if share_rgb_model and hasattr(frozen, "items") and hasattr(frozen, "get"):
+            resolved_frozen = {
+                key: _resolve_per_key_bool(frozen, key, default=False)
+                for key in rgb_obs_keys
+            }
+            if len(set(resolved_frozen.values())) > 1:
+                raise ValueError(
+                    "share_rgb_model=True is incompatible with per-key frozen overrides. "
+                    "Set share_rgb_model=False to freeze head and fine-tune wrist independently."
+                )
         if transforms is not None and not isinstance(transforms[0], torch.nn.Module):
             assert transforms[0].type == 'RandomCrop'
             ratio = transforms[0].ratio
@@ -217,7 +245,13 @@ class TransformerObsEncoder(ModuleAttrMixin):
                 rgb_keys.append(key)
 
                 this_model = model if share_rgb_model else copy.deepcopy(model)
+                key_is_frozen = _resolve_per_key_bool(frozen, key, default=False)
+                if key_is_frozen:
+                    assert pretrained
+                    for param in this_model.parameters():
+                        param.requires_grad = False
                 key_model_map[key] = this_model
+                key_frozen_map[key] = key_is_frozen
 
                 # Determine per-key aggregation strategy
                 #
@@ -273,6 +307,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
                         example_features = self.aggregate_feature(key, example_feature_map)
                     feature_shape = example_features.shape
                     feature_size = feature_shape[-1]
+                    key_tokens_per_step_map[key] = int(feature_shape[1])
                 proj = nn.Identity()
                 if feature_size != n_emb:
                     proj = nn.Linear(in_features=feature_size, out_features=n_emb)
@@ -286,6 +321,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
                 if dim != n_emb:
                     proj = nn.Linear(in_features=dim, out_features=n_emb)
                 key_projection_map[key] = proj
+                key_tokens_per_step_map[key] = 1
 
                 low_dim_keys.append(key)
             else:
@@ -305,6 +341,18 @@ class TransformerObsEncoder(ModuleAttrMixin):
         self.rgb_keys = rgb_keys
         self.low_dim_keys = low_dim_keys
         self.key_shape_map = key_shape_map
+        self.key_frozen_map = key_frozen_map
+        self.key_tokens_per_step_map = key_tokens_per_step_map
+        self.key_token_count_map: Dict[str, int] = {}
+        self.key_token_slice_map: Dict[str, slice] = {}
+        token_cursor = 0
+        for key in self.rgb_keys + self.low_dim_keys:
+            horizon = int(obs_shape_meta[key]['horizon'])
+            token_count = int(self.key_tokens_per_step_map[key]) * horizon
+            self.key_token_count_map[key] = token_count
+            self.key_token_slice_map[key] = slice(token_cursor, token_cursor + token_count)
+            token_cursor += token_count
+        self.total_obs_tokens = token_cursor
 
         self.record_feature_stats = False
         self._last_feature_map = dict()
@@ -375,6 +423,29 @@ class TransformerObsEncoder(ModuleAttrMixin):
 
     # ------------------------------------------------------------------
 
+    def get_token_slices(self, include_time_token: bool = False,
+            time_token_name: str = '__time__') -> Dict[str, slice]:
+        result = {
+            key: self.key_token_slice_map[key]
+            for key in (self.rgb_keys + self.low_dim_keys)
+        }
+        if include_time_token:
+            result[time_token_name] = slice(self.total_obs_tokens, self.total_obs_tokens + 1)
+        return result
+
+    def get_token_layout(self, include_time_token: bool = False,
+            time_token_name: str = '__time__') -> Dict[str, Dict[str, int]]:
+        layout = dict()
+        for key, token_slice in self.get_token_slices(
+                include_time_token=include_time_token,
+                time_token_name=time_token_name).items():
+            layout[key] = {
+                'start': int(token_slice.start),
+                'end': int(token_slice.stop),
+                'count': int(token_slice.stop - token_slice.start)
+            }
+        return layout
+
     def aggregate_feature(self, key: str, feature: torch.Tensor) -> torch.Tensor:
         """Aggregate backbone output for *key* into shape [B, N_out, C].
 
@@ -422,6 +493,7 @@ class TransformerObsEncoder(ModuleAttrMixin):
             return feature
         
     def forward(self, obs_dict):
+        self._last_attention_maps.clear()
         embeddings = list()
         batch_size = next(iter(obs_dict.values())).shape[0]
 

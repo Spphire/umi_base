@@ -44,6 +44,7 @@ policy:
     #model_name: 'vit_base_patch14_dinov2.lvd142m'
     # model_name: 'convnext_base.clip_laion2b_augreg_ft_in12k'
     pretrained: True
+    # bool or per-key mapping, e.g. {default: False, eye: True}
     frozen: False
     use_lora: False
     lora_rank: 8
@@ -69,6 +70,7 @@ policy:
         #hue: 0.08
 
     use_group_norm: True
+    # must be False if different rgb keys use different frozen settings
     share_rgb_model: False
     imagenet_norm: True
     three_augment: False

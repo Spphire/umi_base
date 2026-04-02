@@ -1,13 +1,13 @@
 defaults:
   - _self_
-  - task: q3_shop_bagging_0202
+  - task: q3_place_cup
 
-name: train_diffusion_transformer_timm
+name: train_diffusion_transformer_timm_q3_place_cup_single_frame
 _target_: diffusion_policy.workspace.train_diffusion_transformer_timm_workspace.TrainDiffusionTransformerTimmWorkspace
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
-exp_name: "default"
+exp_name: "head_frozen_wrist_trainable"
 
 horizon: 16
 n_obs_steps: 1
@@ -39,8 +39,9 @@ policy:
     n_emb: ${n_emb}
     model_name: 'vit_base_patch16_dinov3.lvd1689m'
     pretrained: True
-    # bool or per-key mapping, e.g. {default: False, eye: True}
-    frozen: False
+    frozen:
+      default: False
+      left_eye_img: True
 
     # 'cls' or 'avg' or 'max' or 'soft_attention' or 'spatial_embedding' or 'transformer' or 'attention_pool_2d'
     feature_aggregation: 'cls'
@@ -58,7 +59,7 @@ policy:
 
     use_group_norm: True
     # must be False if different rgb keys use different frozen settings
-    share_rgb_model: True
+    share_rgb_model: False
 
   num_inference_steps: 16
   input_pertub: 0.1
