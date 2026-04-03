@@ -56,16 +56,21 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         
         zarr_path = os.path.join(dataset_path)
         zarr_load_keys = rgb_keys + lowdim_keys + ['action']
+        auxiliary_lowdim_keys = list()
         # if 'left_eye_img' in zarr_load_keys:
         #     zarr_load_keys.append('right_eye_img')
         if 'left_robot_gripper_width' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('left_robot_gripper_width')
+            auxiliary_lowdim_keys.append('left_robot_gripper_width')
         if 'left_robot_tcp_pose' not in zarr_load_keys and 'left_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('left_robot_tcp_pose')
+            auxiliary_lowdim_keys.append('left_robot_tcp_pose')
         if 'right_robot_gripper_width' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('right_robot_gripper_width')
+            auxiliary_lowdim_keys.append('right_robot_gripper_width')
         if 'right_robot_tcp_pose' not in zarr_load_keys and 'right_wrist_img' in zarr_load_keys:
             zarr_load_keys.append('right_robot_tcp_pose')
+            auxiliary_lowdim_keys.append('right_robot_tcp_pose')
         # if 'left_eye_tcp_pose' not in zarr_load_keys and 'left_eye_img' in zarr_load_keys:
         #     zarr_load_keys.append('left_eye_tcp_pose')
 
@@ -95,7 +100,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         key_first_k = dict()
         if n_obs_steps is not None:
             # only take first k obs from images
-            for key in rgb_keys + lowdim_keys:
+            for key in rgb_keys + lowdim_keys + auxiliary_lowdim_keys:
                 key_first_k[key] = n_obs_steps
 
         val_mask = get_val_mask(
@@ -133,6 +138,7 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
         self.relative_action = relative_action
         self.key_first_k = key_first_k
         self.dagger_sampling_ratio = dagger_sampling_ratio
+        self.auxiliary_lowdim_keys = auxiliary_lowdim_keys
         if relative_action:
             logger.info(
                 "Relative action is enabled. All actions will be relative to the current frame.")
@@ -235,6 +241,13 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
     def __len__(self):
         return len(self.sampler)
 
+    def _get_base_obs_from_sample(self, data: Dict, obs_dict: Dict, key: str, T_slice):
+        if key in data:
+            return data[key][:, :9][T_slice].astype(np.float32)[-1]
+        if key in obs_dict:
+            return obs_dict[key][-1]
+        return np.array([])
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         threadpool_limits(1)
         data = self.sampler.sample_sequence(idx)
@@ -294,10 +307,8 @@ class RealPickAndPlaceImageHeadDataset(BaseImageDataset):
             # Make the length 10 or 20, not 9 or 18.
             # Shape in obs_dict[xxx] is (T, D).
             base_absolute_action = np.concatenate([
-                # data['left_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'left_robot_tcp_pose' in data else np.array([]),
-                # data['right_robot_tcp_pose'][:, :9][T_slice].astype(np.float32)[-1] if 'right_robot_tcp_pose' in data else np.array([]),
-                obs_dict['left_robot_tcp_pose'][-1] if 'left_robot_tcp_pose' in obs_dict else np.array([]),
-                obs_dict['right_robot_tcp_pose'][-1] if 'right_robot_tcp_pose' in obs_dict else np.array([]),
+                self._get_base_obs_from_sample(data, obs_dict, 'left_robot_tcp_pose', T_slice),
+                self._get_base_obs_from_sample(data, obs_dict, 'right_robot_tcp_pose', T_slice),
 
                 data['left_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'left_robot_gripper_width' in data else np.array([]),
                 data['right_robot_gripper_width'][:, :1][T_slice].astype(np.float32)[-1] if 'right_robot_gripper_width' in data else np.array([]),

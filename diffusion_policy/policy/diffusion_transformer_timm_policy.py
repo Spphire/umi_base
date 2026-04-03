@@ -67,11 +67,16 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
     def conditional_sample(self, 
             condition_data, condition_mask,
             cond=None, generator=None,
+            return_attention=False,
             # keyword arguments to scheduler.step
             **kwargs
             ):
         model = self.model
         scheduler = self.noise_scheduler
+        attention_steps = list() if return_attention else None
+        if attention_steps is not None and hasattr(model, 'set_capture_cross_attention'):
+            model.set_capture_cross_attention(True)
+            model.clear_cross_attention_cache()
 
         trajectory = torch.randn(
             size=condition_data.shape, 
@@ -88,6 +93,12 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
 
             # 2. predict model output
             model_output = model(trajectory, t, cond)
+            if attention_steps is not None and hasattr(model, 'pop_last_cross_attention_weights'):
+                timestep = int(t.item()) if torch.is_tensor(t) else int(t)
+                attention_steps.append({
+                    'diffusion_timestep': timestep,
+                    'layers': model.pop_last_cross_attention_weights()
+                })
 
             # 3. compute previous image: x_t -> x_t-1
             trajectory = scheduler.step(
@@ -99,10 +110,58 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
         # finally make sure conditioning is enforced
         trajectory[condition_mask] = condition_data[condition_mask]        
 
+        if attention_steps is not None and hasattr(model, 'set_capture_cross_attention'):
+            model.set_capture_cross_attention(False)
+            model.clear_cross_attention_cache()
+            return trajectory, attention_steps
         return trajectory
 
 
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def _summarize_cross_attention(self, attention_steps):
+        if not attention_steps:
+            return None
+        if not hasattr(self.obs_encoder, 'get_token_slices') or not hasattr(self.obs_encoder, 'get_token_layout'):
+            return None
+
+        token_slices = self.obs_encoder.get_token_slices(include_time_token=True)
+        token_layout = self.obs_encoder.get_token_layout(include_time_token=True)
+        aggregate_by_key = {key: list() for key in token_slices.keys()}
+        per_step = list()
+
+        for step in attention_steps:
+            layer_maps = list()
+            for layer_attn in step.get('layers', list()):
+                if layer_attn is None:
+                    continue
+                layer_map = layer_attn.detach().float().mean(dim=1).mean(dim=1)
+                layer_maps.append(layer_map)
+            if len(layer_maps) == 0:
+                continue
+
+            step_map = torch.stack(layer_maps, dim=0).mean(dim=0).mean(dim=0)
+            step_attention = dict()
+            for key, token_slice in token_slices.items():
+                step_attention[key] = float(step_map[token_slice].sum().item())
+                aggregate_by_key[key].append(step_attention[key])
+            per_step.append({
+                'diffusion_timestep': int(step['diffusion_timestep']),
+                'mean_attention_by_key': step_attention
+            })
+
+        if len(per_step) == 0:
+            return None
+
+        aggregate_mean_by_key = dict()
+        for key, values in aggregate_by_key.items():
+            aggregate_mean_by_key[key] = float(np.mean(values)) if len(values) > 0 else 0.0
+
+        return {
+            'token_layout': token_layout,
+            'aggregate_mean_by_key': aggregate_mean_by_key,
+            'per_step': per_step
+        }
+
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor], return_attention: bool=False) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
@@ -121,11 +180,17 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
         cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
         
         # run sampling
-        nsample = self.conditional_sample(
+        sample_result = self.conditional_sample(
             condition_data=cond_data, 
             condition_mask=cond_mask,
             cond=obs_tokens,
+            return_attention=return_attention,
             **self.kwargs)
+        if return_attention:
+            nsample, attention_steps = sample_result
+        else:
+            nsample = sample_result
+            attention_steps = None
         
         # unnormalize prediction
         assert nsample.shape == (B, self.action_horizon, self.action_dim)
@@ -135,6 +200,8 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
             'action': action_pred,
             'action_pred': action_pred
         }
+        if return_attention:
+            result['cross_attention_summary'] = self._summarize_cross_attention(attention_steps)
         return result
 
     # ========= training  ============
@@ -155,6 +222,8 @@ class DiffusionTransformerTimmPolicy(BaseImagePolicy):
         backbone_params = list()
         other_obs_params = list()
         for key, value in self.obs_encoder.named_parameters():
+            if not value.requires_grad:
+                continue
             if key.startswith('key_model_map'):
                 backbone_params.append(value)
             else:

@@ -177,6 +177,16 @@ class TimmImageRunner:
     def spin_executor(executor):
         executor.spin()
 
+    def _collect_auxiliary_absolute_obs(self, env_obs: Dict) -> Dict:
+        aux_obs_dict = dict()
+        if not self.use_relative_action:
+            return aux_obs_dict
+
+        for key in ("left_robot_tcp_pose", "right_robot_tcp_pose"):
+            if key in env_obs:
+                aux_obs_dict[key] = env_obs[key].copy()
+        return aux_obs_dict
+
     def pre_process_obs(self, obs_dict: Dict) -> Tuple[Dict, Dict]:
         obs_dict = deepcopy(obs_dict)
 
@@ -475,10 +485,13 @@ class TimmImageRunner:
                             step_count += steps_per_inference
                             continue
 
-                        np_obs_dict = dict(obs)
+                        raw_obs_dict = dict(obs)
+                        aux_absolute_obs_dict = self._collect_auxiliary_absolute_obs(
+                            raw_obs_dict
+                        )
                         # get transformed real obs dict
                         np_obs_dict = get_real_obs_dict(
-                            env_obs=np_obs_dict, shape_meta=self.shape_meta
+                            env_obs=raw_obs_dict, shape_meta=self.shape_meta
                         )
 
                         # [todo] fix zarr data type (now it's BGR)
@@ -487,6 +500,9 @@ class TimmImageRunner:
                         np_obs_dict, np_absolute_obs_dict = self.pre_process_obs(
                             np_obs_dict
                         )
+                        for key, value in aux_absolute_obs_dict.items():
+                            if key not in np_absolute_obs_dict:
+                                np_absolute_obs_dict[key] = value
                         obs_dict = dict_apply(
                             np_obs_dict,
                             lambda x: torch.from_numpy(x)
@@ -494,7 +510,8 @@ class TimmImageRunner:
                             .to(device=device),  # add batchsize
                         )
                         # [todo] better way to scale gripper width
-                        obs_dict['left_robot_gripper_width'] /= self.debug_gripper_width_scale
+                        if 'left_robot_gripper_width' in obs_dict:
+                            obs_dict['left_robot_gripper_width'] /= self.debug_gripper_width_scale
 
                         # [debug]
                         imgs = obs_dict["left_wrist_img"][0].cpu().numpy()
@@ -539,18 +556,19 @@ class TimmImageRunner:
                             )
 
                             # [debug]
-                            visualize_pose_matrices(
-                                pose_3d_9d_to_homo_matrix_batch(
-                                    relative_actions_to_absolute_actions(
-                                        obs_dict["left_robot_tcp_pose"][0]
-                                        .cpu()
-                                        .numpy(),
-                                        base_absolute_action,
-                                    )
-                                ),
-                                f"obs_tcp_pose/frame_{step_count}",
-                                show_coordinate_frame=True,
-                            )
+                            if "left_robot_tcp_pose" in obs_dict:
+                                visualize_pose_matrices(
+                                    pose_3d_9d_to_homo_matrix_batch(
+                                        relative_actions_to_absolute_actions(
+                                            obs_dict["left_robot_tcp_pose"][0]
+                                            .cpu()
+                                            .numpy(),
+                                            base_absolute_action,
+                                        )
+                                    ),
+                                    f"obs_tcp_pose/frame_{step_count}",
+                                    show_coordinate_frame=True,
+                                )
 
                         # [debug]
                         if step_count % self.tcp_action_update_interval == 0:
