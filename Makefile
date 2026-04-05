@@ -9,13 +9,10 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 
-#TASK := q3_mouse_384x288
-TASK := q3_place_cup_wristonly
-#WKSPACE := HOMMI
+#TASK := q3_place_cup_v2
+TASK := q3_stack_cup
 
-WKSPACE := train_diffusion_unet_timm_single_frame_workspace
-#WKSPACE := train_diffusion_transformer_timm_single_frame_workspace
-# DATASET_PATH := /root/umi_base_devel/data/pick_and_place_coffee_iphone_collector_zarr_clip
+WKSPACE := train_diffusion_transformer_timm_q3_place_cup_single_frame_workspace
 
 # record config
 SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data

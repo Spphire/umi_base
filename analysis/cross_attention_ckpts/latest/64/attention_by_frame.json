@@ -1,0 +1,1794 @@
+[
+  {
+    "frame_index": 0,
+    "attention_by_key": {
+      "left_eye_img": 0.534015791490674,
+      "left_wrist_img": 0.24484287668019533,
+      "__time__": 0.22114137932658195
+    }
+  },
+  {
+    "frame_index": 1,
+    "attention_by_key": {
+      "left_eye_img": 0.5333256796002388,
+      "left_wrist_img": 0.2357015162706375,
+      "__time__": 0.23097286419942975
+    }
+  },
+  {
+    "frame_index": 2,
+    "attention_by_key": {
+      "left_eye_img": 0.5279275830835104,
+      "left_wrist_img": 0.2471347157843411,
+      "__time__": 0.22493777191266418
+    }
+  },
+  {
+    "frame_index": 3,
+    "attention_by_key": {
+      "left_eye_img": 0.5397933591157198,
+      "left_wrist_img": 0.2424982264637947,
+      "__time__": 0.21770848101004958
+    }
+  },
+  {
+    "frame_index": 4,
+    "attention_by_key": {
+      "left_eye_img": 0.5320638697594404,
+      "left_wrist_img": 0.2480638618580997,
+      "__time__": 0.2198723265901208
+    }
+  },
+  {
+    "frame_index": 5,
+    "attention_by_key": {
+      "left_eye_img": 0.5353068336844444,
+      "left_wrist_img": 0.23784942785277963,
+      "__time__": 0.22684378363192081
+    }
+  },
+  {
+    "frame_index": 6,
+    "attention_by_key": {
+      "left_eye_img": 0.5399720426648855,
+      "left_wrist_img": 0.23873346159234643,
+      "__time__": 0.22129453672096133
+    }
+  },
+  {
+    "frame_index": 7,
+    "attention_by_key": {
+      "left_eye_img": 0.5337902270257473,
+      "left_wrist_img": 0.23769348207861185,
+      "__time__": 0.22851634724065661
+    }
+  },
+  {
+    "frame_index": 8,
+    "attention_by_key": {
+      "left_eye_img": 0.5390188209712505,
+      "left_wrist_img": 0.24157180124893785,
+      "__time__": 0.21940942341461778
+    }
+  },
+  {
+    "frame_index": 9,
+    "attention_by_key": {
+      "left_eye_img": 0.5331269074231386,
+      "left_wrist_img": 0.25050702365115285,
+      "__time__": 0.2163661071099341
+    }
+  },
+  {
+    "frame_index": 10,
+    "attention_by_key": {
+      "left_eye_img": 0.5373862683773041,
+      "left_wrist_img": 0.23834628937765956,
+      "__time__": 0.2242674808949232
+    }
+  },
+  {
+    "frame_index": 11,
+    "attention_by_key": {
+      "left_eye_img": 0.5403078068047762,
+      "left_wrist_img": 0.23367976443842053,
+      "__time__": 0.2260124869644642
+    }
+  },
+  {
+    "frame_index": 12,
+    "attention_by_key": {
+      "left_eye_img": 0.5345965474843979,
+      "left_wrist_img": 0.24603563034906983,
+      "__time__": 0.21936788177117705
+    }
+  },
+  {
+    "frame_index": 13,
+    "attention_by_key": {
+      "left_eye_img": 0.5269864797592163,
+      "left_wrist_img": 0.2496855417266488,
+      "__time__": 0.22332803951576352
+    }
+  },
+  {
+    "frame_index": 14,
+    "attention_by_key": {
+      "left_eye_img": 0.5377777889370918,
+      "left_wrist_img": 0.23580477992072701,
+      "__time__": 0.2264174702577293
+    }
+  },
+  {
+    "frame_index": 15,
+    "attention_by_key": {
+      "left_eye_img": 0.519976694136858,
+      "left_wrist_img": 0.25598499923944473,
+      "__time__": 0.22403836529701948
+    }
+  },
+  {
+    "frame_index": 16,
+    "attention_by_key": {
+      "left_eye_img": 0.5349318236112595,
+      "left_wrist_img": 0.236748063005507,
+      "__time__": 0.22832016786560416
+    }
+  },
+  {
+    "frame_index": 17,
+    "attention_by_key": {
+      "left_eye_img": 0.5306337028741837,
+      "left_wrist_img": 0.24486797535791993,
+      "__time__": 0.2244983813725412
+    }
+  },
+  {
+    "frame_index": 18,
+    "attention_by_key": {
+      "left_eye_img": 0.5274095963686705,
+      "left_wrist_img": 0.24984360439702868,
+      "__time__": 0.22274685930460691
+    }
+  },
+  {
+    "frame_index": 19,
+    "attention_by_key": {
+      "left_eye_img": 0.5164176151156425,
+      "left_wrist_img": 0.2607667138800025,
+      "__time__": 0.22281570825725794
+    }
+  },
+  {
+    "frame_index": 20,
+    "attention_by_key": {
+      "left_eye_img": 0.5286265891045332,
+      "left_wrist_img": 0.2445095987059176,
+      "__time__": 0.22686386574059725
+    }
+  },
+  {
+    "frame_index": 21,
+    "attention_by_key": {
+      "left_eye_img": 0.5293396394699812,
+      "left_wrist_img": 0.24101977096870542,
+      "__time__": 0.22964063053950667
+    }
+  },
+  {
+    "frame_index": 22,
+    "attention_by_key": {
+      "left_eye_img": 0.5267241764813662,
+      "left_wrist_img": 0.2502549816854298,
+      "__time__": 0.2230208902619779
+    }
+  },
+  {
+    "frame_index": 23,
+    "attention_by_key": {
+      "left_eye_img": 0.5170750599354506,
+      "left_wrist_img": 0.26139296870678663,
+      "__time__": 0.22153203142806888
+    }
+  },
+  {
+    "frame_index": 24,
+    "attention_by_key": {
+      "left_eye_img": 0.5222308970987797,
+      "left_wrist_img": 0.25404158933088183,
+      "__time__": 0.22372756293043494
+    }
+  },
+  {
+    "frame_index": 25,
+    "attention_by_key": {
+      "left_eye_img": 0.5242647416889668,
+      "left_wrist_img": 0.2502923235297203,
+      "__time__": 0.22544299159199
+    }
+  },
+  {
+    "frame_index": 26,
+    "attention_by_key": {
+      "left_eye_img": 0.5227001216262579,
+      "left_wrist_img": 0.2522688661701977,
+      "__time__": 0.22503106109797955
+    }
+  },
+  {
+    "frame_index": 27,
+    "attention_by_key": {
+      "left_eye_img": 0.5229576993733644,
+      "left_wrist_img": 0.2533581769093871,
+      "__time__": 0.22368417726829648
+    }
+  },
+  {
+    "frame_index": 28,
+    "attention_by_key": {
+      "left_eye_img": 0.5200651008635759,
+      "left_wrist_img": 0.25644531194120646,
+      "__time__": 0.22348963608965278
+    }
+  },
+  {
+    "frame_index": 29,
+    "attention_by_key": {
+      "left_eye_img": 0.5309712570160627,
+      "left_wrist_img": 0.24797638040035963,
+      "__time__": 0.22105240309610963
+    }
+  },
+  {
+    "frame_index": 30,
+    "attention_by_key": {
+      "left_eye_img": 0.5197911486029625,
+      "left_wrist_img": 0.26011450309306383,
+      "__time__": 0.22009439440444112
+    }
+  },
+  {
+    "frame_index": 31,
+    "attention_by_key": {
+      "left_eye_img": 0.5336618758738041,
+      "left_wrist_img": 0.24431222723796964,
+      "__time__": 0.22202594904229045
+    }
+  },
+  {
+    "frame_index": 32,
+    "attention_by_key": {
+      "left_eye_img": 0.5264227353036404,
+      "left_wrist_img": 0.2558562345802784,
+      "__time__": 0.21772106923162937
+    }
+  },
+  {
+    "frame_index": 33,
+    "attention_by_key": {
+      "left_eye_img": 0.5291336551308632,
+      "left_wrist_img": 0.2443662891164422,
+      "__time__": 0.22650010650977492
+    }
+  },
+  {
+    "frame_index": 34,
+    "attention_by_key": {
+      "left_eye_img": 0.5310101360082626,
+      "left_wrist_img": 0.2478057756088674,
+      "__time__": 0.22118413913995028
+    }
+  },
+  {
+    "frame_index": 35,
+    "attention_by_key": {
+      "left_eye_img": 0.5404724255204201,
+      "left_wrist_img": 0.23249382292851806,
+      "__time__": 0.22703381348401308
+    }
+  },
+  {
+    "frame_index": 36,
+    "attention_by_key": {
+      "left_eye_img": 0.5379175376147032,
+      "left_wrist_img": 0.23316696705296636,
+      "__time__": 0.22891555121168494
+    }
+  },
+  {
+    "frame_index": 37,
+    "attention_by_key": {
+      "left_eye_img": 0.5409565232694149,
+      "left_wrist_img": 0.23920362582430243,
+      "__time__": 0.21983991330489516
+    }
+  },
+  {
+    "frame_index": 38,
+    "attention_by_key": {
+      "left_eye_img": 0.5384489353746176,
+      "left_wrist_img": 0.23583218408748507,
+      "__time__": 0.2257189298979938
+    }
+  },
+  {
+    "frame_index": 39,
+    "attention_by_key": {
+      "left_eye_img": 0.5441804062575102,
+      "left_wrist_img": 0.23202362144365907,
+      "__time__": 0.22379600862041116
+    }
+  },
+  {
+    "frame_index": 40,
+    "attention_by_key": {
+      "left_eye_img": 0.5382772646844387,
+      "left_wrist_img": 0.23573741456493735,
+      "__time__": 0.22598537243902683
+    }
+  },
+  {
+    "frame_index": 41,
+    "attention_by_key": {
+      "left_eye_img": 0.5438888464123011,
+      "left_wrist_img": 0.2346425405703485,
+      "__time__": 0.2214686586521566
+    }
+  },
+  {
+    "frame_index": 42,
+    "attention_by_key": {
+      "left_eye_img": 0.5384486541152,
+      "left_wrist_img": 0.23474223585799336,
+      "__time__": 0.22680915798991919
+    }
+  },
+  {
+    "frame_index": 43,
+    "attention_by_key": {
+      "left_eye_img": 0.5457614753395319,
+      "left_wrist_img": 0.2324269530363381,
+      "__time__": 0.22181160328909755
+    }
+  },
+  {
+    "frame_index": 44,
+    "attention_by_key": {
+      "left_eye_img": 0.5407890435308218,
+      "left_wrist_img": 0.2378750080242753,
+      "__time__": 0.22133600991219282
+    }
+  },
+  {
+    "frame_index": 45,
+    "attention_by_key": {
+      "left_eye_img": 0.5403365213423967,
+      "left_wrist_img": 0.23730981023982167,
+      "__time__": 0.22235372243449092
+    }
+  },
+  {
+    "frame_index": 46,
+    "attention_by_key": {
+      "left_eye_img": 0.5500652361661196,
+      "left_wrist_img": 0.2267711665481329,
+      "__time__": 0.22316364850848913
+    }
+  },
+  {
+    "frame_index": 47,
+    "attention_by_key": {
+      "left_eye_img": 0.5416678618639708,
+      "left_wrist_img": 0.23119197273626924,
+      "__time__": 0.22714021615684032
+    }
+  },
+  {
+    "frame_index": 48,
+    "attention_by_key": {
+      "left_eye_img": 0.5455438662320375,
+      "left_wrist_img": 0.23046006727963686,
+      "__time__": 0.22399611631408334
+    }
+  },
+  {
+    "frame_index": 49,
+    "attention_by_key": {
+      "left_eye_img": 0.5421747714281082,
+      "left_wrist_img": 0.23254680959507823,
+      "__time__": 0.2252784725278616
+    }
+  },
+  {
+    "frame_index": 50,
+    "attention_by_key": {
+      "left_eye_img": 0.5424750540405512,
+      "left_wrist_img": 0.23356476286426187,
+      "__time__": 0.2239602329209447
+    }
+  },
+  {
+    "frame_index": 51,
+    "attention_by_key": {
+      "left_eye_img": 0.5462439972907305,
+      "left_wrist_img": 0.22992107551544905,
+      "__time__": 0.22383496724069118
+    }
+  },
+  {
+    "frame_index": 52,
+    "attention_by_key": {
+      "left_eye_img": 0.5473634451627731,
+      "left_wrist_img": 0.23156491527333856,
+      "__time__": 0.2210716945119202
+    }
+  },
+  {
+    "frame_index": 53,
+    "attention_by_key": {
+      "left_eye_img": 0.5475679710507393,
+      "left_wrist_img": 0.22179521201178432,
+      "__time__": 0.230636871419847
+    }
+  },
+  {
+    "frame_index": 54,
+    "attention_by_key": {
+      "left_eye_img": 0.541715744882822,
+      "left_wrist_img": 0.2242202227935195,
+      "__time__": 0.23406409285962582
+    }
+  },
+  {
+    "frame_index": 55,
+    "attention_by_key": {
+      "left_eye_img": 0.5516273099929094,
+      "left_wrist_img": 0.21702023735269904,
+      "__time__": 0.2313524973578751
+    }
+  },
+  {
+    "frame_index": 56,
+    "attention_by_key": {
+      "left_eye_img": 0.5407438464462757,
+      "left_wrist_img": 0.23243492422625422,
+      "__time__": 0.22682129964232445
+    }
+  },
+  {
+    "frame_index": 57,
+    "attention_by_key": {
+      "left_eye_img": 0.5382935218513012,
+      "left_wrist_img": 0.23147235065698624,
+      "__time__": 0.2302341922186315
+    }
+  },
+  {
+    "frame_index": 58,
+    "attention_by_key": {
+      "left_eye_img": 0.5457288548350334,
+      "left_wrist_img": 0.22737160976976156,
+      "__time__": 0.22689960384741426
+    }
+  },
+  {
+    "frame_index": 59,
+    "attention_by_key": {
+      "left_eye_img": 0.5308756493031979,
+      "left_wrist_img": 0.24118915107101202,
+      "__time__": 0.22793525457382202
+    }
+  },
+  {
+    "frame_index": 60,
+    "attention_by_key": {
+      "left_eye_img": 0.5454739239066839,
+      "left_wrist_img": 0.23249271512031555,
+      "__time__": 0.22203340660780668
+    }
+  },
+  {
+    "frame_index": 61,
+    "attention_by_key": {
+      "left_eye_img": 0.538324136286974,
+      "left_wrist_img": 0.23182039055973291,
+      "__time__": 0.22985553974285722
+    }
+  },
+  {
+    "frame_index": 62,
+    "attention_by_key": {
+      "left_eye_img": 0.5409829001873732,
+      "left_wrist_img": 0.23404471017420292,
+      "__time__": 0.22497244970872998
+    }
+  },
+  {
+    "frame_index": 63,
+    "attention_by_key": {
+      "left_eye_img": 0.5326900575309992,
+      "left_wrist_img": 0.23889170540496707,
+      "__time__": 0.2284182868897915
+    }
+  },
+  {
+    "frame_index": 64,
+    "attention_by_key": {
+      "left_eye_img": 0.5342459175735712,
+      "left_wrist_img": 0.24234124552458525,
+      "__time__": 0.2234128969721496
+    }
+  },
+  {
+    "frame_index": 65,
+    "attention_by_key": {
+      "left_eye_img": 0.5308890268206596,
+      "left_wrist_img": 0.24737772345542908,
+      "__time__": 0.22173330700024962
+    }
+  },
+  {
+    "frame_index": 66,
+    "attention_by_key": {
+      "left_eye_img": 0.5315799042582512,
+      "left_wrist_img": 0.24389772629365325,
+      "__time__": 0.22452242951840162
+    }
+  },
+  {
+    "frame_index": 67,
+    "attention_by_key": {
+      "left_eye_img": 0.5381651651114225,
+      "left_wrist_img": 0.2374762985855341,
+      "__time__": 0.22435859963297844
+    }
+  },
+  {
+    "frame_index": 68,
+    "attention_by_key": {
+      "left_eye_img": 0.5348777994513512,
+      "left_wrist_img": 0.24134612316265702,
+      "__time__": 0.22377613466233015
+    }
+  },
+  {
+    "frame_index": 69,
+    "attention_by_key": {
+      "left_eye_img": 0.5366312861442566,
+      "left_wrist_img": 0.23886744771152735,
+      "__time__": 0.22450133645907044
+    }
+  },
+  {
+    "frame_index": 70,
+    "attention_by_key": {
+      "left_eye_img": 0.5418649781495333,
+      "left_wrist_img": 0.23631348693743348,
+      "__time__": 0.2218215842731297
+    }
+  },
+  {
+    "frame_index": 71,
+    "attention_by_key": {
+      "left_eye_img": 0.5335423965007067,
+      "left_wrist_img": 0.2434699353761971,
+      "__time__": 0.22298773098737001
+    }
+  },
+  {
+    "frame_index": 72,
+    "attention_by_key": {
+      "left_eye_img": 0.5347332321107388,
+      "left_wrist_img": 0.24075070722028613,
+      "__time__": 0.2245161128230393
+    }
+  },
+  {
+    "frame_index": 73,
+    "attention_by_key": {
+      "left_eye_img": 0.5346723385155201,
+      "left_wrist_img": 0.24377819476649165,
+      "__time__": 0.22154952958226204
+    }
+  },
+  {
+    "frame_index": 74,
+    "attention_by_key": {
+      "left_eye_img": 0.5321900900453329,
+      "left_wrist_img": 0.23918188596144319,
+      "__time__": 0.22862808499485254
+    }
+  },
+  {
+    "frame_index": 75,
+    "attention_by_key": {
+      "left_eye_img": 0.5350897572934628,
+      "left_wrist_img": 0.24841554462909698,
+      "__time__": 0.21649475255981088
+    }
+  },
+  {
+    "frame_index": 76,
+    "attention_by_key": {
+      "left_eye_img": 0.5365584157407284,
+      "left_wrist_img": 0.24611555645242333,
+      "__time__": 0.21732608461752534
+    }
+  },
+  {
+    "frame_index": 77,
+    "attention_by_key": {
+      "left_eye_img": 0.5241617206484079,
+      "left_wrist_img": 0.2549363076686859,
+      "__time__": 0.2209020252339542
+    }
+  },
+  {
+    "frame_index": 78,
+    "attention_by_key": {
+      "left_eye_img": 0.5215405076742172,
+      "left_wrist_img": 0.25482895970344543,
+      "__time__": 0.22363057965412736
+    }
+  },
+  {
+    "frame_index": 79,
+    "attention_by_key": {
+      "left_eye_img": 0.5360386911779642,
+      "left_wrist_img": 0.24371563689783216,
+      "__time__": 0.2202457101084292
+    }
+  },
+  {
+    "frame_index": 80,
+    "attention_by_key": {
+      "left_eye_img": 0.5264846235513687,
+      "left_wrist_img": 0.24866084987297654,
+      "__time__": 0.22485458571463823
+    }
+  },
+  {
+    "frame_index": 81,
+    "attention_by_key": {
+      "left_eye_img": 0.517503323033452,
+      "left_wrist_img": 0.2558881975710392,
+      "__time__": 0.22660852689296007
+    }
+  },
+  {
+    "frame_index": 82,
+    "attention_by_key": {
+      "left_eye_img": 0.5235439855605364,
+      "left_wrist_img": 0.24995961552485824,
+      "__time__": 0.22649645758792758
+    }
+  },
+  {
+    "frame_index": 83,
+    "attention_by_key": {
+      "left_eye_img": 0.5273858122527599,
+      "left_wrist_img": 0.24715342139825225,
+      "__time__": 0.22546082781627774
+    }
+  },
+  {
+    "frame_index": 84,
+    "attention_by_key": {
+      "left_eye_img": 0.5236399788409472,
+      "left_wrist_img": 0.25086986646056175,
+      "__time__": 0.22549020359292626
+    }
+  },
+  {
+    "frame_index": 85,
+    "attention_by_key": {
+      "left_eye_img": 0.5236211698502302,
+      "left_wrist_img": 0.25350075913593173,
+      "__time__": 0.22287812689319253
+    }
+  },
+  {
+    "frame_index": 86,
+    "attention_by_key": {
+      "left_eye_img": 0.531527915969491,
+      "left_wrist_img": 0.24700099928304553,
+      "__time__": 0.22147113690152764
+    }
+  },
+  {
+    "frame_index": 87,
+    "attention_by_key": {
+      "left_eye_img": 0.5376182906329632,
+      "left_wrist_img": 0.24238793179392815,
+      "__time__": 0.21999382600188255
+    }
+  },
+  {
+    "frame_index": 88,
+    "attention_by_key": {
+      "left_eye_img": 0.5353795271366835,
+      "left_wrist_img": 0.2395295980386436,
+      "__time__": 0.22509093768894672
+    }
+  },
+  {
+    "frame_index": 89,
+    "attention_by_key": {
+      "left_eye_img": 0.5305180326104164,
+      "left_wrist_img": 0.2420678730122745,
+      "__time__": 0.22741415072232485
+    }
+  },
+  {
+    "frame_index": 90,
+    "attention_by_key": {
+      "left_eye_img": 0.5272607896476984,
+      "left_wrist_img": 0.24601115239784122,
+      "__time__": 0.226728109177202
+    }
+  },
+  {
+    "frame_index": 91,
+    "attention_by_key": {
+      "left_eye_img": 0.5200938247144222,
+      "left_wrist_img": 0.2503768219612539,
+      "__time__": 0.22952938824892044
+    }
+  },
+  {
+    "frame_index": 92,
+    "attention_by_key": {
+      "left_eye_img": 0.5334928277879953,
+      "left_wrist_img": 0.24450552929192781,
+      "__time__": 0.22200170066207647
+    }
+  },
+  {
+    "frame_index": 93,
+    "attention_by_key": {
+      "left_eye_img": 0.5349614936858416,
+      "left_wrist_img": 0.24636526266112924,
+      "__time__": 0.2186733023263514
+    }
+  },
+  {
+    "frame_index": 94,
+    "attention_by_key": {
+      "left_eye_img": 0.5340192820876837,
+      "left_wrist_img": 0.23978780955076218,
+      "__time__": 0.2261929572559893
+    }
+  },
+  {
+    "frame_index": 95,
+    "attention_by_key": {
+      "left_eye_img": 0.5321688633412123,
+      "left_wrist_img": 0.23740806756541133,
+      "__time__": 0.23042312264442444
+    }
+  },
+  {
+    "frame_index": 96,
+    "attention_by_key": {
+      "left_eye_img": 0.5368886608630419,
+      "left_wrist_img": 0.24025591695681214,
+      "__time__": 0.22285547340288758
+    }
+  },
+  {
+    "frame_index": 97,
+    "attention_by_key": {
+      "left_eye_img": 0.5263626351952553,
+      "left_wrist_img": 0.2492165146395564,
+      "__time__": 0.2244209018535912
+    }
+  },
+  {
+    "frame_index": 98,
+    "attention_by_key": {
+      "left_eye_img": 0.5389316901564598,
+      "left_wrist_img": 0.24250814132392406,
+      "__time__": 0.2185602227691561
+    }
+  },
+  {
+    "frame_index": 99,
+    "attention_by_key": {
+      "left_eye_img": 0.5273355934768915,
+      "left_wrist_img": 0.2463868730701506,
+      "__time__": 0.22627757769078016
+    }
+  },
+  {
+    "frame_index": 100,
+    "attention_by_key": {
+      "left_eye_img": 0.5412494521588087,
+      "left_wrist_img": 0.2389876334927976,
+      "__time__": 0.21976295951753855
+    }
+  },
+  {
+    "frame_index": 101,
+    "attention_by_key": {
+      "left_eye_img": 0.5312474742531776,
+      "left_wrist_img": 0.24244491383433342,
+      "__time__": 0.22630765242502093
+    }
+  },
+  {
+    "frame_index": 102,
+    "attention_by_key": {
+      "left_eye_img": 0.5307518932968378,
+      "left_wrist_img": 0.240719897672534,
+      "__time__": 0.22852826351299882
+    }
+  },
+  {
+    "frame_index": 103,
+    "attention_by_key": {
+      "left_eye_img": 0.5327901802957058,
+      "left_wrist_img": 0.24262661766260862,
+      "__time__": 0.2245832565240562
+    }
+  },
+  {
+    "frame_index": 104,
+    "attention_by_key": {
+      "left_eye_img": 0.5283880643546581,
+      "left_wrist_img": 0.25182571448385715,
+      "__time__": 0.21978627191856503
+    }
+  },
+  {
+    "frame_index": 105,
+    "attention_by_key": {
+      "left_eye_img": 0.5350894257426262,
+      "left_wrist_img": 0.24593887152150273,
+      "__time__": 0.2189717353321612
+    }
+  },
+  {
+    "frame_index": 106,
+    "attention_by_key": {
+      "left_eye_img": 0.533018046990037,
+      "left_wrist_img": 0.2499613594263792,
+      "__time__": 0.2170206429436803
+    }
+  },
+  {
+    "frame_index": 107,
+    "attention_by_key": {
+      "left_eye_img": 0.5274061039090157,
+      "left_wrist_img": 0.2532502366229892,
+      "__time__": 0.2193437167443335
+    }
+  },
+  {
+    "frame_index": 108,
+    "attention_by_key": {
+      "left_eye_img": 0.5269776452332735,
+      "left_wrist_img": 0.25060589145869017,
+      "__time__": 0.2224165117368102
+    }
+  },
+  {
+    "frame_index": 109,
+    "attention_by_key": {
+      "left_eye_img": 0.5189810451120138,
+      "left_wrist_img": 0.25554548390209675,
+      "__time__": 0.22547353012487292
+    }
+  },
+  {
+    "frame_index": 110,
+    "attention_by_key": {
+      "left_eye_img": 0.5240907352417707,
+      "left_wrist_img": 0.2567156730219722,
+      "__time__": 0.21919366158545017
+    }
+  },
+  {
+    "frame_index": 111,
+    "attention_by_key": {
+      "left_eye_img": 0.5160396955907345,
+      "left_wrist_img": 0.25935542676597834,
+      "__time__": 0.22460492653772235
+    }
+  },
+  {
+    "frame_index": 112,
+    "attention_by_key": {
+      "left_eye_img": 0.526217769831419,
+      "left_wrist_img": 0.2532859588973224,
+      "__time__": 0.22049632342532277
+    }
+  },
+  {
+    "frame_index": 113,
+    "attention_by_key": {
+      "left_eye_img": 0.5296140443533659,
+      "left_wrist_img": 0.2531968397088349,
+      "__time__": 0.21718916716054082
+    }
+  },
+  {
+    "frame_index": 114,
+    "attention_by_key": {
+      "left_eye_img": 0.5309120751917362,
+      "left_wrist_img": 0.2508410853333771,
+      "__time__": 0.21824688650667667
+    }
+  },
+  {
+    "frame_index": 115,
+    "attention_by_key": {
+      "left_eye_img": 0.5284985341131687,
+      "left_wrist_img": 0.25517145125195384,
+      "__time__": 0.21633008308708668
+    }
+  },
+  {
+    "frame_index": 116,
+    "attention_by_key": {
+      "left_eye_img": 0.523822870105505,
+      "left_wrist_img": 0.2528709592297673,
+      "__time__": 0.2233062330633402
+    }
+  },
+  {
+    "frame_index": 117,
+    "attention_by_key": {
+      "left_eye_img": 0.525904880836606,
+      "left_wrist_img": 0.2510312576778233,
+      "__time__": 0.2230639080516994
+    }
+  },
+  {
+    "frame_index": 118,
+    "attention_by_key": {
+      "left_eye_img": 0.5217397604137659,
+      "left_wrist_img": 0.25423189206048846,
+      "__time__": 0.22402839083224535
+    }
+  },
+  {
+    "frame_index": 119,
+    "attention_by_key": {
+      "left_eye_img": 0.5243800058960915,
+      "left_wrist_img": 0.2518625711090863,
+      "__time__": 0.22375749191269279
+    }
+  },
+  {
+    "frame_index": 120,
+    "attention_by_key": {
+      "left_eye_img": 0.5211369004100561,
+      "left_wrist_img": 0.25817537819966674,
+      "__time__": 0.22068777261301875
+    }
+  },
+  {
+    "frame_index": 121,
+    "attention_by_key": {
+      "left_eye_img": 0.5236231461167336,
+      "left_wrist_img": 0.25564881367608905,
+      "__time__": 0.22072809422388673
+    }
+  },
+  {
+    "frame_index": 122,
+    "attention_by_key": {
+      "left_eye_img": 0.5239980537444353,
+      "left_wrist_img": 0.25353699875995517,
+      "__time__": 0.22246499359607697
+    }
+  },
+  {
+    "frame_index": 123,
+    "attention_by_key": {
+      "left_eye_img": 0.5165739580988884,
+      "left_wrist_img": 0.25718702329322696,
+      "__time__": 0.22623906936496496
+    }
+  },
+  {
+    "frame_index": 124,
+    "attention_by_key": {
+      "left_eye_img": 0.5278652403503656,
+      "left_wrist_img": 0.2500380603596568,
+      "__time__": 0.2220967523753643
+    }
+  },
+  {
+    "frame_index": 125,
+    "attention_by_key": {
+      "left_eye_img": 0.521790960803628,
+      "left_wrist_img": 0.2535414700396359,
+      "__time__": 0.22466763062402606
+    }
+  },
+  {
+    "frame_index": 126,
+    "attention_by_key": {
+      "left_eye_img": 0.5247325710952282,
+      "left_wrist_img": 0.25146347703412175,
+      "__time__": 0.2238040091469884
+    }
+  },
+  {
+    "frame_index": 127,
+    "attention_by_key": {
+      "left_eye_img": 0.5233248807489872,
+      "left_wrist_img": 0.2514854404143989,
+      "__time__": 0.22518973471596837
+    }
+  },
+  {
+    "frame_index": 128,
+    "attention_by_key": {
+      "left_eye_img": 0.5228731781244278,
+      "left_wrist_img": 0.2549293227493763,
+      "__time__": 0.22219754615798593
+    }
+  },
+  {
+    "frame_index": 129,
+    "attention_by_key": {
+      "left_eye_img": 0.5257302522659302,
+      "left_wrist_img": 0.2557421629317105,
+      "__time__": 0.21852762019261718
+    }
+  },
+  {
+    "frame_index": 130,
+    "attention_by_key": {
+      "left_eye_img": 0.5279014930129051,
+      "left_wrist_img": 0.24978582374751568,
+      "__time__": 0.22231273772194982
+    }
+  },
+  {
+    "frame_index": 131,
+    "attention_by_key": {
+      "left_eye_img": 0.5170817822217941,
+      "left_wrist_img": 0.25590353924781084,
+      "__time__": 0.2270147493109107
+    }
+  },
+  {
+    "frame_index": 132,
+    "attention_by_key": {
+      "left_eye_img": 0.5224449187517166,
+      "left_wrist_img": 0.25673387851566076,
+      "__time__": 0.22082126094028354
+    }
+  },
+  {
+    "frame_index": 133,
+    "attention_by_key": {
+      "left_eye_img": 0.5222784094512463,
+      "left_wrist_img": 0.2533701350912452,
+      "__time__": 0.22435152623802423
+    }
+  },
+  {
+    "frame_index": 134,
+    "attention_by_key": {
+      "left_eye_img": 0.5355233587324619,
+      "left_wrist_img": 0.2535820621997118,
+      "__time__": 0.210894645890221
+    }
+  },
+  {
+    "frame_index": 135,
+    "attention_by_key": {
+      "left_eye_img": 0.5236164703965187,
+      "left_wrist_img": 0.2588130715303123,
+      "__time__": 0.21757051162421703
+    }
+  },
+  {
+    "frame_index": 136,
+    "attention_by_key": {
+      "left_eye_img": 0.5348241105675697,
+      "left_wrist_img": 0.24715203465893865,
+      "__time__": 0.21802390413358808
+    }
+  },
+  {
+    "frame_index": 137,
+    "attention_by_key": {
+      "left_eye_img": 0.5269942507147789,
+      "left_wrist_img": 0.2478328268043697,
+      "__time__": 0.22517297323793173
+    }
+  },
+  {
+    "frame_index": 138,
+    "attention_by_key": {
+      "left_eye_img": 0.5219954643398523,
+      "left_wrist_img": 0.2532549914903939,
+      "__time__": 0.22474958281964064
+    }
+  },
+  {
+    "frame_index": 139,
+    "attention_by_key": {
+      "left_eye_img": 0.5249640140682459,
+      "left_wrist_img": 0.24445086531341076,
+      "__time__": 0.23058519046753645
+    }
+  },
+  {
+    "frame_index": 140,
+    "attention_by_key": {
+      "left_eye_img": 0.5236736983060837,
+      "left_wrist_img": 0.25382743729278445,
+      "__time__": 0.22249892400577664
+    }
+  },
+  {
+    "frame_index": 141,
+    "attention_by_key": {
+      "left_eye_img": 0.5271965339779854,
+      "left_wrist_img": 0.24896214623004198,
+      "__time__": 0.2238413654267788
+    }
+  },
+  {
+    "frame_index": 142,
+    "attention_by_key": {
+      "left_eye_img": 0.5278226491063833,
+      "left_wrist_img": 0.24687659600749612,
+      "__time__": 0.2253008196130395
+    }
+  },
+  {
+    "frame_index": 143,
+    "attention_by_key": {
+      "left_eye_img": 0.5265675466507673,
+      "left_wrist_img": 0.24959566304460168,
+      "__time__": 0.22383684059605002
+    }
+  },
+  {
+    "frame_index": 144,
+    "attention_by_key": {
+      "left_eye_img": 0.5287911463528872,
+      "left_wrist_img": 0.24555644346401095,
+      "__time__": 0.22565246419981122
+    }
+  },
+  {
+    "frame_index": 145,
+    "attention_by_key": {
+      "left_eye_img": 0.5283836051821709,
+      "left_wrist_img": 0.24681401904672384,
+      "__time__": 0.2248024302534759
+    }
+  },
+  {
+    "frame_index": 146,
+    "attention_by_key": {
+      "left_eye_img": 0.5292520448565483,
+      "left_wrist_img": 0.2416145447641611,
+      "__time__": 0.22913344716653228
+    }
+  },
+  {
+    "frame_index": 147,
+    "attention_by_key": {
+      "left_eye_img": 0.5299560707062483,
+      "left_wrist_img": 0.2398963375017047,
+      "__time__": 0.2301476472057402
+    }
+  },
+  {
+    "frame_index": 148,
+    "attention_by_key": {
+      "left_eye_img": 0.5364236813038588,
+      "left_wrist_img": 0.23891947697848082,
+      "__time__": 0.2246568938717246
+    }
+  },
+  {
+    "frame_index": 149,
+    "attention_by_key": {
+      "left_eye_img": 0.5462319906800985,
+      "left_wrist_img": 0.22348145535215735,
+      "__time__": 0.23028661590069532
+    }
+  },
+  {
+    "frame_index": 150,
+    "attention_by_key": {
+      "left_eye_img": 0.5369989816099405,
+      "left_wrist_img": 0.23746924800798297,
+      "__time__": 0.22553183836862445
+    }
+  },
+  {
+    "frame_index": 151,
+    "attention_by_key": {
+      "left_eye_img": 0.5402461811900139,
+      "left_wrist_img": 0.23313976172357798,
+      "__time__": 0.22661410784348845
+    }
+  },
+  {
+    "frame_index": 152,
+    "attention_by_key": {
+      "left_eye_img": 0.5462929792702198,
+      "left_wrist_img": 0.23355113342404366,
+      "__time__": 0.22015593014657497
+    }
+  },
+  {
+    "frame_index": 153,
+    "attention_by_key": {
+      "left_eye_img": 0.5460694078356028,
+      "left_wrist_img": 0.23060974990949035,
+      "__time__": 0.22332090698182583
+    }
+  },
+  {
+    "frame_index": 154,
+    "attention_by_key": {
+      "left_eye_img": 0.5507587809115648,
+      "left_wrist_img": 0.22178006870672107,
+      "__time__": 0.22746120626106858
+    }
+  },
+  {
+    "frame_index": 155,
+    "attention_by_key": {
+      "left_eye_img": 0.544242475181818,
+      "left_wrist_img": 0.22984107304364443,
+      "__time__": 0.22591649647802114
+    }
+  },
+  {
+    "frame_index": 156,
+    "attention_by_key": {
+      "left_eye_img": 0.5516336280852556,
+      "left_wrist_img": 0.21924667851999402,
+      "__time__": 0.22911974787712097
+    }
+  },
+  {
+    "frame_index": 157,
+    "attention_by_key": {
+      "left_eye_img": 0.5516842305660248,
+      "left_wrist_img": 0.2209379719570279,
+      "__time__": 0.22737785568460822
+    }
+  },
+  {
+    "frame_index": 158,
+    "attention_by_key": {
+      "left_eye_img": 0.5487597957253456,
+      "left_wrist_img": 0.23266225680708885,
+      "__time__": 0.21857802011072636
+    }
+  },
+  {
+    "frame_index": 159,
+    "attention_by_key": {
+      "left_eye_img": 0.5298434887081385,
+      "left_wrist_img": 0.23898970475420356,
+      "__time__": 0.23116686614230275
+    }
+  },
+  {
+    "frame_index": 160,
+    "attention_by_key": {
+      "left_eye_img": 0.536836052313447,
+      "left_wrist_img": 0.23344674427062273,
+      "__time__": 0.22971726953983307
+    }
+  },
+  {
+    "frame_index": 161,
+    "attention_by_key": {
+      "left_eye_img": 0.5471273045986891,
+      "left_wrist_img": 0.22766473377123475,
+      "__time__": 0.22520800214260817
+    }
+  },
+  {
+    "frame_index": 162,
+    "attention_by_key": {
+      "left_eye_img": 0.5493596475571394,
+      "left_wrist_img": 0.22160913050174713,
+      "__time__": 0.22903127409517765
+    }
+  },
+  {
+    "frame_index": 163,
+    "attention_by_key": {
+      "left_eye_img": 0.5421442314982414,
+      "left_wrist_img": 0.23678308399394155,
+      "__time__": 0.22107274364680052
+    }
+  },
+  {
+    "frame_index": 164,
+    "attention_by_key": {
+      "left_eye_img": 0.5415783822536469,
+      "left_wrist_img": 0.23147485638037324,
+      "__time__": 0.22694682469591498
+    }
+  },
+  {
+    "frame_index": 165,
+    "attention_by_key": {
+      "left_eye_img": 0.5503732766956091,
+      "left_wrist_img": 0.22332773078233004,
+      "__time__": 0.2262990497983992
+    }
+  },
+  {
+    "frame_index": 166,
+    "attention_by_key": {
+      "left_eye_img": 0.5452755410224199,
+      "left_wrist_img": 0.22473446931689978,
+      "__time__": 0.22999004647135735
+    }
+  },
+  {
+    "frame_index": 167,
+    "attention_by_key": {
+      "left_eye_img": 0.549515426158905,
+      "left_wrist_img": 0.22691803239285946,
+      "__time__": 0.2235665936022997
+    }
+  },
+  {
+    "frame_index": 168,
+    "attention_by_key": {
+      "left_eye_img": 0.5533163826912642,
+      "left_wrist_img": 0.22481040097773075,
+      "__time__": 0.22187326615676284
+    }
+  },
+  {
+    "frame_index": 169,
+    "attention_by_key": {
+      "left_eye_img": 0.5371731836348772,
+      "left_wrist_img": 0.23856610478833318,
+      "__time__": 0.22426076792180538
+    }
+  },
+  {
+    "frame_index": 170,
+    "attention_by_key": {
+      "left_eye_img": 0.5466268956661224,
+      "left_wrist_img": 0.2309973887167871,
+      "__time__": 0.22237577009946108
+    }
+  },
+  {
+    "frame_index": 171,
+    "attention_by_key": {
+      "left_eye_img": 0.5338563024997711,
+      "left_wrist_img": 0.23583413334563375,
+      "__time__": 0.23030961910262704
+    }
+  },
+  {
+    "frame_index": 172,
+    "attention_by_key": {
+      "left_eye_img": 0.5428988412022591,
+      "left_wrist_img": 0.22795708617195487,
+      "__time__": 0.22914411313831806
+    }
+  },
+  {
+    "frame_index": 173,
+    "attention_by_key": {
+      "left_eye_img": 0.5506395567208529,
+      "left_wrist_img": 0.22238142369315028,
+      "__time__": 0.2269790624268353
+    }
+  },
+  {
+    "frame_index": 174,
+    "attention_by_key": {
+      "left_eye_img": 0.5315389335155487,
+      "left_wrist_img": 0.23845632979646325,
+      "__time__": 0.23000478744506836
+    }
+  },
+  {
+    "frame_index": 175,
+    "attention_by_key": {
+      "left_eye_img": 0.5442448779940605,
+      "left_wrist_img": 0.23209989769384265,
+      "__time__": 0.22365528997033834
+    }
+  },
+  {
+    "frame_index": 176,
+    "attention_by_key": {
+      "left_eye_img": 0.5385900102555752,
+      "left_wrist_img": 0.23017774801701307,
+      "__time__": 0.23123230319470167
+    }
+  },
+  {
+    "frame_index": 177,
+    "attention_by_key": {
+      "left_eye_img": 0.5437256693840027,
+      "left_wrist_img": 0.22431660210713744,
+      "__time__": 0.23195777973160148
+    }
+  },
+  {
+    "frame_index": 178,
+    "attention_by_key": {
+      "left_eye_img": 0.5561690926551819,
+      "left_wrist_img": 0.21445233095437288,
+      "__time__": 0.22937862807884812
+    }
+  },
+  {
+    "frame_index": 179,
+    "attention_by_key": {
+      "left_eye_img": 0.5426790919154882,
+      "left_wrist_img": 0.22223798651248217,
+      "__time__": 0.23508298443630338
+    }
+  },
+  {
+    "frame_index": 180,
+    "attention_by_key": {
+      "left_eye_img": 0.5449939649552107,
+      "left_wrist_img": 0.22180501464754343,
+      "__time__": 0.23320107720792294
+    }
+  },
+  {
+    "frame_index": 181,
+    "attention_by_key": {
+      "left_eye_img": 0.5461696721613407,
+      "left_wrist_img": 0.22446186374872923,
+      "__time__": 0.22936852648854256
+    }
+  },
+  {
+    "frame_index": 182,
+    "attention_by_key": {
+      "left_eye_img": 0.5613818224519491,
+      "left_wrist_img": 0.21178201818838716,
+      "__time__": 0.22683620546013117
+    }
+  },
+  {
+    "frame_index": 183,
+    "attention_by_key": {
+      "left_eye_img": 0.5508693438023329,
+      "left_wrist_img": 0.22021544305607677,
+      "__time__": 0.22891526017338037
+    }
+  },
+  {
+    "frame_index": 184,
+    "attention_by_key": {
+      "left_eye_img": 0.5549115464091301,
+      "left_wrist_img": 0.21709221508353949,
+      "__time__": 0.22799631673842669
+    }
+  },
+  {
+    "frame_index": 185,
+    "attention_by_key": {
+      "left_eye_img": 0.5714745186269283,
+      "left_wrist_img": 0.20352767687290907,
+      "__time__": 0.2249978557229042
+    }
+  },
+  {
+    "frame_index": 186,
+    "attention_by_key": {
+      "left_eye_img": 0.5634729396551847,
+      "left_wrist_img": 0.21211028844118118,
+      "__time__": 0.22441683523356915
+    }
+  },
+  {
+    "frame_index": 187,
+    "attention_by_key": {
+      "left_eye_img": 0.5675918310880661,
+      "left_wrist_img": 0.1989034996367991,
+      "__time__": 0.23350473074242473
+    }
+  },
+  {
+    "frame_index": 188,
+    "attention_by_key": {
+      "left_eye_img": 0.5539590921252966,
+      "left_wrist_img": 0.2143448698334396,
+      "__time__": 0.23169608134776354
+    }
+  },
+  {
+    "frame_index": 189,
+    "attention_by_key": {
+      "left_eye_img": 0.5745253246277571,
+      "left_wrist_img": 0.19863118743523955,
+      "__time__": 0.22684352472424507
+    }
+  },
+  {
+    "frame_index": 190,
+    "attention_by_key": {
+      "left_eye_img": 0.5655691437423229,
+      "left_wrist_img": 0.19895462086424232,
+      "__time__": 0.23547628847882152
+    }
+  },
+  {
+    "frame_index": 191,
+    "attention_by_key": {
+      "left_eye_img": 0.5780290551483631,
+      "left_wrist_img": 0.19636805774644017,
+      "__time__": 0.2256029210984707
+    }
+  },
+  {
+    "frame_index": 192,
+    "attention_by_key": {
+      "left_eye_img": 0.5651643257588148,
+      "left_wrist_img": 0.20386643987149,
+      "__time__": 0.2309692888520658
+    }
+  },
+  {
+    "frame_index": 193,
+    "attention_by_key": {
+      "left_eye_img": 0.5633127968758345,
+      "left_wrist_img": 0.21164834406226873,
+      "__time__": 0.22503891633823514
+    }
+  },
+  {
+    "frame_index": 194,
+    "attention_by_key": {
+      "left_eye_img": 0.5664258077740669,
+      "left_wrist_img": 0.20573066314682364,
+      "__time__": 0.2278435965999961
+    }
+  },
+  {
+    "frame_index": 195,
+    "attention_by_key": {
+      "left_eye_img": 0.5626890640705824,
+      "left_wrist_img": 0.2099131871946156,
+      "__time__": 0.22739779809489846
+    }
+  },
+  {
+    "frame_index": 196,
+    "attention_by_key": {
+      "left_eye_img": 0.5618610139936209,
+      "left_wrist_img": 0.20671923412010074,
+      "__time__": 0.23141980916261673
+    }
+  },
+  {
+    "frame_index": 197,
+    "attention_by_key": {
+      "left_eye_img": 0.5614148881286383,
+      "left_wrist_img": 0.21046176087111235,
+      "__time__": 0.228123402222991
+    }
+  },
+  {
+    "frame_index": 198,
+    "attention_by_key": {
+      "left_eye_img": 0.5528062880039215,
+      "left_wrist_img": 0.2159814015030861,
+      "__time__": 0.23121237196028233
+    }
+  },
+  {
+    "frame_index": 199,
+    "attention_by_key": {
+      "left_eye_img": 0.5508995447307825,
+      "left_wrist_img": 0.2220087801106274,
+      "__time__": 0.22709173848852515
+    }
+  },
+  {
+    "frame_index": 200,
+    "attention_by_key": {
+      "left_eye_img": 0.5530037377029657,
+      "left_wrist_img": 0.21461545955389738,
+      "__time__": 0.23238086234778166
+    }
+  },
+  {
+    "frame_index": 201,
+    "attention_by_key": {
+      "left_eye_img": 0.5488791409879923,
+      "left_wrist_img": 0.22765997657552361,
+      "__time__": 0.22346093226224184
+    }
+  },
+  {
+    "frame_index": 202,
+    "attention_by_key": {
+      "left_eye_img": 0.5591493118554354,
+      "left_wrist_img": 0.21097390726208687,
+      "__time__": 0.22987684002146125
+    }
+  },
+  {
+    "frame_index": 203,
+    "attention_by_key": {
+      "left_eye_img": 0.5569889340549707,
+      "left_wrist_img": 0.21806874964386225,
+      "__time__": 0.22494234843179584
+    }
+  },
+  {
+    "frame_index": 204,
+    "attention_by_key": {
+      "left_eye_img": 0.5513678025454283,
+      "left_wrist_img": 0.22365519357845187,
+      "__time__": 0.2249770532362163
+    }
+  },
+  {
+    "frame_index": 205,
+    "attention_by_key": {
+      "left_eye_img": 0.5648169741034508,
+      "left_wrist_img": 0.2032659500837326,
+      "__time__": 0.23191712843254209
+    }
+  },
+  {
+    "frame_index": 206,
+    "attention_by_key": {
+      "left_eye_img": 0.5536340475082397,
+      "left_wrist_img": 0.21620933804661036,
+      "__time__": 0.2301566726528108
+    }
+  },
+  {
+    "frame_index": 207,
+    "attention_by_key": {
+      "left_eye_img": 0.5577799752354622,
+      "left_wrist_img": 0.21426635514944792,
+      "__time__": 0.22795372502878308
+    }
+  },
+  {
+    "frame_index": 208,
+    "attention_by_key": {
+      "left_eye_img": 0.5528364032506943,
+      "left_wrist_img": 0.21295656682923436,
+      "__time__": 0.2342070871964097
+    }
+  },
+  {
+    "frame_index": 209,
+    "attention_by_key": {
+      "left_eye_img": 0.555574145168066,
+      "left_wrist_img": 0.2139973333105445,
+      "__time__": 0.23042856389656663
+    }
+  },
+  {
+    "frame_index": 210,
+    "attention_by_key": {
+      "left_eye_img": 0.5471825730055571,
+      "left_wrist_img": 0.22611628053709865,
+      "__time__": 0.2267012046650052
+    }
+  },
+  {
+    "frame_index": 211,
+    "attention_by_key": {
+      "left_eye_img": 0.5467659551650286,
+      "left_wrist_img": 0.22573370626196265,
+      "__time__": 0.22750040609389544
+    }
+  },
+  {
+    "frame_index": 212,
+    "attention_by_key": {
+      "left_eye_img": 0.5581469964236021,
+      "left_wrist_img": 0.22233642591163516,
+      "__time__": 0.21951663587242365
+    }
+  },
+  {
+    "frame_index": 213,
+    "attention_by_key": {
+      "left_eye_img": 0.5480627100914717,
+      "left_wrist_img": 0.22528122831135988,
+      "__time__": 0.22665612772107124
+    }
+  },
+  {
+    "frame_index": 214,
+    "attention_by_key": {
+      "left_eye_img": 0.5430681556463242,
+      "left_wrist_img": 0.2338832039386034,
+      "__time__": 0.22304868837818503
+    }
+  },
+  {
+    "frame_index": 215,
+    "attention_by_key": {
+      "left_eye_img": 0.536569319665432,
+      "left_wrist_img": 0.24065798008814454,
+      "__time__": 0.22277276404201984
+    }
+  },
+  {
+    "frame_index": 216,
+    "attention_by_key": {
+      "left_eye_img": 0.5496815107762814,
+      "left_wrist_img": 0.22558192489668727,
+      "__time__": 0.22473661554977298
+    }
+  },
+  {
+    "frame_index": 217,
+    "attention_by_key": {
+      "left_eye_img": 0.5372953694313765,
+      "left_wrist_img": 0.2455489686690271,
+      "__time__": 0.21715571312233806
+    }
+  },
+  {
+    "frame_index": 218,
+    "attention_by_key": {
+      "left_eye_img": 0.5371402334421873,
+      "left_wrist_img": 0.23836028017103672,
+      "__time__": 0.2244995441287756
+    }
+  },
+  {
+    "frame_index": 219,
+    "attention_by_key": {
+      "left_eye_img": 0.5424668546766043,
+      "left_wrist_img": 0.23478216631338,
+      "__time__": 0.22275101672858
+    }
+  },
+  {
+    "frame_index": 220,
+    "attention_by_key": {
+      "left_eye_img": 0.5324906837195158,
+      "left_wrist_img": 0.24673136649653316,
+      "__time__": 0.22077800380066037
+    }
+  },
+  {
+    "frame_index": 221,
+    "attention_by_key": {
+      "left_eye_img": 0.5277152396738529,
+      "left_wrist_img": 0.24477128079161048,
+      "__time__": 0.22751353401690722
+    }
+  },
+  {
+    "frame_index": 222,
+    "attention_by_key": {
+      "left_eye_img": 0.5301256459206343,
+      "left_wrist_img": 0.24632928567007184,
+      "__time__": 0.22354512428864837
+    }
+  },
+  {
+    "frame_index": 223,
+    "attention_by_key": {
+      "left_eye_img": 0.5293492712080479,
+      "left_wrist_img": 0.25469420617446303,
+      "__time__": 0.21595657104626298
+    }
+  }
+]

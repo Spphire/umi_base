@@ -1,0 +1,6 @@
+{
+  "episode_index": 43,
+  "episode_length": 192,
+  "checkpoint": "/mnt/data/shenyibo/workspace/codex-dit-place-cup-no-tcp-viz/data/outputs/2026.04.03/20.52_train_diffusion_transformer_timm_q3_place_cup_single_frame_q3_place_cup_no_tcp/checkpoints/latest.ckpt",
+  "split": "val"
+}

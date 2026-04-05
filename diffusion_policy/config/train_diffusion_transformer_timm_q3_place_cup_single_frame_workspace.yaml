@@ -1,13 +1,13 @@
 defaults:
-  - task: q3_place_cup_no_tcp
+  - task: q3_stack_cup
   - _self_
 
-name: train_diffusion_transformer_timm_q3_place_cup_single_frame
+name: dit
 _target_: diffusion_policy.workspace.train_diffusion_transformer_timm_workspace.TrainDiffusionTransformerTimmWorkspace
 
 task:
   dataset:
-    local_files_only: /mnt/data/shenyibo/workspace/q3_place_cup/replay_buffer.zarr
+    local_files_only: /mnt/data/shenyibo/workspace/q3_stack_cup/replay_buffer.zarr
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
@@ -57,7 +57,7 @@ policy:
         saturation: 0.5
 
     use_group_norm: True
-    share_rgb_model: True
+    share_rgb_model: False
 
   num_inference_steps: 16
   input_pertub: 0.1
@@ -119,7 +119,7 @@ logging:
   project: diffusion_policy_debug
   resume: False
   mode: online
-  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  name: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
   tags: ["${name}", "${task_name}", "${exp_name}"]
   id: null
   group: null
@@ -135,14 +135,14 @@ checkpoint:
   only_save_recent: False
 
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
-  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M}_${name}_${task_name}
 
 hydra:
   job:
     override_dirname: ${name}
   run:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
   sweep:
-    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M}_${name}_${task_name}
     subdir: ${hydra.job.num}
