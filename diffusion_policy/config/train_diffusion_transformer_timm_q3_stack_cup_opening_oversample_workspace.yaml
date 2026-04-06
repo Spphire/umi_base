@@ -7,6 +7,7 @@ exp_name: "no_tcp_rgb_trainable_opening_oversample"
 task:
   dataset:
     _target_: diffusion_policy.dataset.cloud_pick_and_place_image_head_gripper_opening_oversample_dataset.CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset
+    local_files_only: /mnt/data/shenyibo/workspace/q3_stack_cup/replay_buffer.zarr
     enable_gripper_trend_oversample: True
     trend_cache_path: null
     opening_repeat: 3
