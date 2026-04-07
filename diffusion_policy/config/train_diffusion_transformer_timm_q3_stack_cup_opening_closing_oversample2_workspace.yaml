@@ -1,0 +1,22 @@
+defaults:
+  - train_diffusion_transformer_timm_q3_place_cup_single_frame_workspace
+  - _self_
+
+exp_name: "no_tcp_rgb_trainable_opening_closing_oversample2"
+
+task:
+  dataset:
+    _target_: diffusion_policy.dataset.cloud_pick_and_place_image_head_gripper_opening_oversample_dataset.CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset
+    enable_gripper_trend_oversample: True
+    trend_cache_path: null
+    oversample_trends: [opening, closing]
+    trend_repeat: 2
+    trend_window: 5
+    trend_poly: 2
+    trend_diff_thresh: 1.0e-4
+    trend_min_window_len: 5
+    trend_small_movement_ratio: 0.5
+    opening_match_mode: any
+
+logging:
+  tags: ["${name}", "${task_name}", "${exp_name}", "opening_closing_oversample2"]

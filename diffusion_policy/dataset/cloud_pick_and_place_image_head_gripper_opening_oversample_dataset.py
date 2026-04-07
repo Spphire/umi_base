@@ -17,6 +17,13 @@ TREND_CLOSING = 0
 TREND_FLAT = 1
 TREND_OPENING = 2
 
+TREND_NAME_TO_LABEL = {
+    "closing": TREND_CLOSING,
+    "flat": TREND_FLAT,
+    "opening": TREND_OPENING,
+}
+TREND_LABEL_TO_NAME = {value: key for key, value in TREND_NAME_TO_LABEL.items()}
+
 
 def classify_trend(
     arr: np.ndarray,
@@ -165,6 +172,8 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
         enable_gripper_trend_oversample: bool = True,
         trend_cache_path: Optional[str] = None,
         opening_repeat: int = 3,
+        trend_repeat: Optional[int] = None,
+        oversample_trends=None,
         trend_window: int = 5,
         trend_poly: int = 2,
         trend_diff_thresh: float = 1e-4,
@@ -176,6 +185,11 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
         self.enable_gripper_trend_oversample = enable_gripper_trend_oversample
         self.trend_cache_path = self._resolve_trend_cache_path(trend_cache_path)
         self.opening_repeat = opening_repeat
+        self.trend_repeat = trend_repeat if trend_repeat is not None else opening_repeat
+        if oversample_trends is None:
+            oversample_trends = ["opening"]
+        self.oversample_trends = tuple(oversample_trends)
+        self.oversample_trend_labels = self._resolve_oversample_trend_labels(self.oversample_trends)
         self.trend_window = trend_window
         self.trend_poly = trend_poly
         self.trend_diff_thresh = trend_diff_thresh
@@ -190,7 +204,7 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
 
         self.trend_labels = self._load_or_compute_trend_labels()
         if self.enable_gripper_trend_oversample:
-            self._apply_opening_oversample()
+            self._apply_trend_oversample()
 
     def _resolve_trend_cache_path(self, trend_cache_path: Optional[str]) -> Optional[str]:
         if trend_cache_path not in (None, ""):
@@ -243,6 +257,18 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
             f"n_steps={len(labels)}, opening_ratio={opening_ratio:.4f}"
         )
         return labels
+
+    def _resolve_oversample_trend_labels(self, oversample_trends) -> tuple[int, ...]:
+        labels = []
+        for trend_name in oversample_trends:
+            trend_key = str(trend_name).lower()
+            if trend_key not in TREND_NAME_TO_LABEL:
+                raise ValueError(
+                    f"Unsupported oversample trend '{trend_name}'. "
+                    f"Supported values: {list(TREND_NAME_TO_LABEL.keys())}"
+                )
+            labels.append(TREND_NAME_TO_LABEL[trend_key])
+        return tuple(labels)
 
     def _try_load_trend_cache(
         self,
@@ -312,7 +338,7 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
             ),
         )
 
-    def _window_has_opening(self, index_row: np.ndarray) -> bool:
+    def _window_has_target_trend(self, index_row: np.ndarray) -> bool:
         if self.opening_match_mode != "any":
             raise ValueError(
                 f"Unsupported opening_match_mode: {self.opening_match_mode}. "
@@ -323,41 +349,54 @@ class CloudPickAndPlaceImageHeadGripperOpeningOversampleDataset(
         label_start_idx = min(buffer_start_idx + self.n_latency_steps, buffer_end_idx)
         if label_start_idx >= buffer_end_idx:
             label_start_idx = buffer_start_idx
-        return bool(np.any(self.trend_labels[label_start_idx:buffer_end_idx] == TREND_OPENING))
+        return bool(
+            np.any(
+                np.isin(
+                    self.trend_labels[label_start_idx:buffer_end_idx],
+                    self.oversample_trend_labels,
+                )
+            )
+        )
 
-    def _apply_opening_oversample(self) -> None:
+    def _apply_trend_oversample(self) -> None:
         base_indices = self.sampler.indices
         if len(base_indices) == 0:
             return
-        if self.opening_repeat <= 1:
-            logger.info("Skipping gripper opening oversample because opening_repeat <= 1.")
+        if self.trend_repeat <= 1:
+            logger.info("Skipping gripper trend oversample because trend_repeat <= 1.")
             return
 
-        opening_mask = np.zeros(len(base_indices), dtype=bool)
+        target_mask = np.zeros(len(base_indices), dtype=bool)
         for i, index_row in enumerate(base_indices):
-            opening_mask[i] = self._window_has_opening(index_row)
+            target_mask[i] = self._window_has_target_trend(index_row)
 
-        opening_count = int(np.sum(opening_mask))
-        if opening_count == 0:
-            logger.warning("No opening windows found for gripper trend oversampling.")
+        target_count = int(np.sum(target_mask))
+        target_names = [TREND_LABEL_TO_NAME[label] for label in self.oversample_trend_labels]
+        target_names_str = ",".join(target_names)
+        if target_count == 0:
+            logger.warning(
+                "No matching trend windows found for gripper trend oversampling: "
+                f"trends={target_names_str}"
+            )
             return
 
         extra_indices = np.repeat(
-            base_indices[opening_mask],
-            repeats=self.opening_repeat - 1,
+            base_indices[target_mask],
+            repeats=self.trend_repeat - 1,
             axis=0,
         )
         self.sampler.indices = np.concatenate([base_indices, extra_indices], axis=0)
-        oversampled_opening_ratio = (
-            opening_count * self.opening_repeat / len(self.sampler.indices)
+        oversampled_target_ratio = (
+            target_count * self.trend_repeat / len(self.sampler.indices)
         )
         logger.info(
-            "Applied gripper opening oversample: "
+            "Applied gripper trend oversample: "
             f"base_windows={len(base_indices)}, "
-            f"opening_windows={opening_count}, "
-            f"opening_repeat={self.opening_repeat}, "
+            f"target_windows={target_count}, "
+            f"trends={target_names_str}, "
+            f"trend_repeat={self.trend_repeat}, "
             f"total_windows={len(self.sampler.indices)}, "
-            f"opening_ratio_after={oversampled_opening_ratio:.4f}"
+            f"target_ratio_after={oversampled_target_ratio:.4f}"
         )
 
     def get_validation_dataset(self):
