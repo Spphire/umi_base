@@ -9,10 +9,14 @@ PREPARE_ROS := source /opt/ros/humble/setup.bash
 
 # teleop config
 
-#TASK := q3_place_cup_v2
-TASK := q3_stack_cup
+#TASK := q3_place_cup_v2_wristonly
+#TASK := q3_stack_cup_150 #_wristonly
+#TASK := q3_place_cup_v2_mirror
+TASK := q3_stack_cup_fisheye_wristonly
 
 WKSPACE := train_diffusion_transformer_timm_q3_place_cup_single_frame_workspace
+#WKSPACE := train_diffusion_transformer_timm_q3_stack_cup_opening_oversample_workspace
+#WKSPACE := train_diffusion_transformer_timm_q3_stack_cup_opening_closing_oversample2_workspace
 
 # record config
 SAVE_BASE_DIR := /mnt/data/shenyibo/workspace/umi_base/data

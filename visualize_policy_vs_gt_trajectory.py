@@ -34,24 +34,27 @@ from diffusion_policy.common.action_utils import (
 
 def load_policy(ckpt_path: str, cfg_yaml_path: str | None = None):
     """加载policy checkpoint（使用workspace）
-    cfg_yaml_path: 可选，使用yaml中的cfg替代checkpoint中的cfg
+    cfg_yaml_path: 可选，使用yaml中的cfg替代checkpoint中的cfg。
+    默认优先使用 checkpoint 同目录下的 .hydra/config.yaml。
     """
     ckpt_path = pathlib.Path(ckpt_path).expanduser().resolve()
     if not ckpt_path.is_file():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-    
+
+    run_dir = ckpt_path.parent.parent
     print(f"Loading policy from: {ckpt_path}")
-    
-    # 加载checkpoint
+
     payload = torch.load(ckpt_path.open("rb"), pickle_module=dill, map_location='cpu')
-    
-    # 获取cfg用于构建workspace
+
+    auto_cfg_yaml_path = run_dir / '.hydra' / 'config.yaml'
+    if cfg_yaml_path is None and auto_cfg_yaml_path.is_file():
+        cfg_yaml_path = str(auto_cfg_yaml_path)
+
     if cfg_yaml_path is not None:
         cfg_yaml_path = pathlib.Path(cfg_yaml_path).expanduser().resolve()
         if not cfg_yaml_path.is_file():
             raise FileNotFoundError(f"Config yaml not found: {cfg_yaml_path}")
         yaml_cfg = OmegaConf.load(str(cfg_yaml_path))
-        # 用checkpoint的cfg补全缺失键，再用yaml覆盖
         base_cfg = OmegaConf.create(payload['cfg'])
         OmegaConf.set_struct(base_cfg, False)
         cfg = OmegaConf.merge(base_cfg, yaml_cfg)
@@ -59,25 +62,92 @@ def load_policy(ckpt_path: str, cfg_yaml_path: str | None = None):
     else:
         cfg = payload['cfg']
 
-    # 使用workspace加载policy
     cls = hydra.utils.get_class(cfg._target_)
     workspace = cls(cfg)
-    workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+    workspace.load_payload(payload, exclude_keys=['lr_scheduler'], include_keys=None)
+
+    normalizer_path = run_dir / 'normalizer.pkl'
+    if normalizer_path.is_file():
+        normalizer = pickle.load(normalizer_path.open('rb'))
+        if hasattr(workspace.model, 'set_normalizer'):
+            workspace.model.set_normalizer(normalizer)
+        if getattr(workspace, 'ema_model', None) is not None and hasattr(workspace.ema_model, 'set_normalizer'):
+            workspace.ema_model.set_normalizer(normalizer)
+        print(f"  Loaded normalizer from: {normalizer_path}")
 
     policy = workspace.model
-    if cfg.training.use_ema and hasattr(workspace, "ema_model"):
+    if cfg.training.use_ema and getattr(workspace, 'ema_model', None) is not None:
         policy = workspace.ema_model
         print("  Using EMA model")
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     policy.eval().to(device)
-    
+
     print(f"  Policy loaded on device: {device}")
     return policy, cfg, device
 
 
+def infer_dataset_path(cfg, dataset_path: str | None = None):
+    candidates = []
+
+    def add_candidate(candidate):
+        if not candidate:
+            return
+        candidate = pathlib.Path(candidate).expanduser()
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    add_candidate(dataset_path)
+    if hasattr(cfg, 'task') and hasattr(cfg.task, 'dataset') and hasattr(cfg.task.dataset, 'local_files_only'):
+        add_candidate(cfg.task.dataset.local_files_only)
+
+    task_name = None
+    if hasattr(cfg, 'task') and hasattr(cfg.task, 'name'):
+        task_name = cfg.task.name
+
+    if task_name:
+        workspace_root = pathlib.Path('/mnt/data/shenyibo/workspace')
+        add_candidate(workspace_root / task_name / 'replay_buffer.zarr')
+        for suffix in ('_100', '_150', '_154'):
+            add_candidate(workspace_root / f'{task_name}{suffix}' / 'replay_buffer.zarr')
+
+    for candidate in candidates:
+        if candidate.exists():
+            resolved = str(candidate.resolve())
+            print(f"  Using dataset path: {resolved}")
+            return resolved
+
+    tried = '\n'.join(str(p) for p in candidates)
+    raise FileNotFoundError(f"Dataset not found. Tried:\n{tried}")
+
+
+def build_base_absolute_action_from_episode(episode_data, idx: int, action_dim: int):
+    """从 episode 原始键中构造用于相对/绝对 action 互转的基准姿态。
+    这些键只用于轨迹还原，不会送进 policy infer。
+    """
+    if action_dim == 10 and 'left_robot_tcp_pose' in episode_data and 'left_robot_gripper_width' in episode_data:
+        return np.concatenate([
+            np.asarray(episode_data['left_robot_tcp_pose'][idx], dtype=np.float32),
+            np.asarray(episode_data['left_robot_gripper_width'][idx], dtype=np.float32).reshape(-1),
+        ], axis=-1)
+
+    if action_dim == 19 and all(k in episode_data for k in ('left_robot_tcp_pose', 'left_robot_gripper_width', 'left_eye_tcp_pose')):
+        return np.concatenate([
+            np.asarray(episode_data['left_robot_tcp_pose'][idx], dtype=np.float32),
+            np.asarray(episode_data['left_robot_gripper_width'][idx], dtype=np.float32).reshape(-1),
+            np.asarray(episode_data['left_eye_tcp_pose'][idx], dtype=np.float32),
+        ], axis=-1)
+
+    raw_action = np.asarray(episode_data['action'][idx], dtype=np.float32).reshape(-1)
+    if raw_action.shape[0] < action_dim:
+        raise ValueError(
+            f'Cannot build base_absolute_action with dim={action_dim}, only raw action dim={raw_action.shape[0]}'
+        )
+    return raw_action[:action_dim].copy()
+
+
 def load_replay_buffer(dataset_path: str):
-    """加载ReplayBuffer"""
+    """??ReplayBuffer"""
     dataset_path = pathlib.Path(dataset_path).expanduser().resolve()
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset not found: {dataset_path}")
@@ -87,7 +157,6 @@ def load_replay_buffer(dataset_path: str):
     print(f"  Loaded! Total episodes: {replay_buffer.n_episodes}")
     
     return replay_buffer
-
 
 def preprocess_image(img, target_size=224, is_wrist=True):
     """
@@ -161,6 +230,7 @@ def rollout_policy_on_episode(
     episode_idx,
     device,
     n_obs_steps=2,
+    action_dim=None,
     action_representation='relative',
     relative_tcp_obs_for_relative_action=True,
     blackout_left_wrist=False
@@ -257,41 +327,44 @@ def rollout_policy_on_episode(
                         obs_lowdim[key] = []
                     obs_lowdim[key].append(torch.from_numpy(val.astype(np.float32)))
         
-        # 如果不止有一个obs，不进行推理
-        if not obs_imgs or not obs_lowdim:
+        if not obs_imgs:
             break
-        
+
         # Stack时间维度
         obs = {k: torch.stack(v, dim=0) for k, v in obs_imgs.items()}
         for key, vals in obs_lowdim.items():
             obs[key] = torch.stack(vals, dim=0)
 
-        # 不足n_obs_steps的情况程序会处理，但要突破
-        while len(obs['left_eye_img']) < n_obs_steps:
-            # 重复最后一个frame
+        # 不足n_obs_steps时复制最后一个obs
+        first_obs_key = next(iter(obs))
+        while obs[first_obs_key].shape[0] < n_obs_steps:
             obs = dict_apply(obs, lambda x: torch.cat([x, x[-1:]], dim=0))
             break
 
-        # 保存绝对低维obs用于action还原
+        # 仅保留模型真正需要的 lowdim obs 给 policy；
+        # 但轨迹还原用的 base pose 仍可直接从 episode_data 的 tcp/gripper 键中读取。
         abs_obs = {k: v.clone() for k, v in obs.items() if k in lowdim_keys}
 
-        # 构造base_absolute_action（与dataset一致）
-        # 了最关键改动：第一次用GT初始态，之后用上一次推理的低维状态
         if last_absolute_state is None:
-            # 第一次：使用GT的低维观测
-            base_absolute_action = np.concatenate([
-                abs_obs['left_robot_tcp_pose'][-1].cpu().numpy() if 'left_robot_tcp_pose' in abs_obs else np.array([]),
-                abs_obs['right_robot_tcp_pose'][-1].cpu().numpy() if 'right_robot_tcp_pose' in abs_obs else np.array([]),
-                abs_obs['left_robot_gripper_width'][-1].cpu().numpy() if 'left_robot_gripper_width' in abs_obs else np.array([]),
-                abs_obs['right_robot_gripper_width'][-1].cpu().numpy() if 'right_robot_gripper_width' in abs_obs else np.array([]),
-            ], axis=-1)
+            if action_dim is None:
+                action_dim = int(episode_data['action'].shape[-1])
+            base_idx = min(t + n_obs_steps - 1, episode_length - 1)
+            if abs_obs:
+                base_absolute_action = np.concatenate([
+                    abs_obs['left_robot_tcp_pose'][-1].cpu().numpy() if 'left_robot_tcp_pose' in abs_obs else np.array([]),
+                    abs_obs['right_robot_tcp_pose'][-1].cpu().numpy() if 'right_robot_tcp_pose' in abs_obs else np.array([]),
+                    abs_obs['left_robot_gripper_width'][-1].cpu().numpy() if 'left_robot_gripper_width' in abs_obs else np.array([]),
+                    abs_obs['right_robot_gripper_width'][-1].cpu().numpy() if 'right_robot_gripper_width' in abs_obs else np.array([]),
+                ], axis=-1)
+            else:
+                base_absolute_action = build_base_absolute_action_from_episode(episode_data, base_idx, action_dim)
+                print(f"    t={t}: Using zarr tcp/gripper keys to build base_absolute_action (dim={action_dim})")
         else:
-            # 之后：使用上一次推理的最后低维状态，保证轨迹连续
             base_absolute_action = last_absolute_state
             print(f"    t={t}: Using predicted state from previous inference")
 
-        # 计算相对tcp pose（与dataset一致）
-        if relative_tcp_obs_for_relative_action:
+        # 只有模型真的吃 tcp pose 观测时，才对这些键做 relative 化。
+        if relative_tcp_obs_for_relative_action and lowdim_keys:
             for key in list(obs.keys()):
                 if ('robot_tcp_pose' in key) and ('wrt' not in key):
                     abs_seq = obs[key].cpu().numpy()
@@ -312,7 +385,8 @@ def rollout_policy_on_episode(
         
         # 添加batch维度
         obs = dict_apply(obs, lambda x: x.unsqueeze(0).to(device))
-        
+        # print(obs.keys())
+        # quit()
         # Policy推理
         with torch.no_grad():
             result = policy.predict_action(obs)
@@ -354,6 +428,9 @@ def rollout_policy_on_episode(
     
     pred_actions_relative = np.array(pred_actions_relative)  # (T, D)
     pred_actions_absolute = np.array(pred_actions_absolute)  # (T, D)
+
+    if len(pred_actions_relative) == 0:
+        raise RuntimeError('Policy rollout produced 0 actions. Check obs keys and base pose reconstruction logic.')
     
     # 获取GT绝对action
     gt_actions_absolute = episode_data['action']  # (T, D)
@@ -565,11 +642,11 @@ def visualize_trajectories(
 
 def main():
     # ==================== 硬编码参数 ====================
-    ckpt_path = r"C:\Users\yibo\Desktop\umi_base\q3_shop_bagging_0207_250_relative\1190.ckpt"
-    cfg_yaml_path = r"C:\Users\yibo\Downloads\umi_base\diffusion_policy\config\train_diffusion_unet_timm_single_frame_workspace.yaml"
-    dataset_path = r'C:\Users\yibo\Downloads\umi_base\.cache\q3_shop_bagging_0202\replay_buffer.zarr'
+    ckpt_path = r"/mnt/data/shenyibo/workspace/codex-dit-place-cup-no-tcp-viz/data/outputs/2026.04.16/23.08_dit_q3_place_cup_v2_mirror/checkpoints/latest.ckpt"
+    cfg_yaml_path = None  # 默认使用 checkpoint 同目录下的 .hydra/config.yaml
+    dataset_path = r"/mnt/data/shenyibo/workspace/q3_place_cup_v2_0405_mirror/replay_buffer.zarr"
     episode_idx = 0
-    output_dir = r'C:\Users\yibo\Downloads\umi_base\policy_vs_gt_visualizations'
+    output_dir = r'/mnt/data/shenyibo/workspace/codex-dit-place-cup-no-tcp-viz/data/umi_base/policy_vs_gt_visualizations/23.08_dit_q3_place_cup_v2_mirror'
     n_obs_steps = 1  # observation history长度
     horizon = 16  # action prediction长度
     # ===================================================
@@ -582,6 +659,7 @@ def main():
     policy, cfg, device = load_policy(ckpt_path, cfg_yaml_path=cfg_yaml_path)
     
     # 2. 加载ReplayBuffer
+    dataset_path = r"/mnt/data/shenyibo/workspace/q3_place_cup_v2_0405_mirror/replay_buffer.zarr"
     replay_buffer = load_replay_buffer(dataset_path)
     
     # 3. 在指定episode上rollout policy
@@ -597,12 +675,14 @@ def main():
 
     print(f"action_representation: {action_representation}")
 
+    action_dim = int(cfg.shape_meta.action.shape[0]) if hasattr(cfg, 'shape_meta') else None
     pred_actions_rel, pred_actions_abs, gt_actions_abs, start_pos = rollout_policy_on_episode(
         policy,
         replay_buffer,
         episode_idx,
         device,
         n_obs_steps=n_obs_steps,
+        action_dim=action_dim,
         action_representation=action_representation,
         relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
         blackout_left_wrist=False
@@ -618,6 +698,7 @@ def main():
         episode_idx,
         device,
         n_obs_steps=n_obs_steps,
+        action_dim=action_dim,
         action_representation=action_representation,
         relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
         blackout_left_wrist=True

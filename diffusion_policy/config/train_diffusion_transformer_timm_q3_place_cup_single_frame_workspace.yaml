@@ -5,10 +5,6 @@ defaults:
 name: dit
 _target_: diffusion_policy.workspace.train_diffusion_transformer_timm_workspace.TrainDiffusionTransformerTimmWorkspace
 
-task:
-  dataset:
-    local_files_only: /mnt/data/shenyibo/workspace/q3_stack_cup/replay_buffer.zarr
-
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
 exp_name: "no_tcp_rgb_trainable"

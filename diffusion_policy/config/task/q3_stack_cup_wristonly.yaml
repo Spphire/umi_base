@@ -6,18 +6,13 @@ defaults:
   - single_arm_one_iphone_30fps@_here_
   - _self_
 
-name: q3_stack_cup_oversample2-2
+name: q3_stack_cup_wristonly
 
 image_shape: [3, 224, 224]
 
 shape_meta: &shape_meta # acceptable types: rgb, low_dim
   obs:
     left_wrist_img:
-      horizon: ${n_obs_steps}
-      shape: ${task.image_shape}
-      type: rgb
-
-    left_eye_img:
       horizon: ${n_obs_steps}
       shape: ${task.image_shape}
       type: rgb
