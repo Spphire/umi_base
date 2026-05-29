@@ -26,13 +26,12 @@ from umi.common.precise_sleep import precise_wait
 @click.option('-f', '--frequency', type=float, default=30)
 @click.option('-ms', '--max_speed', type=float, default=200.0)
 @click.option('-mp', '--max_pos', type=float, default=110.0)
+@click.option('-o', '--output', type=click.Path(), default=None)
 def main(output, hostname, port, frequency, max_speed, max_pos):
     duration = 10.0
     get_max_k = int(duration * frequency)
     command_latency = 0.0
     dt = 1/frequency
-
-    widths = 
 
     with SharedMemoryManager() as shm_manager:
         with WSGController(

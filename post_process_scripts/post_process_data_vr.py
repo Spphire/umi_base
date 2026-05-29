@@ -29,7 +29,8 @@ def convert_data_to_zarr(
     tcp_transform: np.ndarray = np.eye(4, dtype=np.float32),
     image_mask_path: str = '',
     episode_clip_head_seconds: float = 0.0,
-    episode_clip_tail_seconds: float = 0.0
+    episode_clip_tail_seconds: float = 0.0,
+    vr_alignment_mode: str = "legacy"
 ) -> str:
     """
     将VR原始数据转换为zarr格式存储。
@@ -66,7 +67,7 @@ def convert_data_to_zarr(
             os.system(f'rm -rf {save_data_path}')
 
     # 创建数据处理管理器
-    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True)
+    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True, alignment_mode=vr_alignment_mode)
 
     # 初始化数据数组
     timestamp_arrays = []

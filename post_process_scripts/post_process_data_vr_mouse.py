@@ -207,7 +207,8 @@ def convert_data_to_zarr(
     grounding_dino_config: str = "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
     grounding_dino_checkpoint: str = "GroundingDINO/weights/groundingdino_swint_ogc.pth",
     sam_checkpoint: str = "GroundingDINO/weights/sam_vit_h_4b8939.pth",
-    sam_model_type: str = "vit_h"
+    sam_model_type: str = "vit_h",
+    vr_alignment_mode: str = "legacy"
 ) -> str:
     """
     将VR原始数据转换为zarr格式存储（仅左臂+头部，头部图像带手臂遮罩）
@@ -282,7 +283,7 @@ def convert_data_to_zarr(
                 use_hand_masking = False
     
     # 创建数据处理管理器
-    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True)
+    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True, alignment_mode=vr_alignment_mode)
     
     # 初始化数据数组
     timestamp_arrays = []

@@ -1,12 +1,22 @@
 import cv2
 import numpy as np
-import open3d as o3d
+try:
+    import open3d as o3d
+except ImportError:
+    o3d = None
 from loguru import logger
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from diffusion_policy.real_world.real_world_transforms import RealWorldTransforms
 from diffusion_policy.common.data_models import SensorMessage, SensorMode
 from diffusion_policy.common.visualization_utils import visualize_pcd_from_numpy, visualize_rgb_image
-from diffusion_policy.common.space_utils import pose_6d_to_4x4matrix, pose_6d_to_pose_9d, pose_7d_to_pose_6d
+from diffusion_policy.common.space_utils import (
+    homo_matrix_to_pose_9d_batch,
+    matrix4x4_to_pose_7d,
+    pose_6d_to_4x4matrix,
+    pose_6d_to_pose_9d,
+    pose_7d_to_pose_6d,
+)
 from diffusion_policy.common.image_utils import center_crop_and_resize_image
 from omegaconf import DictConfig
 import bson
@@ -15,6 +25,7 @@ import json
 
 from post_process_scripts.head_data_process_util import get_full_data
 from post_process_scripts.ArUco_calibration import run_aruco_world_pnp_verbose, poses_to_T, T_to_pose, unity2zup_right_frame_batch
+from post_process_scripts import post_process_data_vr_align_coor as align_coor
 from scipy.spatial.transform import Rotation as R
 
 class DataPostProcessingManager:
@@ -265,10 +276,19 @@ class DataPostProcessingManagerVR:
     def __init__(self,
                  image_resize_shape: tuple = (320, 240),
                  use_6d_rotation: bool = True,
-                 debug: bool = False):
+                 debug: bool = False,
+                 alignment_mode: str = 'legacy'):
         self.use_6d_rotation = use_6d_rotation
         self.resize_shape = image_resize_shape
         self.debug = debug
+        self.alignment_mode = alignment_mode
+        self.align_prefer_raw = False
+        self.align_min_valid = 20
+        self.align_max_match_dt_s = 0.05
+        self.align_time_offset_search_s = 8.0
+        self.align_smooth_isolated_spikes = True
+        self.align_smooth_rot_spike_deg = 5.0
+        self.align_smooth_trans_spike_mm = 80.0
 
     @staticmethod
     def load_bson_file(file_path):
@@ -276,10 +296,9 @@ class DataPostProcessingManagerVR:
             with open(file_path, 'rb') as f:
                 bson_data = f.read()
             try:
-                bson_dict = bson.loads(bson_data) # bson library
-            except AttributeError as e:
-                bson_dict = bson.decode(bson_data) # pymongo library
-
+                bson_dict = bson.loads(bson_data)
+            except AttributeError:
+                bson_dict = bson.decode(bson_data)
             return bson_dict
         except Exception as e:
             print(e)
@@ -290,23 +309,20 @@ class DataPostProcessingManagerVR:
         timestamps = np.array(data.get('timestamps', []))
         arkit_poses = np.array(data.get('arkitPose', []))
         gripper_widths = np.array(data.get('gripperWidth', []))
-
         return timestamps, arkit_poses, gripper_widths
 
     def read_bson(self, file_path):
         data = self.load_bson_file(file_path)
         if data is None:
             return None, None, None
-
         timestamps, arkit_poses, gripper_widths = self.get_numpy_arrays(data)
         return timestamps, arkit_poses, gripper_widths
 
     def load_video_frames(self, video_path):
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            print("Error: Could not open video.")
+            print('Error: Could not open video.')
             return None
-
         frames = []
         while True:
             ret, frame = cap.read()
@@ -315,10 +331,76 @@ class DataPostProcessingManagerVR:
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append(rgb_frame)
         cap.release()
-        frames_array = np.array(frames)
-        return frames_array
+        return np.array(frames)
 
-    def extract_msg_to_obs_dict(
+    @staticmethod
+    def _nearest_indices(source_ts: np.ndarray, target_ts: np.ndarray) -> np.ndarray:
+        if len(source_ts) == 0 or len(target_ts) == 0:
+            return np.empty((0,), dtype=int)
+        idx = np.searchsorted(source_ts, target_ts, side='left')
+        idx0 = np.clip(idx - 1, 0, len(source_ts) - 1)
+        idx1 = np.clip(idx, 0, len(source_ts) - 1)
+        choose_right = np.abs(target_ts - source_ts[idx1]) < np.abs(target_ts - source_ts[idx0])
+        return np.where(choose_right, idx1, idx0).astype(int)
+
+    @staticmethod
+    def _interpolate_scalar(source_ts: np.ndarray, source_values: np.ndarray, target_ts: np.ndarray) -> np.ndarray:
+        if len(source_ts) == 0 or len(source_values) == 0 or len(target_ts) == 0:
+            return np.empty((0, 1), dtype=np.float32)
+        n = min(len(source_ts), len(source_values))
+        ts = np.asarray(source_ts[:n], dtype=float).reshape(-1)
+        values = np.asarray(source_values[:n], dtype=float).reshape(-1)
+        interp = np.interp(target_ts, ts, values)
+        return interp.reshape(-1, 1).astype(np.float32, copy=False)
+
+    def _record_from_dir(self, record_dir: str) -> Optional[align_coor.Record]:
+        metadata_path = os.path.join(record_dir, 'metadata.json')
+        frame_data_path = os.path.join(record_dir, 'frame_data.bson')
+        if not os.path.exists(metadata_path) or not os.path.exists(frame_data_path):
+            return None
+        with open(metadata_path, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        with open(frame_data_path, 'rb') as f:
+            data = align_coor.bson_loads(f.read())
+        uuid = str(metadata.get('uuid', ''))
+        parent_uuid = str(metadata.get('parent_uuid', uuid))
+        camera_position = metadata.get('camera_position', '') or 'head'
+        return align_coor.Record(
+            path=Path(record_dir),
+            uuid=uuid,
+            parent_uuid=parent_uuid,
+            camera_position=camera_position,
+            metadata=metadata,
+            data=data,
+        )
+
+    def _interp_pose_series(self, mats: np.ndarray, source_ts: np.ndarray, target_ts: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        interp, keep_idx, _ = align_coor.interpolate_matrices_at(
+            mats,
+            source_ts,
+            target_ts,
+            max_gap_s=self.align_max_match_dt_s,
+        )
+        mask = np.zeros(len(target_ts), dtype=bool)
+        mask[keep_idx] = True
+        return interp, mask
+
+    def _pose_output(self, mats: np.ndarray) -> np.ndarray:
+        if self.use_6d_rotation:
+            return homo_matrix_to_pose_9d_batch(mats).astype(np.float32, copy=False)
+        return np.asarray([matrix4x4_to_pose_7d(mat) for mat in mats], dtype=np.float32)
+
+    def _gather_frames(self, frames: Optional[np.ndarray], source_ts: np.ndarray, target_ts: np.ndarray) -> Optional[np.ndarray]:
+        if frames is None or len(source_ts) == 0 or len(target_ts) == 0:
+            return None
+        count = min(len(frames), len(source_ts))
+        if count == 0:
+            return None
+        idx = self._nearest_indices(np.asarray(source_ts[:count], dtype=float), np.asarray(target_ts, dtype=float))
+        selected = [cv2.resize(frames[i], self.resize_shape) for i in idx]
+        return np.asarray(selected)
+
+    def _extract_msg_to_obs_dict_legacy(
         self,
         session: Dict,
         clip_head_seconds: float = 0.0,
@@ -651,3 +733,224 @@ class DataPostProcessingManagerVR:
 
 
         return obs_dict
+
+    def _extract_msg_to_obs_dict_dualfold_handeye(
+        self,
+        session: Dict,
+        clip_head_seconds: float = 0.0,
+        clip_tail_seconds: float = 0.0,
+        use_aruco_calibration: bool = True,
+    ) -> Optional[Dict[str, np.ndarray]]:
+        del use_aruco_calibration
+        obs_dict: Dict[str, np.ndarray] = {}
+
+        head_dir: Optional[str] = None
+        head_record: Optional[align_coor.Record] = None
+        side_dirs: Dict[str, str] = {}
+        side_records: Dict[str, align_coor.Record] = {}
+
+        for record_dir in session.values():
+            record = self._record_from_dir(record_dir)
+            if record is None:
+                continue
+            if record.camera_position == 'head':
+                head_dir = record_dir
+                head_record = record
+            elif record.camera_position in ('left_wrist', 'right_wrist'):
+                side_dirs[record.camera_position] = record_dir
+                side_records[record.camera_position] = record
+
+        if head_dir is None or head_record is None:
+            return None
+
+        head_data = get_full_data(head_dir)
+        if head_data is None or not side_records:
+            return None
+
+        triplet = align_coor.Triplet(
+            parent_uuid=head_record.parent_uuid,
+            head=head_record,
+            left_wrist=side_records.get('left_wrist', head_record),
+            right_wrist=side_records.get('right_wrist', head_record),
+        )
+
+        side_results: Dict[str, Dict[str, Any]] = {}
+        for side in ('left', 'right'):
+            phone_record = side_records.get(f'{side}_wrist')
+            if phone_record is None:
+                continue
+            result = align_coor.calibrate_side(
+                triplet,
+                side,
+                phone_record,
+                self.align_prefer_raw,
+                self.align_min_valid,
+                self.align_max_match_dt_s,
+                self.align_time_offset_search_s,
+                self.align_smooth_isolated_spikes,
+                self.align_smooth_rot_spike_deg,
+                self.align_smooth_trans_spike_mm,
+            )
+            if result.get('status') != 'ok':
+                logger.warning(
+                    f"Alignment failed for {triplet.parent_uuid} {side}: {result.get('status')} {result.get('reason', '')}"
+                )
+                continue
+            logger.info(
+                f"{triplet.parent_uuid} {side}: offset={float(result.get('phone_time_offset_to_head_s', 0.0)):.3f}s, "
+                f"trans_rmse={1000.0 * float(result.get('translation_rmse_m', 0.0)):.2f}mm, "
+                f"rot_rmse={float(result.get('rotation_rmse_deg', 0.0)):.3f}deg"
+            )
+            side_results[side] = result
+
+        if not side_results:
+            return None
+
+        side_streams: Dict[str, Dict[str, Any]] = {}
+        for side, result in side_results.items():
+            phone_record = side_records[f'{side}_wrist']
+            phone_mats, phone_valid_idx = align_coor.poses_to_matrices(
+                phone_record.data.get('arkitPose', []),
+                'xyzqxqyqzqw',
+                unity_lhs_to_rhs=False,
+            )
+            if len(phone_mats) == 0:
+                continue
+            phone_ts_all = align_coor.as_float_array(phone_record.data.get('timestamps', []))
+            if len(phone_ts_all) <= int(np.max(phone_valid_idx, initial=-1)):
+                continue
+            phone_ts_valid = phone_ts_all[phone_valid_idx]
+            phone_time_offset = float(result.get('phone_time_offset_to_head_s') or 0.0)
+            x_mat = np.asarray(result['ar_world_to_head_rh'], dtype=float)
+            aligned_mats = np.einsum('ij,njk->nik', x_mat, phone_mats)
+            gripper = np.asarray(phone_record.data.get('gripperWidth', []), dtype=float).reshape(-1)
+            wrist_frames = self.load_video_frames(os.path.join(side_dirs[f'{side}_wrist'], 'recording.mp4'))
+            side_streams[side] = {
+                'aligned_ts': phone_ts_valid + phone_time_offset,
+                'aligned_mats': aligned_mats,
+                'gripper_ts': phone_ts_all[:len(gripper)] + phone_time_offset,
+                'gripper': gripper,
+                'image_ts': phone_ts_all + phone_time_offset,
+                'frames': wrist_frames,
+            }
+
+        if not side_streams:
+            return None
+
+        convention = str(head_record.data.get('poseConvention', 'xyzqwqxqyqz'))
+        left_eye_mats, left_eye_valid_idx = align_coor.poses_to_matrices(
+            head_record.data.get('leftCameraPoses', []),
+            convention,
+            unity_lhs_to_rhs=True,
+        )
+        right_eye_mats, right_eye_valid_idx = align_coor.poses_to_matrices(
+            head_record.data.get('rightCameraPoses', []),
+            convention,
+            unity_lhs_to_rhs=True,
+        )
+        left_eye_ts_all = align_coor.as_float_array(head_record.data.get('leftCameraAccessTimestamps', []))
+        right_eye_ts_all = align_coor.as_float_array(head_record.data.get('rightCameraAccessTimestamps', []))
+        if len(left_eye_ts_all) <= int(np.max(left_eye_valid_idx, initial=-1)):
+            return None
+        if len(right_eye_ts_all) <= int(np.max(right_eye_valid_idx, initial=-1)):
+            return None
+        left_eye_ts = left_eye_ts_all[left_eye_valid_idx]
+        right_eye_ts = right_eye_ts_all[right_eye_valid_idx]
+
+        target_side = 'left' if 'left' in side_streams else 'right'
+        target_ts = np.asarray(side_streams[target_side]['aligned_ts'], dtype=float)
+        if len(target_ts) == 0:
+            return None
+
+        start_candidates = [float(target_ts[0]), float(left_eye_ts[0]), float(right_eye_ts[0])]
+        end_candidates = [float(target_ts[-1]), float(left_eye_ts[-1]), float(right_eye_ts[-1])]
+        for stream in side_streams.values():
+            aligned_ts = np.asarray(stream['aligned_ts'], dtype=float)
+            if len(aligned_ts):
+                start_candidates.append(float(aligned_ts[0]))
+                end_candidates.append(float(aligned_ts[-1]))
+        clipped_start_time = max(start_candidates) + float(clip_head_seconds)
+        clipped_end_time = min(end_candidates) - float(clip_tail_seconds)
+        if clipped_start_time >= clipped_end_time:
+            return None
+        target_mask = (target_ts >= clipped_start_time) & (target_ts <= clipped_end_time)
+        target_ts = target_ts[target_mask]
+        if len(target_ts) == 0:
+            return None
+
+        keep_mask = np.ones(len(target_ts), dtype=bool)
+        for stream in side_streams.values():
+            _, mask = self._interp_pose_series(
+                np.asarray(stream['aligned_mats'], dtype=float),
+                np.asarray(stream['aligned_ts'], dtype=float),
+                target_ts,
+            )
+            keep_mask &= mask
+        _, left_mask = self._interp_pose_series(left_eye_mats, left_eye_ts, target_ts)
+        _, right_mask = self._interp_pose_series(right_eye_mats, right_eye_ts, target_ts)
+        keep_mask &= left_mask & right_mask
+        target_ts = target_ts[keep_mask]
+        if len(target_ts) == 0:
+            return None
+
+        obs_dict['timestamp'] = target_ts.reshape(-1, 1).astype(np.float32, copy=False)
+
+        for side, stream in side_streams.items():
+            interp_mats, _ = self._interp_pose_series(
+                np.asarray(stream['aligned_mats'], dtype=float),
+                np.asarray(stream['aligned_ts'], dtype=float),
+                target_ts,
+            )
+            obs_dict[f'{side}_robot_tcp_pose'] = self._pose_output(interp_mats)
+            obs_dict[f'{side}_robot_gripper_width'] = self._interpolate_scalar(
+                np.asarray(stream['gripper_ts'], dtype=float),
+                np.asarray(stream['gripper'], dtype=float),
+                target_ts,
+            )
+            wrist_imgs = self._gather_frames(
+                stream.get('frames'),
+                np.asarray(stream['image_ts'], dtype=float),
+                target_ts,
+            )
+            if wrist_imgs is not None:
+                obs_dict[f'{side}_wrist_img'] = wrist_imgs
+
+        left_eye_interp, _ = self._interp_pose_series(left_eye_mats, left_eye_ts, target_ts)
+        right_eye_interp, _ = self._interp_pose_series(right_eye_mats, right_eye_ts, target_ts)
+        obs_dict['left_eye_tcp_pose'] = self._pose_output(left_eye_interp)
+        obs_dict['right_eye_tcp_pose'] = self._pose_output(right_eye_interp)
+
+        left_eye_imgs = self._gather_frames(head_data.get('leftCameraFrames'), left_eye_ts_all, target_ts)
+        right_eye_imgs = self._gather_frames(head_data.get('rightCameraFrames'), right_eye_ts_all, target_ts)
+        if left_eye_imgs is None or right_eye_imgs is None:
+            return None
+        obs_dict['left_eye_img'] = left_eye_imgs
+        obs_dict['right_eye_img'] = right_eye_imgs
+
+        if self.debug:
+            visualize_rgb_image(obs_dict['left_eye_img'][0])
+
+        return obs_dict
+
+    def extract_msg_to_obs_dict(
+        self,
+        session: Dict,
+        clip_head_seconds: float = 0.0,
+        clip_tail_seconds: float = 0.0,
+        use_aruco_calibration: bool = True,
+    ) -> Optional[Dict[str, np.ndarray]]:
+        if self.alignment_mode == 'legacy':
+            return self._extract_msg_to_obs_dict_legacy(
+                session,
+                clip_head_seconds=clip_head_seconds,
+                clip_tail_seconds=clip_tail_seconds,
+                use_aruco_calibration=use_aruco_calibration,
+            )
+        if self.alignment_mode == 'dualfold_handeye':
+            return self._extract_msg_to_obs_dict_dualfold_handeye(
+                session,
+                clip_head_seconds=clip_head_seconds,
+                clip_tail_seconds=clip_tail_seconds,
+                use_aruco_calibration=use_aruco_calibration,
+            )
+        raise ValueError(f'Unknown alignment_mode: {self.alignment_mode}')

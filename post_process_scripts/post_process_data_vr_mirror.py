@@ -356,6 +356,7 @@ def convert_data_to_zarr(
     episode_clip_head_seconds: float = 0.1,
     episode_clip_tail_seconds: float = 0.3,
     add_mirror_episode: bool = True,
+    vr_alignment_mode: str = "legacy"
 ) -> str:
     if action_type != ActionType.head_6DOF_left_arm_6DOF_gripper_width:
         raise ValueError(
@@ -379,7 +380,7 @@ def convert_data_to_zarr(
         logger.warning(f'No valid record sessions found in {input_dir}')
         return save_data_path
 
-    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True)
+    data_processing_manager = DataPostProcessingManagerVR(use_6d_rotation=True, alignment_mode=vr_alignment_mode)
     episodes: List[EpisodeRecord] = []
     skipped_sessions = 0
 
