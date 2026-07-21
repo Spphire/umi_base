@@ -1,0 +1,93 @@
+defaults:
+  - single_arm_one_iphone_30fps@_here_
+  - _self_
+
+name: dualpickcube_3view_20action
+
+image_shape: [3, 224, 224]
+
+shape_meta: &shape_meta
+  obs:
+    left_wrist_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+
+    right_wrist_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+
+    left_eye_img:
+      horizon: ${n_obs_steps}
+      shape: ${task.image_shape}
+      type: rgb
+
+  action:
+    shape: [20]
+    horizon: ${horizon}
+
+env_runner:
+  _target_: diffusion_policy.env_runner.timm_image_runner.TimmImageRunner
+  eval_episodes: 10
+  max_duration_time: 120
+  use_relative_action: True
+  tcp_action_update_interval: 10
+  gripper_action_update_interval: 10
+  latency_step: 3
+  gripper_latency_step: 4
+  control_fps: 10
+  inference_fps: 5
+  obs_temporal_downsample_ratio: 1
+  n_obs_steps: ${n_obs_steps}
+  task_name: ${task_name}
+  transform_params: ${task.transforms}
+  shape_meta: *shape_meta
+  tcp_ensemble_buffer_params:
+    ensemble_mode: "new"
+  gripper_ensemble_buffer_params:
+    ensemble_mode: "new"
+  enable_video_recording: False
+  vcamera_server_ip: 192.168.2.187
+  vcamera_server_port: 8102
+  env_params:
+    robot_server_ip: ${task.robot_server.host_ip}
+    robot_server_port: ${task.robot_server.port}
+    device_mapping_server_ip: ${task.device_mapping_server.host_ip}
+    device_mapping_server_port: ${task.device_mapping_server.port}
+    data_processing_params:
+      mode: "single_arm_one_realsense"
+      image_resize_shape: [224, 224]
+      image_resize_mode: 'center_crop'
+      use_6d_rotation: True
+      debug: False
+    max_fps: 30
+    debug: False
+    use_force_control_for_gripper: ${task.teleop_server.use_force_control_for_gripper}
+    max_gripper_width: ${task.teleop_server.max_gripper_width}
+    min_gripper_width: ${task.teleop_server.min_gripper_width}
+    grasp_force: ${task.teleop_server.grasp_force}
+    gripper_control_time_interval: ${task.teleop_server.gripper_control_time_interval}
+    gripper_control_width_precision: ${task.teleop_server.gripper_control_width_precision}
+    gripper_width_threshold: 0.046
+    enable_gripper_width_clipping: True
+  debug: False
+
+dataset:
+  _target_: diffusion_policy.dataset.real_dualfold_robust_image_head_dataset.RealDualfoldRobustImageHeadDataset
+  shape_meta: *shape_meta
+  dataset_path: ${oc.env:DUALPICKCUBE_DATASET_PATH,"/mnt/workspace/shenyibo/diffusion_policy/.cache/dualpickcube_0622_0623_full_consist124/zarr/replay_buffer.zarr"}
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  n_obs_steps: ${dataset_obs_steps}
+  n_latency_steps: ${n_latency_steps}
+  seed: 42
+  val_ratio: 0.05
+  max_train_episodes: null
+  delta_action: False
+  relative_action: True
+  use_quantiles: True
+  action_representation: 'relative'
+  dagger_sampling_ratio: 1
+  random_mask_head_image: False

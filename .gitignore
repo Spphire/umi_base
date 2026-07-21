@@ -216,3 +216,16 @@ test/
 ignore-*
 
 .zed
+
+# Generated frozen-replay inputs and reports; keep analysis Python scripts.
+analysis/nedf_frozen_replay_*/**/*.json
+analysis/nedf_frozen_replay_*/**/*.jsonl
+analysis/nedf_frozen_replay_*/**/*.npz
+analysis/nedf_frozen_replay_*/**/*.txt
+
+# Local policy evaluation output.
+policy_vs_gt_eval/
+
+# Dataset transfer/archive artifacts.
+*.tar
+*.tar.gz

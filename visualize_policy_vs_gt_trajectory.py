@@ -7,7 +7,12 @@
 import os
 import pathlib
 import pickle
-import dill
+import argparse
+import json
+try:
+    import dill
+except ImportError:
+    dill = pickle
 import numpy as np
 import torch
 import cv2
@@ -62,6 +67,16 @@ def load_policy(ckpt_path: str, cfg_yaml_path: str | None = None):
     else:
         cfg = payload['cfg']
 
+    OmegaConf.set_struct(cfg, False)
+    if (
+        hasattr(cfg, 'policy')
+        and hasattr(cfg.policy, 'obs_encoder')
+        and hasattr(cfg.policy.obs_encoder, 'pretrained')
+        and cfg.policy.obs_encoder.pretrained
+    ):
+        cfg.policy.obs_encoder.pretrained = False
+        print("  Disabled obs_encoder.pretrained for offline checkpoint eval")
+
     cls = hydra.utils.get_class(cfg._target_)
     workspace = cls(cfg)
     workspace.load_payload(payload, exclude_keys=['lr_scheduler'], include_keys=None)
@@ -100,6 +115,8 @@ def infer_dataset_path(cfg, dataset_path: str | None = None):
     add_candidate(dataset_path)
     if hasattr(cfg, 'task') and hasattr(cfg.task, 'dataset') and hasattr(cfg.task.dataset, 'local_files_only'):
         add_candidate(cfg.task.dataset.local_files_only)
+    if hasattr(cfg, 'task') and hasattr(cfg.task, 'dataset') and hasattr(cfg.task.dataset, 'dataset_path'):
+        add_candidate(cfg.task.dataset.dataset_path)
 
     task_name = None
     if hasattr(cfg, 'task') and hasattr(cfg.task, 'name'):
@@ -233,7 +250,8 @@ def rollout_policy_on_episode(
     action_dim=None,
     action_representation='relative',
     relative_tcp_obs_for_relative_action=True,
-    blackout_left_wrist=False
+    blackout_left_wrist=False,
+    rollout_mode='open_loop'
 ):
     """
     在指定episode上rollout policy
@@ -247,6 +265,9 @@ def rollout_policy_on_episode(
         start_pos: (3,) 起始位置（用于对齐）
     """
     print(f"\nRolling out policy on episode {episode_idx}...")
+    if rollout_mode not in ('open_loop', 'teacher_forcing'):
+        raise ValueError(f"Unsupported rollout_mode: {rollout_mode}")
+    print(f"  Rollout mode: {rollout_mode}")
     
     # ============ 硬编码开关：是否将图像设置为全黑 ============
     BLACKOUT_LEFT_EYE = blackout_left_wrist  # 使用函数参数控制是否黑化left_eye_img
@@ -345,7 +366,8 @@ def rollout_policy_on_episode(
         # 但轨迹还原用的 base pose 仍可直接从 episode_data 的 tcp/gripper 键中读取。
         abs_obs = {k: v.clone() for k, v in obs.items() if k in lowdim_keys}
 
-        if last_absolute_state is None:
+        use_gt_base = (rollout_mode == 'teacher_forcing') or (last_absolute_state is None)
+        if use_gt_base:
             if action_dim is None:
                 action_dim = int(episode_data['action'].shape[-1])
             base_idx = min(t + n_obs_steps - 1, episode_length - 1)
@@ -358,7 +380,7 @@ def rollout_policy_on_episode(
                 ], axis=-1)
             else:
                 base_absolute_action = build_base_absolute_action_from_episode(episode_data, base_idx, action_dim)
-                print(f"    t={t}: Using zarr tcp/gripper keys to build base_absolute_action (dim={action_dim})")
+                print(f"    t={t}: Using GT zarr tcp/gripper keys to build base_absolute_action (dim={action_dim})")
         else:
             base_absolute_action = last_absolute_state
             print(f"    t={t}: Using predicted state from previous inference")
@@ -640,90 +662,152 @@ def visualize_trajectories(
     return pred_xyz_absolute, gt_xyz_aligned
 
 
+def parse_episode_spec(spec: str):
+    episodes = []
+    for part in spec.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if ':' in part:
+            fields = [x.strip() for x in part.split(':')]
+            if len(fields) not in (2, 3):
+                raise ValueError(f"Bad episode range: {part}")
+            start = int(fields[0])
+            stop = int(fields[1])
+            step = int(fields[2]) if len(fields) == 3 and fields[2] else 1
+            episodes.extend(range(start, stop, step))
+        else:
+            episodes.append(int(part))
+    if not episodes:
+        raise ValueError("No episodes selected")
+    return episodes
+
+
+def compute_xyz_error_stats(pred_actions_abs, gt_actions_abs):
+    min_len = min(len(pred_actions_abs), len(gt_actions_abs))
+    pred = pred_actions_abs[:min_len]
+    gt = gt_actions_abs[:min_len]
+
+    groups = {"left_xyz": slice(0, 3)}
+    if pred.shape[-1] >= 12 and gt.shape[-1] >= 12:
+        groups["right_xyz"] = slice(9, 12)
+
+    stats = {"num_steps": int(min_len)}
+    for name, sl in groups.items():
+        error = np.linalg.norm(pred[:, sl] - gt[:, sl], axis=1)
+        stats[name] = {
+            "mean_m": float(error.mean()),
+            "max_m": float(error.max()),
+            "final_m": float(error[-1]),
+        }
+    if "right_xyz" in groups:
+        both = np.concatenate([pred[:, :3] - gt[:, :3], pred[:, 9:12] - gt[:, 9:12]], axis=1)
+        error = np.linalg.norm(both, axis=1)
+        stats["both_arms_xyz"] = {
+            "mean_m": float(error.mean()),
+            "max_m": float(error.max()),
+            "final_m": float(error[-1]),
+        }
+    return stats
+
+
 def main():
-    # ==================== 硬编码参数 ====================
-    ckpt_path = r"/mnt/data/shenyibo/workspace/codex-dit-place-cup-no-tcp-viz/data/outputs/2026.04.16/23.08_dit_q3_place_cup_v2_mirror/checkpoints/latest.ckpt"
-    cfg_yaml_path = None  # 默认使用 checkpoint 同目录下的 .hydra/config.yaml
-    dataset_path = r"/mnt/data/shenyibo/workspace/q3_place_cup_v2_0405_mirror/replay_buffer.zarr"
-    episode_idx = 0
-    output_dir = r'/mnt/data/shenyibo/workspace/codex-dit-place-cup-no-tcp-viz/data/umi_base/policy_vs_gt_visualizations/23.08_dit_q3_place_cup_v2_mirror'
-    n_obs_steps = 1  # observation history长度
-    horizon = 16  # action prediction长度
-    # ===================================================
-    
+    parser = argparse.ArgumentParser(description="Visualize and lightly evaluate policy rollout vs dataset GT.")
+    parser.add_argument("--ckpt", required=True, help="Path to checkpoint, usually checkpoints/latest.ckpt")
+    parser.add_argument("--cfg", default=None, help="Optional config yaml. Defaults to ckpt run .hydra/config.yaml")
+    parser.add_argument("--dataset", default=None, help="Optional replay_buffer.zarr path. Defaults to cfg task.dataset.dataset_path")
+    parser.add_argument("--episodes", default="0", help="Episode list/ranges, e.g. '0,3,5' or '0:5'")
+    parser.add_argument("--output-dir", default=None, help="Directory for figures and summary.json")
+    parser.add_argument("--n-obs-steps", type=int, default=None, help="Override n_obs_steps from cfg")
+    parser.add_argument("--rollout-mode", choices=["open_loop", "teacher_forcing"], default="open_loop")
+    parser.add_argument("--no-vis", action="store_true", help="Only compute metrics, skip png outputs")
+    args = parser.parse_args()
+
     print("="*60)
-    print("Policy vs GT Trajectory Visualization (No Hydra)")
+    print("Policy vs GT Trajectory Visualization / Light Eval")
     print("="*60)
-    
-    # 1. 加载policy
-    policy, cfg, device = load_policy(ckpt_path, cfg_yaml_path=cfg_yaml_path)
-    
-    # 2. 加载ReplayBuffer
-    dataset_path = r"/mnt/data/shenyibo/workspace/q3_place_cup_v2_0405_mirror/replay_buffer.zarr"
+
+    policy, cfg, device = load_policy(args.ckpt, cfg_yaml_path=args.cfg)
+    dataset_path = infer_dataset_path(cfg, args.dataset)
     replay_buffer = load_replay_buffer(dataset_path)
-    
-    # 3. 在指定episode上rollout policy
-    # 从cfg中读取action/obs设置（若存在）
-    action_representation = 'relative'
+    episodes = parse_episode_spec(args.episodes)
+
+    output_dir = args.output_dir
+    if output_dir is None:
+        run_dir = pathlib.Path(args.ckpt).expanduser().resolve().parent.parent
+        output_dir = str(run_dir / "policy_vs_gt_eval")
+
+    n_obs_steps = args.n_obs_steps
+    if n_obs_steps is None:
+        n_obs_steps = int(cfg.n_obs_steps) if hasattr(cfg, "n_obs_steps") else 2
+
+    action_representation = "relative"
     relative_tcp_obs_for_relative_action = True
-    if cfg is not None and hasattr(cfg, 'task') and hasattr(cfg.task, 'dataset'):
+    if cfg is not None and hasattr(cfg, "task") and hasattr(cfg.task, "dataset"):
         ds_cfg = cfg.task.dataset
-        if hasattr(ds_cfg, 'action_representation'):
+        if hasattr(ds_cfg, "action_representation"):
             action_representation = ds_cfg.action_representation
-        if hasattr(ds_cfg, 'relative_tcp_obs_for_relative_action'):
+        if hasattr(ds_cfg, "relative_tcp_obs_for_relative_action"):
             relative_tcp_obs_for_relative_action = ds_cfg.relative_tcp_obs_for_relative_action
 
+    action_dim = int(cfg.shape_meta.action.shape[0]) if hasattr(cfg, "shape_meta") else None
+    print(f"dataset_path: {dataset_path}")
+    print(f"episodes: {episodes}")
+    print(f"n_obs_steps: {n_obs_steps}")
+    print(f"action_dim: {action_dim}")
     print(f"action_representation: {action_representation}")
+    print(f"rollout_mode: {args.rollout_mode}")
+    print(f"output_dir: {output_dir}")
 
-    action_dim = int(cfg.shape_meta.action.shape[0]) if hasattr(cfg, 'shape_meta') else None
-    pred_actions_rel, pred_actions_abs, gt_actions_abs, start_pos = rollout_policy_on_episode(
-        policy,
-        replay_buffer,
-        episode_idx,
-        device,
-        n_obs_steps=n_obs_steps,
-        action_dim=action_dim,
-        action_representation=action_representation,
-        relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
-        blackout_left_wrist=False
-    )
-    
-    # 3b. 再运行一次，涂黑left_eye_img
-    print("\n" + "="*60)
-    print("Running again with left_eye_img BLACKED OUT...")
-    print("="*60)
-    pred_actions_rel_blackout, pred_actions_abs_blackout, _, _ = rollout_policy_on_episode(
-        policy,
-        replay_buffer,
-        episode_idx,
-        device,
-        n_obs_steps=n_obs_steps,
-        action_dim=action_dim,
-        action_representation=action_representation,
-        relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
-        blackout_left_wrist=True
-    )
-    
-    # 对比两次运行的差异
-    print("\n" + "="*60)
-    print("COMPARISON: Normal vs Blackout left_eye")
-    print("="*60)
-    diff = np.abs(pred_actions_abs - pred_actions_abs_blackout)  # (T, D)
-    diff_xyz = diff[:, :3]  # 只看前三维(左臂xyz)
-    print(f"  Mean absolute difference (XYZ): {np.mean(diff_xyz):.6f}")
-    print(f"  Max absolute difference (XYZ):  {np.max(diff_xyz):.6f}")
-    print(f"  Std absolute difference (XYZ):  {np.std(diff_xyz):.6f}")
-    if np.allclose(pred_actions_abs, pred_actions_abs_blackout, atol=1e-5):
-        print("  ⚠ Results are IDENTICAL! left_eye might not be used by policy.")
-    else:
-        print("  ✓ Results are DIFFERENT. left_eye IS important to policy.")
-    
-    # 4. 可视化对比（用normal的结果）
-    pred_traj, gt_traj = visualize_trajectories(
-        pred_actions_abs, pred_actions_rel, gt_actions_abs, start_pos, episode_idx, output_dir
-    )
-    
-    print("\n✓ All done!")
+    results = []
+    for episode_idx in episodes:
+        if episode_idx >= replay_buffer.n_episodes:
+            raise ValueError(f"Episode index {episode_idx} out of range. Total episodes: {replay_buffer.n_episodes}")
+
+        pred_actions_rel, pred_actions_abs, gt_actions_abs, start_pos = rollout_policy_on_episode(
+            policy,
+            replay_buffer,
+            episode_idx,
+            device,
+            n_obs_steps=n_obs_steps,
+            action_dim=action_dim,
+            action_representation=action_representation,
+            relative_tcp_obs_for_relative_action=relative_tcp_obs_for_relative_action,
+            blackout_left_wrist=False,
+            rollout_mode=args.rollout_mode
+        )
+
+        stats = compute_xyz_error_stats(pred_actions_abs, gt_actions_abs)
+        stats["episode_idx"] = int(episode_idx)
+        results.append(stats)
+
+        print("\nEpisode metrics:")
+        print(json.dumps(stats, indent=2))
+
+        if not args.no_vis:
+            visualize_trajectories(
+                pred_actions_abs, pred_actions_rel, gt_actions_abs, start_pos, episode_idx, output_dir
+            )
+
+    aggregate = {"num_episodes": len(results), "rollout_mode": args.rollout_mode, "episodes": results}
+    for key in ("left_xyz", "right_xyz", "both_arms_xyz"):
+        present = [r[key] for r in results if key in r]
+        if present:
+            aggregate[key] = {
+                "mean_of_mean_m": float(np.mean([x["mean_m"] for x in present])),
+                "max_of_max_m": float(np.max([x["max_m"] for x in present])),
+                "mean_final_m": float(np.mean([x["final_m"] for x in present])),
+            }
+
+    output_path = pathlib.Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    summary_path = output_path / "summary.json"
+    summary_path.write_text(json.dumps(aggregate, indent=2), encoding="utf-8")
+
+    print("\nAggregate metrics:")
+    print(json.dumps({k: v for k, v in aggregate.items() if k != "episodes"}, indent=2))
+    print(f"\nSaved summary to: {summary_path}")
+    print("\nAll done!")
 
 
 if __name__ == "__main__":
