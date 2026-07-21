@@ -49,7 +49,7 @@ policy:
         contrast: 0.4
         saturation: 0.5
     use_group_norm: True
-    share_rgb_model: True
+    share_rgb_model: False
 
   num_inference_steps: 16
   input_pertub: 0.1
