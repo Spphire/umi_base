@@ -71,7 +71,9 @@ use `git reset --hard`, and do not add directories such as `data/outputs`,
 For a normal source-only change:
 
 ```bash
-git add README.md diffusion_policy/config accelerate scripts
+git add README.md \
+  diffusion_policy/config/<changed_config>.yaml \
+  scripts/<changed_script>.py
 git diff --cached --stat
 git diff --cached
 git commit -m "Describe the source change"
@@ -426,6 +428,7 @@ Use `tmux` so an SSH disconnect does not terminate training:
 tmux new -s dualfold_2view
 cd /mnt/workspace/shenyibo/diffusion_policy
 source .venv4041/bin/activate
+mkdir -p logs
 bash launch_dualfold_pink_2view_4041.sh 2>&1 | tee logs/dualfold_2view.log
 ```
 
